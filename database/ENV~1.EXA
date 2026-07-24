@@ -1,0 +1,18 @@
+# ============================================================
+# SupplyGuard 환경변수 템플릿 (이 파일은 git 커밋 OK)
+# 이 파일을 복사해서 .env 로 만들고 실제 값을 채운다.
+# .env 는 절대 커밋하지 말 것 (.gitignore 에 등록됨)
+# ============================================================
+
+# ── API 키 ──
+CUSTOMS_API_KEY=여기에_키_입력
+COMTRADE_API_KEY=여기에_키_입력
+FRED_API_KEY=여기에_키_입력
+ECOS_API_KEY=여기에_키_입력
+
+# ── DB 접속 정보 ──
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=supplyguard
+DB_USER=postgres
+DB_PASSWORD=여기에_비밀번호_입력

@@ -1,0 +1,13 @@
+# ⛔ API 키 - 절대 커밋 금지
+.env
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 데이터 캐시
+data/raw/
+*.csv
+*.xlsx

@@ -1,0 +1,54 @@
+"""
+적재 파이프라인 진입점.
+각 API 클라이언트를 순서대로 실행한다.
+사용법:
+  python config.py        # 키 로드 확인
+  python main.py          # 전체 실행 (예시 파라미터)
+개별 실행:
+  python -m ingest.customs      # 관세청 (키 필요)
+  python -m ingest.comtrade     # Comtrade (키 필요)
+  python -m ingest.fred         # FRED (키 필요)
+  python -m ingest.ecos         # ECOS (키 필요)
+  python -m ingest.worldbank_wgi  # WGI (키 불필요)
+  python -m ingest.gdacs          # GDACS (키 불필요)
+  python -m ingest.portwatch      # PortWatch (키 불필요, 엔드포인트 확인 필요)
+  python -m ingest.gdelt          # GDELT (키 불필요)
+  # cbam / lci 는 파일 다운로드 후 경로 지정해 실행
+"""
+from config import check_keys
+from ingest import (customs, comtrade, fred, ecos,
+                    worldbank_wgi, gdacs, portwatch, gdelt)
+
+
+def main():
+    # ── 키 필요 소스 (S·C·V) ─────────────────────────────
+    if not check_keys():
+        print("키가 비어있어 키 필요 소스는 건너뜁니다.")
+    else:
+        print("\n[관세청] 품목별 실적")
+        customs.run("0202", "202401", "202403")
+        print("\n[Comtrade] 국가별 무역")
+        comtrade.run("410", "2023", "0202", "M")
+        print("\n[FRED] 원자재가격지수")
+        fred.run("PALLFNFINDEXM")
+        print("\n[ECOS] 환율")
+        ecos.run("731Y001", "0000001", "M", "202001", "202412")
+
+    # ── 키 불필요 소스 (P·L) ─────────────────────────────
+    print("\n[WGI] 거버넌스 지표")
+    worldbank_wgi.run()
+    print("\n[GDACS] 재난 경보")
+    gdacs.run()
+    # print("\n[PortWatch] 항만"); portwatch.run()   # 엔드포인트 확정 후 활성화
+    # print("\n[GDELT] 뉴스 톤"); gdelt.run("CN", "CH", "trade")
+
+    # ── E(탄소) 는 파일 다운로드 후 별도 실행 ──────────────
+    # from ingest import cbam, lci
+    # cbam.run("data/raw/cbam_default_values.csv")
+    # lci.run("data/raw/lci_emission_factors.csv")
+
+    print("\n완료.")
+
+
+if __name__ == "__main__":
+    main()
