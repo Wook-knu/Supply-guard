@@ -12,6 +12,7 @@ from app.core.security import get_current_user_optional
 from app.models.query import UserQuery
 from app.models.user import User
 from app.schemas.query import QueryCreate, QueryOut
+from app.services.recommend import generate_recommendations
 
 router = APIRouter(prefix="/queries", tags=["queries"])
 
@@ -22,7 +23,7 @@ def create_query(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):
-    """품목·조달조건을 user_queries 에 저장하고 저장된 행을 돌려준다.
+    """품목·조달조건을 user_queries 에 저장하고, 규칙 기반 추천을 자동 생성한다.
     Authorization 토큰이 있으면 그 사용자의 것으로(user_id) 기록, 없으면 NULL."""
     row = UserQuery(**payload.model_dump(exclude_none=True))
     if current_user is not None:
@@ -30,7 +31,18 @@ def create_query(
     db.add(row)
     db.commit()
     db.refresh(row)
+    generate_recommendations(db, row)  # 국가·기업 추천 자동 생성
     return row
+
+
+@router.post("/{query_id}/analyze", response_model=QueryOut)
+def analyze_query(query_id: int, db: Session = Depends(get_db)):
+    """기존 질의의 추천을 다시 생성한다(재분석). 데이터가 갱신됐을 때 사용."""
+    query = db.get(UserQuery, query_id)
+    if query is None:
+        raise HTTPException(status_code=404, detail="query not found")
+    generate_recommendations(db, query)
+    return query
 
 
 @router.get("/{query_id}", response_model=QueryOut)
