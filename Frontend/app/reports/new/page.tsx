@@ -38,10 +38,18 @@ export default function NewReportPage() {
     const qid = Number(new URLSearchParams(window.location.search).get("query_id"))
     if (!qid) { setGenerated(true); return } // query_id 없으면 데모 미리보기(fallback)
     setLoading(true); setError(""); setAiReport(null)
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
     try {
-      const summary = await api.analyzeQuery(qid) // POST /queries/{id}/analyze (Gemini)
-      if (!summary.report_id) throw new Error(summary.error || "보고서를 생성하지 못했습니다.")
-      const report = await api.getReport(summary.report_id)
+      // 202로 작업 시작 → 완료까지 폴링 (최대 ~60초)
+      const { job_id } = await api.analyzeQuery(qid)
+      let job = await api.getAnalyzeJob(job_id)
+      for (let tries = 0; job.status === "pending" && tries < 40; tries++) {
+        await sleep(1500)
+        job = await api.getAnalyzeJob(job_id)
+      }
+      if (job.status === "error") throw new Error(job.error || "분석에 실패했습니다.")
+      if (job.status !== "done" || !job.result?.report_id) throw new Error("분석 시간이 초과되었습니다.")
+      const report = await api.getReport(job.result.report_id)
       setAiReport(report)
     } catch (err) {
       setError(err instanceof Error ? err.message : "생성 중 오류가 발생했습니다.")

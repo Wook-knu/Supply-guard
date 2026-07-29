@@ -73,6 +73,13 @@ export type AnalyzeSummary = {
   error?: string
 }
 
+export type AnalyzeJob = {
+  job_id: string
+  status: "pending" | "done" | "error"
+  result?: AnalyzeSummary
+  error?: string
+}
+
 export type RiskOut = {
   country_code: string
   hs_code: string | null
@@ -115,9 +122,12 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
-  // F-09 AI 심층분석(가중치·기업추천·보고서 생성) — Gemini
+  // F-09 AI 심층분석 시작 — 202 + job_id 반환(비동기)
   analyzeQuery: (queryId: number) =>
-    http<AnalyzeSummary>(`/queries/${queryId}/analyze`, { method: "POST" }),
+    http<AnalyzeJob>(`/queries/${queryId}/analyze`, { method: "POST" }),
+  // 분석 작업 상태 폴링
+  getAnalyzeJob: (jobId: string) =>
+    http<AnalyzeJob>(`/queries/analyze/jobs/${jobId}`),
   // F-10 보고서 조회
   getReport: (reportId: number) => http<ReportOut>(`/reports/${reportId}`),
   // F-05 국가별 SGRI (대시보드 고위험 품목)
