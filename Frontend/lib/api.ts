@@ -73,6 +73,26 @@ export type AnalyzeSummary = {
   error?: string
 }
 
+export type RiskOut = {
+  country_code: string
+  hs_code: string | null
+  sgri_score: string | null
+  level: string
+}
+
+export type AlertOut = {
+  alert_id: number
+  query_id: number | null
+  country_code: string | null
+  hs_code: string | null
+  alert_type: string | null
+  severity: string | null
+  title: string | null
+  message: string | null
+  is_read: boolean | null
+  created_at: string | null
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -100,4 +120,12 @@ export const api = {
     http<AnalyzeSummary>(`/queries/${queryId}/analyze`, { method: "POST" }),
   // F-10 보고서 조회
   getReport: (reportId: number) => http<ReportOut>(`/reports/${reportId}`),
+  // F-05 국가별 SGRI (대시보드 고위험 품목)
+  getRisks: (hsCode?: string) =>
+    http<RiskOut[]>(`/risks${hsCode ? `?hs_code=${hsCode}` : ""}`),
+  // F-10 알림
+  getAlerts: (unreadOnly = false) =>
+    http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),
+  markAlertRead: (alertId: number) =>
+    http<AlertOut>(`/alerts/${alertId}/read`, { method: "PATCH" }),
 }
