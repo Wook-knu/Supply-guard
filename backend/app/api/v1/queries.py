@@ -13,6 +13,7 @@ from app.models.query import UserQuery
 from app.models.user import User
 from app.schemas.query import QueryCreate, QueryOut
 from app.services.recommend import generate_recommendations
+from app.services.ai_adapter import run_ai_analysis
 
 router = APIRouter(prefix="/queries", tags=["queries"])
 
@@ -35,14 +36,14 @@ def create_query(
     return row
 
 
-@router.post("/{query_id}/analyze", response_model=QueryOut)
+@router.post("/{query_id}/analyze")
 def analyze_query(query_id: int, db: Session = Depends(get_db)):
-    """기존 질의의 추천을 다시 생성한다(재분석). 데이터가 갱신됐을 때 사용."""
+    """AI_Model로 심층 분석: 기업 추천 정교화 + 보고서 + 가중치 생성 (결정 #5).
+    국가 추천은 규칙 엔진 것 유지(건드리지 않음). 요약 결과를 반환한다."""
     query = db.get(UserQuery, query_id)
     if query is None:
         raise HTTPException(status_code=404, detail="query not found")
-    generate_recommendations(db, query)
-    return query
+    return run_ai_analysis(db, query)
 
 
 @router.get("/{query_id}", response_model=QueryOut)

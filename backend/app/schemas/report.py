@@ -21,7 +21,7 @@ class ReportOut(BaseModel):
     query_id: int | None = None
     title: str | None = None
     status: str | None = None
-    sections: dict[str, Any] | None = None
+    sections: Any = None  # 목차: dict 또는 [{id,title,body}] 리스트 모두 허용
     summary: str | None = None
     pdf_url: str | None = None
     created_at: datetime | None = None
