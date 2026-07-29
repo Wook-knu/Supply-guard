@@ -39,7 +39,8 @@ def main():
     worldbank_wgi.run()
     print("\n[GDACS] 재난 경보")
     gdacs.run()
-    # print("\n[PortWatch] 항만"); portwatch.run()   # 엔드포인트 확정 후 활성화
+    print("\n[PortWatch] 항만")
+    portwatch.run()   # 엔드포인트 확정됨 (Daily_Ports_Data)
     # print("\n[GDELT] 뉴스 톤"); gdelt.run("CN", "CH", "trade")
 
     # ── E(탄소) 는 파일 다운로드 후 별도 실행 ──────────────
