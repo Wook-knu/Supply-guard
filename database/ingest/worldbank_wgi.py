@@ -26,8 +26,10 @@ INDICATORS = {
 
 
 def fetch(indicator: str, start_year: int = 2020, end_year: int = 2024) -> list[dict]:
-    url = f"{BASE}/{indicator}"
-    params = {"format": "json", "per_page": 20000,
+    # 2024년 개편으로 WGI 코드가 GOV_WGI_ 접두사 + source=3 로 바뀜.
+    # 저장은 짧은 코드(PV.EST 등)로 유지하되, 호출만 전체 코드로 한다.
+    url = f"{BASE}/GOV_WGI_{indicator}"
+    params = {"format": "json", "per_page": 20000, "source": "3",
               "date": f"{start_year}:{end_year}"}
     resp = requests.get(url, params=params, timeout=60)
     resp.raise_for_status()
