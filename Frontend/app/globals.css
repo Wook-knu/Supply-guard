@@ -92,3 +92,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 인쇄(PDF 저장) 시: .print-area 만 보이고 나머지는 숨김. .no-print 는 항상 숨김. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 24px;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

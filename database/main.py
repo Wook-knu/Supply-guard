@@ -26,20 +26,25 @@ def main():
         print("키가 비어있어 키 필요 소스는 건너뜁니다.")
     else:
         print("\n[관세청] 품목별 실적")
-        customs.run("0202", "202401", "202403")
-        print("\n[Comtrade] 국가별 무역")
-        comtrade.run("410", "2023", "0202", "M")
+        try:
+            customs.run("0202", "202401", "202403")
+        except Exception as e:  # data.go.kr 활용신청 미승인 시 403 → 건너뜀
+            print(f"  관세청 건너뜀(키/활용신청 확인 필요): {e}")
+        print("\n[Comtrade] 국가별 무역 (다년치 — S 변동성 계산용)")
+        for yr in ("2019", "2020", "2021", "2022", "2023"):
+            comtrade.run("410", yr, "283691", "M")   # 리튬 탄산염(HS 283691)
         print("\n[FRED] 원자재가격지수")
         fred.run("PALLFNFINDEXM")
         print("\n[ECOS] 환율")
-        ecos.run("731Y001", "0000001", "M", "202001", "202412")
+        ecos.run("731Y001", "0000001", "D", "20240101", "20241231")  # 원/달러 일별
 
     # ── 키 불필요 소스 (P·L) ─────────────────────────────
     print("\n[WGI] 거버넌스 지표")
     worldbank_wgi.run()
     print("\n[GDACS] 재난 경보")
     gdacs.run()
-    # print("\n[PortWatch] 항만"); portwatch.run()   # 엔드포인트 확정 후 활성화
+    print("\n[PortWatch] 항만")
+    portwatch.run()   # 엔드포인트 확정됨 (Daily_Ports_Data)
     # print("\n[GDELT] 뉴스 톤"); gdelt.run("CN", "CH", "trade")
 
     # ── E(탄소) 는 파일 다운로드 후 별도 실행 ──────────────

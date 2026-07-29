@@ -3,7 +3,8 @@
 // 서비스의 핵심 현황을 요약하는 대시보드 화면입니다.
 // 아래 배열들은 UI 검증용 데모 데이터이며 실제 서비스에서는 위험 분석 API 응답으로 교체합니다.
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { api } from "@/lib/api"
 import {
   AlertTriangle,
   ArrowRight,
@@ -63,7 +64,11 @@ const scoreTrend = [
   { name: "오늘", score: 68 },
 ]
 
-const supplyRisks = [
+type RiskRow = { item: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
+const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
+const COUNTRY_NAME: Record<string, string> = { CL: "칠레", CN: "중국", AU: "호주", CA: "캐나다", US: "미국", KR: "한국" }
+
+const FALLBACK_RISKS: RiskRow[] = [
   {
     item: "리튬 탄산염",
     code: "HS 2836.91",
@@ -100,7 +105,7 @@ const supplyRisks = [
     change: "-3",
     level: "low",
   },
-] as const
+]
 
 const news = [
   { title: "중국, 흑연 수출 허가 대상 확대 검토", source: "Reuters", time: "24분 전", level: "고위험" },
@@ -129,6 +134,24 @@ export default function Dashboard() {
   // 기간 선택과 표 펼치기는 서버 데이터와 무관한 화면 표시 상태입니다.
   const [period, setPeriod] = useState("최근 7일")
   const [showAllRisks, setShowAllRisks] = useState(false)
+  const [risks, setRisks] = useState<RiskRow[]>(FALLBACK_RISKS)
+  const [alertCount, setAlertCount] = useState<number | null>(null)
+
+  // 고위험 품목(/risks)과 활성 경보 수(/alerts)를 백엔드에서 불러온다. 실패 시 데모 유지.
+  useEffect(() => {
+    api.getRisks().then((rows) => {
+      if (!rows.length) return
+      setRisks(rows.map((r) => ({
+        item: HS_NAME[r.hs_code ?? ""] ?? (r.hs_code ?? "품목"),
+        code: `HS ${r.hs_code ?? ""}`,
+        country: COUNTRY_NAME[r.country_code] ?? r.country_code,
+        score: Math.round(Number(r.sgri_score ?? 0)),
+        factor: "SGRI 종합 리스크 평가",
+        level: r.level === "높음" ? "high" : r.level === "중간" ? "medium" : "low",
+      })))
+    }).catch(() => {})
+    api.getAlerts().then((rows) => setAlertCount(rows.length)).catch(() => {})
+  }, [])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -194,7 +217,7 @@ export default function Dashboard() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> 실시간 모니터링</div>
               <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">안녕하세요, 전상욱님</h1>
-              <p className="mt-1 text-sm text-slate-500">오늘 확인이 필요한 공급망 리스크가 <span className="font-semibold text-rose-600">3건</span> 있습니다.</p>
+              <p className="mt-1 text-sm text-slate-500">오늘 확인이 필요한 공급망 리스크가 <span className="font-semibold text-rose-600">{alertCount ?? 3}건</span> 있습니다.</p>
             </div>
             <div className="flex items-center gap-2">
               <DropdownMenu>
@@ -212,7 +235,7 @@ export default function Dashboard() {
           <section className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Metric icon={ShieldAlert} label="종합 위험도" value="68" suffix="/ 100" change="지난주 대비 +6" tone="rose" />
             <Metric icon={Box} label="모니터링 품목" value="12" suffix="개" change="이번 달 +2개" tone="blue" />
-            <Metric icon={AlertTriangle} label="활성 경보" value="7" suffix="건" change="고위험 3건" tone="amber" />
+            <Metric icon={AlertTriangle} label="활성 경보" value={String(alertCount ?? 7)} suffix="건" change="실시간 집계" tone="amber" />
             <Metric icon={Globe2} label="대체 공급국" value="4" suffix="개" change="추천 업데이트됨" tone="emerald" />
           </section>
 
@@ -240,7 +263,7 @@ export default function Dashboard() {
                   <Button variant="outline" size="sm" onClick={() => setShowAllRisks(!showAllRisks)}>{showAllRisks ? "간략히 보기" : "전체 보기"}<ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Button>
                 </CardHeader>
                 <CardContent className="px-0 pb-0">
-                  <Table><TableHeader><TableRow className="bg-slate-50 hover:bg-slate-50"><TableHead className="pl-6">품목</TableHead><TableHead>주요 공급국</TableHead><TableHead>위험도</TableHead><TableHead className="hidden lg:table-cell">주요 원인</TableHead><TableHead className="w-10" /></TableRow></TableHeader><TableBody>{supplyRisks.slice(0, showAllRisks ? 4 : 3).map((risk) => <TableRow key={risk.item} className="hover:bg-slate-50"><TableCell className="pl-6"><Link href="/risks/lithium-carbonate" className="font-medium hover:text-blue-600">{risk.item}</Link><div className="mt-0.5 text-xs text-slate-400">{risk.code}</div></TableCell><TableCell><span className="text-sm">{risk.country}</span></TableCell><TableCell><div className="flex items-center gap-2"><RiskBadge level={risk.level} /><span className="text-xs font-medium text-rose-600">{risk.score}</span></div></TableCell><TableCell className="hidden text-sm text-slate-500 lg:table-cell">{risk.factor}</TableCell><TableCell><Button asChild variant="ghost" size="icon" className="h-8 w-8"><Link href="/risks/lithium-carbonate"><MoreHorizontal className="h-4 w-4" /></Link></Button></TableCell></TableRow>)}</TableBody></Table>
+                  <Table><TableHeader><TableRow className="bg-slate-50 hover:bg-slate-50"><TableHead className="pl-6">품목</TableHead><TableHead>주요 공급국</TableHead><TableHead>위험도</TableHead><TableHead className="hidden lg:table-cell">주요 원인</TableHead><TableHead className="w-10" /></TableRow></TableHeader><TableBody>{risks.slice(0, showAllRisks ? risks.length : 3).map((risk) => <TableRow key={risk.item} className="hover:bg-slate-50"><TableCell className="pl-6"><Link href="/risks/lithium-carbonate" className="font-medium hover:text-blue-600">{risk.item}</Link><div className="mt-0.5 text-xs text-slate-400">{risk.code}</div></TableCell><TableCell><span className="text-sm">{risk.country}</span></TableCell><TableCell><div className="flex items-center gap-2"><RiskBadge level={risk.level} /><span className="text-xs font-medium text-rose-600">{risk.score}</span></div></TableCell><TableCell className="hidden text-sm text-slate-500 lg:table-cell">{risk.factor}</TableCell><TableCell><Button asChild variant="ghost" size="icon" className="h-8 w-8"><Link href="/risks/lithium-carbonate"><MoreHorizontal className="h-4 w-4" /></Link></Button></TableCell></TableRow>)}</TableBody></Table>
                 </CardContent>
               </Card>
             </div>

@@ -5,7 +5,8 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
+import { api, type ReportOut } from "@/lib/api"
+import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,8 +27,36 @@ export default function NewReportPage() {
   const [sections, setSections] = useState(reportSections.map((section) => section.id))
   const [generated, setGenerated] = useState(false)
   const [title, setTitle] = useState("2026년 7월 리튬 탄산염 공급망 리스크 보고서")
+  const [loading, setLoading] = useState(false)
+  const [aiReport, setAiReport] = useState<ReportOut | null>(null)
+  const [error, setError] = useState("")
 
   function toggleSection(id: string) { setSections((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
+
+  async function handleGenerate() {
+    // URL의 query_id로 백엔드 AI 분석을 실행하고 생성된 보고서를 불러온다.
+    const qid = Number(new URLSearchParams(window.location.search).get("query_id"))
+    if (!qid) { setGenerated(true); return } // query_id 없으면 데모 미리보기(fallback)
+    setLoading(true); setError(""); setAiReport(null)
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    try {
+      // 202로 작업 시작 → 완료까지 폴링 (최대 ~60초)
+      const { job_id } = await api.analyzeQuery(qid)
+      let job = await api.getAnalyzeJob(job_id)
+      for (let tries = 0; job.status === "pending" && tries < 40; tries++) {
+        await sleep(1500)
+        job = await api.getAnalyzeJob(job_id)
+      }
+      if (job.status === "error") throw new Error(job.error || "분석에 실패했습니다.")
+      if (job.status !== "done" || !job.result?.report_id) throw new Error("분석 시간이 초과되었습니다.")
+      const report = await api.getReport(job.result.report_id)
+      setAiReport(report)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "생성 중 오류가 발생했습니다.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
@@ -37,10 +66,33 @@ export default function NewReportPage() {
         <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">포함할 목차</CardTitle><CardDescription className="mt-1">필요한 항목을 선택하면 AI가 근거 데이터와 함께 초안을 작성합니다.</CardDescription></CardHeader><CardContent className="space-y-2">{reportSections.map((section, index) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-3 hover:border-slate-200 hover:bg-slate-50" key={section.id}><Checkbox checked={sections.includes(section.id)} onCheckedChange={() => toggleSection(section.id)} /><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-500">{index + 1}</div><div><p className="text-sm font-medium">{section.title}</p><p className="mt-0.5 text-xs text-slate-500">{section.description}</p></div></label>)}</CardContent></Card></div>
         <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI 작성 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><Item text="SGRI 점수와 항목별 근거 반영" /><Item text="최신 뉴스·정책 변화 요약" /><Item text="대체 공급국 비교 및 제안" /><Item text="실행 가능한 대응 전략 구성" /><p className="border-t border-blue-100 pt-3 text-xs leading-5 text-slate-500">보고서는 의사결정을 돕는 초안입니다. 실제 계약·조달 전에는 담당자의 최종 검토가 필요합니다.</p></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">분석 데이터</CardTitle></CardHeader><CardContent className="space-y-3"><Data text="현재 공급국" value="중국" /><Data text="현재 SGRI" value="82 · 고위험" danger /><Data text="추천 대체국" value="호주 외 2개" /><Data text="반영된 뉴스" value="최근 24시간 7건" /></CardContent></Card></aside></div>
 
-      <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다.</p></div><Button onClick={() => setGenerated(true)} disabled={sections.length === 0} className="w-fit bg-blue-600 hover:bg-blue-700">{generated ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button></section>
-      {generated && <ReportPreview title={title} sections={sections} />}
+      <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다.</p></div><Button onClick={handleGenerate} disabled={sections.length === 0 || loading} className="w-fit bg-blue-600 hover:bg-blue-700">{loading ? <>AI가 작성 중...</> : aiReport ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button></section>
+      {error && <p role="alert" className="mt-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      {aiReport ? <AiReportPreview report={aiReport} /> : generated && <ReportPreview title={title} sections={sections} />}
     </main>
   </div>
+}
+
+function AiReportPreview({ report }: { report: ReportOut }) {
+  // 백엔드(AI_Model+Gemini)가 생성한 실제 보고서를 섹션별로 표시한다.
+  const sections = report.sections ?? []
+  return <Card className="print-area mt-6 border-emerald-100 shadow-sm">
+    <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-slate-100 pb-5">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600"><CheckCircle2 className="h-4 w-4" /> AI 초안 생성 완료</div>
+        <CardTitle className="text-lg">{report.title}</CardTitle>
+        <CardDescription className="mt-1">{report.summary} · 상태: {report.status}</CardDescription>
+      </div>
+      <Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button>
+    </CardHeader>
+    <CardContent className="space-y-5 p-6">
+      {sections.length === 0 && <p className="text-sm text-slate-500">생성된 섹션이 없습니다.</p>}
+      {sections.map((section, index) => <div className="rounded-lg border border-slate-200 bg-slate-50 p-5" key={section.id ?? index}>
+        <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">{index + 1}</span><p className="text-sm font-semibold">{section.title}</p></div>
+        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{section.body}</p>
+      </div>)}
+    </CardContent>
+  </Card>
 }
 
 function Item({ text }: { text: string }) { return <div className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-600" /><span>{text}</span></div> }

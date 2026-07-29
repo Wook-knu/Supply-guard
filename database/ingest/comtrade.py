@@ -45,9 +45,10 @@ def clean(raw: list[dict]) -> list[dict]:
             continue
         rows.append({
             "period":          str(r.get("period")),
-            # 아래 *_m49 는 적재 후 countries 로 ISO 변환 (임시 저장)
-            "reporter_code":   r.get("reporterCodeIso") or r.get("reporterCode"),
-            "partner_code":    r.get("partnerCodeIso") or r.get("partnerCode"),
+            "reporter_code":   None,               # 아래 _map_m49 에서 채움
+            "partner_code":    None,
+            "reporter_m49":    r.get("reporterCode"),  # M49 → ISO2 변환용 임시
+            "partner_m49":     r.get("partnerCode"),
             "flow_code":       r.get("flowCode"),
             "flow_desc":       r.get("flowDesc"),
             "hs_code":         r.get("cmdCode"),
@@ -60,13 +61,30 @@ def clean(raw: list[dict]) -> list[dict]:
     return rows
 
 
+def _map_m49(rows: list[dict]) -> list[dict]:
+    """M49 숫자 국가코드 → countries.m49_code 조인으로 ISO2 변환.
+    reporter/partner 둘 다 매핑돼야 유지(집중도 계산에 양쪽 필요)."""
+    from db import get_conn
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT m49_code, country_code FROM countries WHERE m49_code IS NOT NULL")
+        m = {str(k): v for k, v in cur.fetchall()}
+    out = []
+    for r in rows:
+        rc = m.get(str(r.pop("reporter_m49")))
+        pc = m.get(str(r.pop("partner_m49")))
+        if rc and pc:
+            r["reporter_code"], r["partner_code"] = rc, pc
+            out.append(r)
+    return out
+
+
 def run(reporter_code: str, period: str, hs_code: str, flow: str = "M"):
     raw = fetch(reporter_code, period, hs_code, flow)
-    rows = clean(raw)
+    rows = _map_m49(clean(raw))
     upsert("comtrade_trade_flows", rows,
            ["period", "reporter_code", "partner_code", "flow_code", "hs_code"])
 
 
 if __name__ == "__main__":
-    # 예시: 한국(410) 2023년 HS 0202 수입
-    run("410", "2023", "0202", "M")
+    # 예시: 한국(410) 2023년 HS 283691(리튬 탄산염) 수입
+    run("410", "2023", "283691", "M")

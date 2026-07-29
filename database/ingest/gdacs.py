@@ -52,10 +52,23 @@ def clean(raw: list[dict]) -> list[dict]:
     return rows
 
 
+def _map_country(rows: list[dict]) -> list[dict]:
+    """country_name(영문) → countries.name_en 조인으로 country_code(ISO2) 채움.
+    지역 표현('Kermadec Islands Region' 등) 매핑 실패 행은 country_code=None 유지."""
+    from db import get_conn
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT lower(name_en), country_code FROM countries")
+        m = dict(cur.fetchall())
+    for r in rows:
+        name = (r.get("country_name") or "").strip().lower()
+        r["country_code"] = m.get(name)
+    return rows
+
+
 def run():
     raw = fetch()
     rows = clean(raw)
-    # TODO: country_name → countries.name_en/name_ko 매핑으로 country_code 채우기
+    rows = _map_country(rows)  # country_name → country_code 매핑
     upsert("gdacs_alerts", rows, ["event_id", "episode_id"])
 
 

@@ -4,7 +4,9 @@
 // 백엔드 연결 전에는 localStorage를 사용하며, 추후 saveItem의 저장 부분을 API 호출로 교체합니다.
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FormEvent, useEffect, useState } from "react"
+import { api } from "@/lib/api"
 import { ArrowLeft, ArrowRight, Bell, Box, Check, ChevronDown, CircleHelp, FileText, Globe2, Info, PackagePlus, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -41,7 +43,9 @@ const initialForm: ItemForm = {
 }
 
 export default function NewItemPage() {
+  const router = useRouter()
   const [saved, setSaved] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<ItemForm>(initialForm)
   const [countryInput, setCountryInput] = useState("")
   const [error, setError] = useState("")
@@ -79,17 +83,41 @@ export default function NewItemPage() {
     setSaved(false)
   }
 
-  const saveItem = (event: FormEvent) => {
-    // 필수값을 검증한 뒤 현재 폼 전체를 브라우저에 임시 저장합니다.
+  const saveItem = async (event: FormEvent) => {
+    // 필수값을 검증한 뒤 백엔드(POST /queries)에 저장하고 추천 화면으로 이동합니다.
     event.preventDefault()
     if (!form.name.trim() || !form.hsCode.trim() || form.countries.length === 0 || !form.deliveryDate) {
       setError("필수 항목을 모두 입력해 주세요.")
       setSaved(false)
       return
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
     setError("")
-    setSaved(true)
+    setSubmitting(true)
+    try {
+      // 임시 초안은 브라우저에도 남겨 둡니다.
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
+      // 납기일 → 리드타임(일수)로 환산
+      const leadDays = form.deliveryDate
+        ? Math.max(0, Math.round((new Date(form.deliveryDate).getTime() - Date.now()) / 86_400_000))
+        : undefined
+      const created = await api.createQuery({
+        item_name: form.name.trim(),
+        hs_code: form.hsCode.replace(/[^0-9]/g, "") || undefined, // "2836.91" → "283691"
+        required_qty: form.quantity ? Number(form.quantity) : undefined,
+        target_price: form.targetPrice ? Number(form.targetPrice) : undefined,
+        qty_unit: "ton",
+        lead_time_days: leadDays,
+        importer_code: "KR",
+      })
+      setSaved(true)
+      // 방금 만든 query_id를 들고 추천 화면으로 이동
+      router.push(`/recommendations?query_id=${created.query_id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
+      setSaved(false)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -119,7 +147,7 @@ export default function NewItemPage() {
             <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">등록 후 진행 과정</CardTitle></CardHeader><CardContent><ol className="space-y-4">{["기본 위험도 분석", "고위험 이슈 뉴스 수집", "대체 공급국·기업 추천", "AI 대응 보고서 생성"].map((item, index) => <li className="flex gap-3" key={item}><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${index === 0 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}</span><span className="pt-0.5 text-sm text-slate-600">{item}</span></li>)}</ol></CardContent></Card></aside>
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-6"><p className="hidden text-sm text-slate-500 md:block">등록 후에도 대시보드에서 언제든 수정할 수 있습니다.</p><div className="ml-auto flex gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href="/dashboard">취소</Link></Button><Button type="submit" form="item-form" className="bg-blue-600 hover:bg-blue-700">{saved ? <><Check className="mr-2 h-4 w-4" />분석 준비 완료</> : <>리스크 분석 시작 <ArrowRight className="ml-2 h-4 w-4" /></>}</Button></div></div>
+        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-6"><p className="hidden text-sm text-slate-500 md:block">등록 후에도 대시보드에서 언제든 수정할 수 있습니다.</p><div className="ml-auto flex gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href="/dashboard">취소</Link></Button><Button type="submit" form="item-form" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">{submitting ? <>분석 준비 중...</> : saved ? <><Check className="mr-2 h-4 w-4" />분석 준비 완료</> : <>리스크 분석 시작 <ArrowRight className="ml-2 h-4 w-4" /></>}</Button></div></div>
         {saved && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"><div className="flex items-center gap-2"><Check className="h-4 w-4" /> 품목이 저장되었습니다. AI 분석 결과를 확인할 수 있습니다.</div><Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700"><Link href="/recommendations">추천 결과 보기 <ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Link></Button></div>}
       </main>
     </div>
