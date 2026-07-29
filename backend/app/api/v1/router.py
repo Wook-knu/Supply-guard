@@ -4,7 +4,7 @@ v1 라우터 집합.
 """
 from fastapi import APIRouter
 
-from app.api.v1 import queries, risks, recommendations, suppliers, reports, alerts, auth, feedback
+from app.api.v1 import queries, risks, recommendations, suppliers, reports, alerts, auth, feedback, pipeline
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -15,3 +15,4 @@ api_router.include_router(suppliers.router)
 api_router.include_router(reports.router)
 api_router.include_router(alerts.router)
 api_router.include_router(feedback.router)
+api_router.include_router(pipeline.router)
