@@ -13,3 +13,47 @@ VALUES
     ('AU', '283691', DATE '2025-07-01', 40, 45, 42, 35, 20, 48, 41.0)   -- 호주
 ON CONFLICT (country_code, hs_code, as_of_date) DO UPDATE SET
     sgri_score = EXCLUDED.sgri_score;
+
+
+-- ── 국가 추천 샘플 (procurement_recommendations) ──────────────────────────
+-- FK 때문에 실제 존재하는 query_id가 필요 → 가장 최근에 만든 질의에 자동으로 붙인다.
+-- (POST /queries 로 하나라도 만든 상태여야 들어감)
+INSERT INTO procurement_recommendations
+    (query_id, country_code, rank, sgri_score, fit_score, est_unit_price, tariff_percent, est_lead_days, rationale)
+SELECT q.query_id, v.country_code, v.rank, v.sgri, v.fit, v.price, v.tariff, v.lead, v.rationale
+FROM (SELECT query_id FROM user_queries ORDER BY query_id DESC LIMIT 1) q
+CROSS JOIN (VALUES
+    ('CL', 1::smallint, 58.9, 92.0, 18.5, 0.0,  25, '정치 안정 + 한-칠레 FTA 무관세, 세계 최대 리튬 생산국'),
+    ('CN', 2::smallint, 72.0, 78.0, 17.8, 6.5,  30, '가격 경쟁력 높으나 공급 집중도·정책 리스크 큼'),
+    ('AU', 3::smallint, 41.0, 85.0, 20.1, 0.0,  35, '거버넌스 안정적이나 단가 높고 리드타임 김')
+) AS v(country_code, rank, sgri, fit, price, tariff, lead, rationale)
+ON CONFLICT (query_id, country_code) DO UPDATE SET
+    rank = EXCLUDED.rank, rationale = EXCLUDED.rationale;
+
+
+-- ── 기업 샘플 (companies) ─────────────────────────────────────────────────
+-- 이름 기준 중복 방지(NOT EXISTS)로 재실행해도 안전.
+INSERT INTO companies (name, name_en, country_code, company_type, hs_codes, certifications, annual_capacity, capacity_unit, status)
+SELECT v.name, v.name_en, v.cc, 'supplier', v.hs::jsonb, v.certs::jsonb, v.cap, 'ton/year', 'active'
+FROM (VALUES
+    ('SQM',              'SQM S.A.',         'CL', '["283691"]', '["ISO 9001","ISO 14001"]', 120000),
+    ('Ganfeng Lithium',  'Ganfeng',          'CN', '["283691"]', '["ISO 9001"]',              90000),
+    ('Pilbara Minerals', 'Pilbara Minerals', 'AU', '["283691"]', '["ISO 9001","ISO 14001"]', 60000)
+) AS v(name, name_en, cc, hs, certs, cap)
+WHERE NOT EXISTS (SELECT 1 FROM companies c WHERE c.name = v.name);
+
+
+-- ── 기업 추천 샘플 (supplier_recommendations) ─────────────────────────────
+-- 가장 최근 질의 + 위 기업들을 이름으로 이어붙인다.
+INSERT INTO supplier_recommendations
+    (query_id, company_id, rank, fit_score, est_unit_price, est_lead_days, delivery_feasibility, rationale)
+SELECT q.query_id, c.company_id, r.rank, r.fit, r.price, r.lead, r.feas, r.rationale
+FROM (SELECT query_id FROM user_queries ORDER BY query_id DESC LIMIT 1) q
+JOIN (VALUES
+    ('SQM',              1::smallint, 92.0, 18.5, 25, '높음', 'ISO 9001/14001 + 세계 최대 리튬 생산, 한-칠레 FTA 무관세'),
+    ('Ganfeng Lithium',  2::smallint, 84.0, 17.8, 30, '중간', '가격 경쟁력 최고이나 공급 집중도 리스크'),
+    ('Pilbara Minerals', 3::smallint, 80.0, 20.1, 35, '중간', '거버넌스 안정적, 단가 높고 리드타임 김')
+) AS r(cname, rank, fit, price, lead, feas, rationale) ON TRUE
+JOIN companies c ON c.name = r.cname
+ON CONFLICT (query_id, company_id) DO UPDATE SET
+    rank = EXCLUDED.rank, rationale = EXCLUDED.rationale;
