@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { api, type ReportOut } from "@/lib/api"
-import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -68,11 +68,14 @@ export default function NewReportPage() {
 function AiReportPreview({ report }: { report: ReportOut }) {
   // 백엔드(AI_Model+Gemini)가 생성한 실제 보고서를 섹션별로 표시한다.
   const sections = report.sections ?? []
-  return <Card className="mt-6 border-emerald-100 shadow-sm">
-    <CardHeader className="border-b border-slate-100 pb-5">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600"><CheckCircle2 className="h-4 w-4" /> AI 초안 생성 완료</div>
-      <CardTitle className="text-lg">{report.title}</CardTitle>
-      <CardDescription className="mt-1">{report.summary} · 상태: {report.status}</CardDescription>
+  return <Card className="print-area mt-6 border-emerald-100 shadow-sm">
+    <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-slate-100 pb-5">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600"><CheckCircle2 className="h-4 w-4" /> AI 초안 생성 완료</div>
+        <CardTitle className="text-lg">{report.title}</CardTitle>
+        <CardDescription className="mt-1">{report.summary} · 상태: {report.status}</CardDescription>
+      </div>
+      <Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button>
     </CardHeader>
     <CardContent className="space-y-5 p-6">
       {sections.length === 0 && <p className="text-sm text-slate-500">생성된 섹션이 없습니다.</p>}
