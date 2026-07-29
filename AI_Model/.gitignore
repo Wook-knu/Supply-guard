@@ -1,0 +1,4 @@
+.env
+*.pyc
+__pycache__/
+company_model_result.json

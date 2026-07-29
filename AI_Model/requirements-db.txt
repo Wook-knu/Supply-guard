@@ -1,0 +1,2 @@
+# Optional dependency for PostgreSQL-backed deterministic weighting/recommendations.
+psycopg2-binary>=2.9,<3

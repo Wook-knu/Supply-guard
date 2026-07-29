@@ -1,0 +1,21 @@
+SupplyGuard procurement risk model SDK
+
+Quick start:
+  Double-click RUN_MODEL.cmd
+  or run: .\run_company_model.ps1
+
+Backend import:
+  from supplyguard_sgri import analyze_procurement
+
+Included:
+  supplyguard_sgri/  model, validation, scoring, API clients, Gemini integration
+  schemas/           request, company-candidate, and response contracts
+  sql/               weight audit and supplier-company candidate tables
+  tests/             input, weighting, recommendation, report, and API tests
+  README.md          setup and usage
+  MODEL_INTEGRATION_KO.md  frontend/backend integration contract
+
+Excluded:
+  .env and real API keys
+  frontend code
+  web-server implementation

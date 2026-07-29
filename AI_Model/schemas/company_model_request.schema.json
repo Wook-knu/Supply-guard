@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://supplyguard.local/schemas/company_model_request.schema.json",
+  "title": "SupplyGuard Procurement Request",
+  "type": "object",
+  "required": [
+    "procurement"
+  ],
+  "properties": {
+    "procurement": {
+      "type": "object",
+      "required": [
+        "hs_code",
+        "item_name",
+        "quantity",
+        "target_price",
+        "delivery_date",
+        "quality_certification"
+      ],
+      "properties": {
+        "hs_code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 20,
+          "pattern": "^[0-9][0-9. -]*[0-9]$",
+          "description": "Separators are removed, then 2, 4, 6, or 10 digits are required."
+        },
+        "item_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "target_price": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Actual unit price without decimals, currency symbols, or commas."
+        },
+        "delivery_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "quality_certification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

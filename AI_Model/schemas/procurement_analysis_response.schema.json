@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://supplyguard.local/schemas/procurement_analysis_response.schema.json",
+  "title": "SupplyGuard Procurement Analysis Response",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "model",
+    "procurement",
+    "risk_assessment",
+    "company_recommendations",
+    "report_draft"
+  ],
+  "properties": {
+    "schema_version": {"const": "3.0"},
+    "model": {"type": "object"},
+    "procurement": {"type": "object"},
+    "risk_assessment": {
+      "type": "object",
+      "required": ["score", "level", "confidence", "components", "weight_profile"]
+    },
+    "company_recommendations": {
+      "type": "object",
+      "required": ["summary", "recommendations", "gemini"]
+    },
+    "report_draft": {
+      "type": "object",
+      "required": [
+        "title",
+        "status",
+        "sections",
+        "data_limitations",
+        "human_review_required",
+        "gemini"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
