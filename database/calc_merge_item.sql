@@ -17,7 +17,7 @@
 DELETE FROM country_risk_scores WHERE hs_code = '283691';
 
 INSERT INTO country_risk_scores
-    (country_code, hs_code, as_of_date, score_p, score_l, score_c, sgri_score)
+    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_v, sgri_score)
 -- ※ 국가단위 행(hs=NULL)은 NULL 유니크 특성상 P행·L행이 분리 저장됨
 --   → GROUP BY 국가 + MAX 로 P·L을 한 행으로 합친다.
 SELECT
@@ -27,6 +27,7 @@ SELECT
     MAX(cl.score_p)   AS score_p,     -- 국가단위 P (WGI)
     MAX(cl.score_l)   AS score_l,     -- 국가단위 L (GDACS/PortWatch)
     MAX(ic.score_c)   AS score_c,     -- 품목단위 C (HHI), 후보국 공통
+    MAX(vv.score_v)   AS score_v,     -- 품목단위 V (원자재가+환율 변동성), 후보국 공통
     0                 AS sgri_score
 FROM country_risk_scores cl
 JOIN (
@@ -41,5 +42,26 @@ LEFT JOIN LATERAL (
     WHERE importer_code = 'KR' AND hs_code = '283691'
     ORDER BY period DESC LIMIT 1
 ) ic ON TRUE
+LEFT JOIN LATERAL (
+    -- V = FRED(원자재가지수) CV 와 ECOS(원/달러) CV 의 평균 → 0~100 (상한 100)
+    WITH fred_cv AS (
+        SELECT STDDEV_SAMP(value) / NULLIF(AVG(value), 0) AS cv
+        FROM fred_observations
+        WHERE series_id = 'PALLFNFINDEXM' AND value IS NOT NULL
+          AND obs_date >= (CURRENT_DATE - INTERVAL '24 months')
+    ),
+    ecos_cv AS (
+        SELECT STDDEV_SAMP(value) / NULLIF(AVG(value), 0) AS cv
+        FROM ecos_observations
+        WHERE stat_code = '731Y001' AND value IS NOT NULL
+    )
+    SELECT LEAST(ROUND(
+        ( 100 * COALESCE((SELECT cv FROM fred_cv), 0)
+        + 100 * COALESCE((SELECT cv FROM ecos_cv), 0) )
+        / NULLIF(
+          ( CASE WHEN (SELECT cv FROM fred_cv) IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN (SELECT cv FROM ecos_cv) IS NOT NULL THEN 1 ELSE 0 END ), 0)
+    , 3), 100) AS score_v
+) vv ON TRUE
 WHERE cl.hs_code IS NULL   -- 국가단위(P·L) 행에서만 가져옴
 GROUP BY cl.country_code;
