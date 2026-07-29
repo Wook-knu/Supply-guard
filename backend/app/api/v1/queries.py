@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas.query import QueryCreate, QueryOut
 from app.services.recommend import generate_recommendations
 from app.services.ai_adapter import run_ai_analysis
+from app.services.alerts_gen import generate_alerts_for_query
 
 router = APIRouter(prefix="/queries", tags=["queries"])
 
@@ -55,7 +56,22 @@ def create_query(
     db.commit()
     db.refresh(row)
     generate_recommendations(db, row)  # 국가·기업 추천 자동 생성
+    generate_alerts_for_query(db, row)  # 위험 알림 자동 생성 (로그인 시)
     return row
+
+
+@router.post("/{query_id}/alerts")
+def regenerate_alerts(
+    query_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """해당 질의의 위험 알림을 (재)생성한다. 본인 질의만. 생성 개수 반환."""
+    query = db.get(UserQuery, query_id)
+    if query is None or query.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="query not found")
+    created = generate_alerts_for_query(db, query)
+    return {"query_id": query_id, "created": created}
 
 
 @router.get("", response_model=list[QueryOut])
