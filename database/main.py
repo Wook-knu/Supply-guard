@@ -26,13 +26,16 @@ def main():
         print("키가 비어있어 키 필요 소스는 건너뜁니다.")
     else:
         print("\n[관세청] 품목별 실적")
-        customs.run("0202", "202401", "202403")
+        try:
+            customs.run("0202", "202401", "202403")
+        except Exception as e:  # data.go.kr 활용신청 미승인 시 403 → 건너뜀
+            print(f"  관세청 건너뜀(키/활용신청 확인 필요): {e}")
         print("\n[Comtrade] 국가별 무역")
-        comtrade.run("410", "2023", "0202", "M")
+        comtrade.run("410", "2023", "283691", "M")   # 리튬 탄산염(HS 283691)
         print("\n[FRED] 원자재가격지수")
         fred.run("PALLFNFINDEXM")
         print("\n[ECOS] 환율")
-        ecos.run("731Y001", "0000001", "M", "202001", "202412")
+        ecos.run("731Y001", "0000001", "D", "20240101", "20241231")  # 원/달러 일별
 
     # ── 키 불필요 소스 (P·L) ─────────────────────────────
     print("\n[WGI] 거버넌스 지표")

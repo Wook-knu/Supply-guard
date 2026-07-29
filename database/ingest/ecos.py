@@ -44,11 +44,15 @@ def clean(raw: list[dict]) -> list[dict]:
 
 
 def run(stat_code: str, item_code: str, freq: str, start: str, end: str):
+    # 관측치 FK를 위해 시계열 메타(ecos_series)를 먼저 UPSERT
+    upsert("ecos_series",
+           [{"stat_code": stat_code, "item_code": item_code, "freq": freq}],
+           ["stat_code", "item_code"])
     raw = fetch(stat_code, item_code, freq, start, end)
     rows = clean(raw)
     upsert("ecos_observations", rows, ["stat_code", "item_code", "time_period"])
 
 
 if __name__ == "__main__":
-    # 예시: 원/달러 환율 월별 (통계표/항목 코드는 ECOS 문서에서 확인 후 교체)
-    run("731Y001", "0000001", "M", "202001", "202412")
+    # 예시: 원/달러 환율 일별 (item 0000001 은 주기 D)
+    run("731Y001", "0000001", "D", "20240101", "20241231")

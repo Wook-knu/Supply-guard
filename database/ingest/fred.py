@@ -41,6 +41,9 @@ def clean(series_id: str, raw: list[dict]) -> list[dict]:
 
 
 def run(series_id: str, start: str = "2020-01-01"):
+    # 관측치 FK를 위해 시계열 메타(fred_series)를 먼저 UPSERT
+    # (title도 함께 넣어 단일컬럼 UPSERT의 빈 SET 문법오류 회피)
+    upsert("fred_series", [{"series_id": series_id, "title": series_id}], ["series_id"])
     raw = fetch(series_id, start)
     rows = clean(series_id, raw)
     upsert("fred_observations", rows, ["series_id", "obs_date"])
