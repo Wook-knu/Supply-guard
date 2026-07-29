@@ -13,6 +13,14 @@ class ReportCreate(BaseModel):
     title: str | None = Field(default=None, examples=["리튬 탄산염 공급망 리스크 보고서"])
 
 
+class ReportUpdate(BaseModel):
+    """보고서 초안 편집 요청."""
+    title: str | None = None
+    status: str | None = None
+    sections: Any = None
+    summary: str | None = None
+
+
 class ReportOut(BaseModel):
     """보고서 조회 응답."""
     model_config = ConfigDict(from_attributes=True)

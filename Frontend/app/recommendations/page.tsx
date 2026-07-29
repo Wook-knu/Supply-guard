@@ -6,6 +6,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { api } from "@/lib/api"
+import { getCountryName } from "@/lib/countries"
 import { ArrowLeft, ArrowRight, Bell, Bot, Building2, Check, CheckCircle2, ChevronDown, CircleAlert, FileText, Globe2, Info, MapPin, ShieldAlert, SlidersHorizontal, Sparkles, Star, Truck, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 type CountryRow = { rank: number; code: string; name: string; score: number; sgri: number; unitPrice: number | null; tariff: number | null; leadDays: number | null; description: string; color: string; badge: string }
 type SupplierRow = { name: string; country: string; type: string; match: number; note: string; verified: boolean }
 
-const COUNTRY_NAME: Record<string, string> = { CL: "칠레", CN: "중국", AU: "호주", CA: "캐나다", US: "미국", KR: "한국" }
 const BADGES = ["가장 추천", "가격 우수", "ESG 우수"]
 const COLORS = ["bg-emerald-50 text-emerald-700", "bg-blue-50 text-blue-700", "bg-violet-50 text-violet-700"]
 
@@ -53,7 +53,7 @@ export default function RecommendationsPage() {
       const mapped: CountryRow[] = rows.map((r, i) => ({
         rank: r.rank,
         code: r.country_code,
-        name: COUNTRY_NAME[r.country_code] ?? r.country_code,
+        name: getCountryName(r.country_code),
         score: Math.round(Number(r.fit_score ?? 0)),
         sgri: Math.round(Number(r.sgri_score ?? 0)),
         unitPrice: r.est_unit_price != null ? Number(r.est_unit_price) : null,
@@ -71,7 +71,7 @@ export default function RecommendationsPage() {
       if (!rows.length) return
       setSuppliers(rows.map((r) => ({
         name: r.company.name,
-        country: COUNTRY_NAME[r.company.country_code ?? ""] ?? (r.company.country_code ?? ""),
+        country: getCountryName(r.company.country_code ?? ""),
         type: (r.company.certifications ?? []).join(", ") || "공급사",
         match: Math.round(Number(r.fit_score ?? 0)),
         note: r.rationale ?? "",
