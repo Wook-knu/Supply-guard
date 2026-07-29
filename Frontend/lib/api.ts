@@ -52,6 +52,27 @@ export type SupplierReco = {
   company: Company
 }
 
+export type ReportSection = { id: string; title: string; body: string }
+
+export type ReportOut = {
+  report_id: number
+  query_id: number | null
+  title: string | null
+  status: string | null
+  sections: ReportSection[] | null
+  summary: string | null
+  created_at: string | null
+}
+
+export type AnalyzeSummary = {
+  query_id: number
+  sgri_score?: number
+  level?: string
+  report_id?: number
+  supplier_count?: number
+  error?: string
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -74,4 +95,9 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
+  // F-09 AI 심층분석(가중치·기업추천·보고서 생성) — Gemini
+  analyzeQuery: (queryId: number) =>
+    http<AnalyzeSummary>(`/queries/${queryId}/analyze`, { method: "POST" }),
+  // F-10 보고서 조회
+  getReport: (reportId: number) => http<ReportOut>(`/reports/${reportId}`),
 }

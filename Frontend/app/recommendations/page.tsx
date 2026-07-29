@@ -40,12 +40,14 @@ export default function RecommendationsPage() {
   const [selected, setSelected] = useState(FALLBACK_COUNTRIES[0].name)
   const [compared, setCompared] = useState<string[]>([FALLBACK_COUNTRIES[0].name])
   const [feedback, setFeedback] = useState<"good" | "bad" | null>(null)
+  const [queryId, setQueryId] = useState<number | null>(null)
   const selectedCountry = countries.find((country) => country.name === selected) ?? countries[0]
 
   // URL의 ?query_id= 로 실제 추천 데이터를 불러온다. 없거나 실패하면 예시 데이터 유지.
   useEffect(() => {
     const id = Number(new URLSearchParams(window.location.search).get("query_id"))
     if (!id) return
+    setQueryId(id)
     api.getCountryRecos(id).then((rows) => {
       if (!rows.length) return
       const mapped: CountryRow[] = rows.map((r, i) => ({
@@ -99,7 +101,7 @@ export default function RecommendationsPage() {
 
       <Card className="mt-7 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4"><div><CardTitle className="text-base">추천 공급사 후보</CardTitle><CardDescription className="mt-1">공개 데이터와 조달 조건을 기반으로 한 초기 후보입니다.</CardDescription></div><Button variant="outline" size="sm" className="border-slate-200">필터 <ChevronDown className="ml-1 h-3.5 w-3.5" /></Button></CardHeader><CardContent className="grid gap-4 md:grid-cols-3">{suppliers.map((supplier) => <div className="rounded-xl border border-slate-200 p-4" key={supplier.name}><div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div><Badge className="border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">적합도 {supplier.match}</Badge></div><div className="mt-4 flex items-center gap-1.5"><p className="font-semibold">{supplier.name}</p>{supplier.verified && <CheckCircle2 className="h-4 w-4 text-blue-600" />}</div><p className="mt-1 text-sm text-slate-500">{supplier.country} · {supplier.type}</p><p className="mt-4 min-h-10 text-xs leading-5 text-slate-500">{supplier.note}</p><Button variant="outline" size="sm" className="mt-4 w-full border-slate-200">공개 정보 보기</Button></div>)}</CardContent></Card>
 
-      <section className="mt-7 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="h-4 w-4" /></div><div><p className="font-semibold">대체 공급망 대응 보고서</p><p className="mt-1 text-sm text-slate-500">선택한 국가와 공급사 후보를 반영해 AI 초안을 생성합니다.</p></div></div><Button asChild className="w-fit bg-blue-600 hover:bg-blue-700"><Link href="/reports/new">보고서 초안 만들기 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>
+      <section className="mt-7 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="h-4 w-4" /></div><div><p className="font-semibold">대체 공급망 대응 보고서</p><p className="mt-1 text-sm text-slate-500">선택한 국가와 공급사 후보를 반영해 AI 초안을 생성합니다.</p></div></div><Button asChild className="w-fit bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>보고서 초안 만들기 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>
     </main>
   </div>
 }
