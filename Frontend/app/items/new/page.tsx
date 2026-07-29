@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FormEvent, useEffect, useState } from "react"
 import { api } from "@/lib/api"
+import { COUNTRY_OPTIONS } from "@/lib/countries"
 import { ArrowLeft, ArrowRight, Bell, Box, Check, ChevronDown, CircleHelp, FileText, Globe2, Info, PackagePlus, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -48,7 +49,16 @@ export default function NewItemPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<ItemForm>(initialForm)
   const [countryInput, setCountryInput] = useState("")
+  const [isCountryListOpen, setIsCountryListOpen] = useState(false)
   const [error, setError] = useState("")
+
+  const normalizedCountryInput = countryInput.trim().toLocaleLowerCase("ko")
+  const filteredCountryOptions = COUNTRY_OPTIONS.filter(({ code, name }) =>
+    !form.countries.includes(name)
+    && (!normalizedCountryInput
+      || code.toLowerCase().includes(normalizedCountryInput)
+      || name.toLocaleLowerCase("ko").includes(normalizedCountryInput)),
+  )
 
   useEffect(() => {
     // 이전에 저장한 초안이 있으면 브라우저 저장소에서 복원합니다.
@@ -69,12 +79,18 @@ export default function NewItemPage() {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
-  const addCountry = () => {
+  const addCountry = (value = countryInput) => {
     // 빈 값과 중복 국가는 목록에 추가하지 않습니다.
-    const country = countryInput.trim()
+    const enteredCountry = value.trim()
+    const matchedCountry = COUNTRY_OPTIONS.find(({ code, name }) =>
+      code.toLowerCase() === enteredCountry.toLowerCase()
+      || name.toLocaleLowerCase("ko") === enteredCountry.toLocaleLowerCase("ko"),
+    )
+    const country = matchedCountry?.name ?? enteredCountry
     if (!country || form.countries.includes(country)) return
     setForm((current) => ({ ...current, countries: [...current.countries, country] }))
     setCountryInput("")
+    setIsCountryListOpen(false)
     setSaved(false)
   }
 
@@ -136,7 +152,7 @@ export default function NewItemPage() {
             <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600"><Box className="h-4 w-4" /></div><h2 className="text-sm font-semibold">품목 정보</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="품목명" required><Input placeholder="예: 리튬 탄산염" value={form.name} onChange={(event) => updateField("name", event.target.value)} /></Field><Field label="HS 코드" required helper="알고 있는 경우 입력해 주세요."><Input placeholder="예: 2836.91" value={form.hsCode} onChange={(event) => updateField("hsCode", event.target.value)} /></Field><Field label="연간 예상 수량"><Input placeholder="예: 500" type="number" min="0" value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">톤</span></Field><Field label="목표 단가"><Input placeholder="예: 18,000" type="number" min="0" value={form.targetPrice} onChange={(event) => updateField("targetPrice", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">USD / 톤</span></Field></div></section>
 
             <div className="border-t border-slate-100" />
-            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50 text-violet-600"><Globe2 className="h-4 w-4" /></div><h2 className="text-sm font-semibold">현재 조달 현황</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="현재 주요 공급국" required><div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5">{form.countries.map((country) => <Badge key={country} className="bg-slate-100 text-slate-600 hover:bg-slate-100">{country}<button type="button" aria-label={`${country} 삭제`} onClick={() => removeCountry(country)} className="ml-1 text-slate-400 hover:text-rose-500">×</button></Badge>)}<Input aria-label="공급국 추가" value={countryInput} onChange={(event) => setCountryInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCountry() } }} placeholder="국가 입력" className="h-7 min-w-24 flex-1 border-0 px-1 shadow-none focus-visible:ring-0" /><button type="button" onClick={addCountry} className="px-1 text-xs font-medium text-blue-600">+ 추가</button></div></Field><Field label="희망 납기일" required><Input type="date" value={form.deliveryDate} onChange={(event) => updateField("deliveryDate", event.target.value)} /></Field><div className="md:col-span-2"><Label className="text-sm font-medium">공급사 또는 조달 경로 <span className="text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="현재 거래 중인 공급사명, 경유 항만, 특이사항 등을 입력하세요." value={form.supplierNotes} onChange={(event) => updateField("supplierNotes", event.target.value)} /></div></div></section>
+            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50 text-violet-600"><Globe2 className="h-4 w-4" /></div><h2 className="text-sm font-semibold">현재 조달 현황</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="현재 주요 공급국" required><div className="relative"><div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5">{form.countries.map((country) => <Badge key={country} className="bg-slate-100 text-slate-600 hover:bg-slate-100">{country}<button type="button" aria-label={`${country} 삭제`} onClick={() => removeCountry(country)} className="ml-1 text-slate-400 hover:text-rose-500">×</button></Badge>)}<Input aria-label="공급국 추가" value={countryInput} onChange={(event) => { setCountryInput(event.target.value); setIsCountryListOpen(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCountry() } }} placeholder="국가명 또는 코드 입력" className="h-7 min-w-24 flex-1 border-0 px-1 shadow-none focus-visible:ring-0" /><button type="button" aria-expanded={isCountryListOpen} aria-haspopup="listbox" onClick={() => setIsCountryListOpen((current) => !current)} className="flex items-center gap-1 px-1 text-xs font-medium text-blue-600">+ 추가<ChevronDown className={`h-3 w-3 transition-transform ${isCountryListOpen ? "rotate-180" : ""}`} /></button></div>{isCountryListOpen && <div role="listbox" aria-label="공급국 선택" className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"><div className="flex items-center justify-between border-b border-slate-100 px-3 py-2"><span className="text-xs font-medium text-slate-700">국가 선택</span><span className="text-[11px] text-slate-400">{filteredCountryOptions.length}개</span></div><div className="max-h-56 overflow-y-auto p-1">{filteredCountryOptions.map(({ code, name }) => <button type="button" role="option" aria-selected="false" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700"><span>{name}</span><span className="text-xs text-slate-400">{code}</span></button>)}{filteredCountryOptions.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-400">일치하는 국가가 없습니다.</p>}</div></div>}</div></Field><Field label="희망 납기일" required><Input type="date" value={form.deliveryDate} onChange={(event) => updateField("deliveryDate", event.target.value)} /></Field><div className="md:col-span-2"><Label className="text-sm font-medium">공급사 또는 조달 경로 <span className="text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="현재 거래 중인 공급사명, 경유 항만, 특이사항 등을 입력하세요." value={form.supplierNotes} onChange={(event) => updateField("supplierNotes", event.target.value)} /></div></div></section>
 
             <div className="border-t border-slate-100" />
             <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50 text-amber-600"><CircleHelp className="h-4 w-4" /></div><h2 className="text-sm font-semibold">분석 우선순위</h2></div><div className="grid gap-3 sm:grid-cols-3">{[{ id: "high", title: "높음", description: "매일 위험 신호를 확인" }, { id: "normal", title: "보통", description: "주간 리포트로 확인" }, { id: "low", title: "낮음", description: "월간 리포트로 확인" }].map((option) => <button type="button" key={option.id} onClick={() => updateField("priority", option.id)} className={`rounded-lg border p-4 text-left transition-colors ${form.priority === option.id ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold">{option.title}</span>{form.priority === option.id && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600"><Check className="h-3 w-3 text-white" /></span>}</div><p className="mt-1 text-xs text-slate-500">{option.description}</p></button>)}</div></section>

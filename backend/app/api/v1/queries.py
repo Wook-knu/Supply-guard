@@ -7,10 +7,11 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal, get_db
-from app.core.security import get_current_user_optional
+from app.core.security import get_current_user, get_current_user_optional
 from app.models.query import UserQuery
 from app.models.user import User
 from app.schemas.query import QueryCreate, QueryOut
@@ -55,6 +56,20 @@ def create_query(
     db.refresh(row)
     generate_recommendations(db, row)  # 국가·기업 추천 자동 생성
     return row
+
+
+@router.get("", response_model=list[QueryOut])
+def list_queries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """현재 로그인 사용자가 등록한 모니터링 품목을 최신순으로 반환한다."""
+    stmt = (
+        select(UserQuery)
+        .where(UserQuery.user_id == current_user.user_id)
+        .order_by(UserQuery.query_id.desc())
+    )
+    return db.execute(stmt).scalars().all()
 
 
 @router.post("/{query_id}/analyze", status_code=202)

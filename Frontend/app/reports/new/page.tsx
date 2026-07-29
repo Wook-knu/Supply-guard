@@ -1,10 +1,9 @@
 "use client"
 
-// AI 보고서 생성에 필요한 품목, 기간, 수신자 등의 옵션을 설정하는 화면입니다.
-// 생성 동작은 추후 보고서 생성 API와 비동기 작업 상태에 연결해야 합니다.
+// AI 보고서 생성·목록 API와 비동기 분석 작업을 연결한 화면입니다.
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { api, type ReportOut } from "@/lib/api"
 import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -25,21 +24,30 @@ const reportSections = [
 
 export default function NewReportPage() {
   const [sections, setSections] = useState(reportSections.map((section) => section.id))
-  const [generated, setGenerated] = useState(false)
   const [title, setTitle] = useState("2026년 7월 리튬 탄산염 공급망 리스크 보고서")
   const [loading, setLoading] = useState(false)
   const [aiReport, setAiReport] = useState<ReportOut | null>(null)
+  const [recentReports, setRecentReports] = useState<ReportOut[]>([])
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    api.getReports().then(setRecentReports).catch(() => setRecentReports([]))
+  }, [])
 
   function toggleSection(id: string) { setSections((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
 
   async function handleGenerate() {
     // URL의 query_id로 백엔드 AI 분석을 실행하고 생성된 보고서를 불러온다.
     const qid = Number(new URLSearchParams(window.location.search).get("query_id"))
-    if (!qid) { setGenerated(true); return } // query_id 없으면 데모 미리보기(fallback)
     setLoading(true); setError(""); setAiReport(null)
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
     try {
+      if (!qid) {
+        const report = await api.createReport({ title: title.trim() || undefined })
+        setAiReport(report)
+        setRecentReports((current) => [report, ...current.filter((item) => item.report_id !== report.report_id)])
+        return
+      }
       // 202로 작업 시작 → 완료까지 폴링 (최대 ~60초)
       const { job_id } = await api.analyzeQuery(qid)
       let job = await api.getAnalyzeJob(job_id)
@@ -51,6 +59,7 @@ export default function NewReportPage() {
       if (job.status !== "done" || !job.result?.report_id) throw new Error("분석 시간이 초과되었습니다.")
       const report = await api.getReport(job.result.report_id)
       setAiReport(report)
+      setRecentReports((current) => [report, ...current.filter((item) => item.report_id !== report.report_id)])
     } catch (err) {
       setError(err instanceof Error ? err.message : "생성 중 오류가 발생했습니다.")
     } finally {
@@ -68,14 +77,17 @@ export default function NewReportPage() {
 
       <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다.</p></div><Button onClick={handleGenerate} disabled={sections.length === 0 || loading} className="w-fit bg-blue-600 hover:bg-blue-700">{loading ? <>AI가 작성 중...</> : aiReport ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button></section>
       {error && <p role="alert" className="mt-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-      {aiReport ? <AiReportPreview report={aiReport} /> : generated && <ReportPreview title={title} sections={sections} />}
+      {aiReport && <AiReportPreview report={aiReport} />}
+      <Card className="mt-6 border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">최근 보고서</CardTitle><CardDescription>저장된 보고서를 최신순으로 표시합니다.</CardDescription></CardHeader><CardContent className="space-y-3">{recentReports.map((report) => <Link href={`/reports/${report.report_id}`} key={report.report_id} className="flex items-center justify-between rounded-lg border border-slate-200 p-4 hover:border-blue-200 hover:bg-blue-50/40"><div><p className="text-sm font-medium">{report.title ?? `보고서 #${report.report_id}`}</p><p className="mt-1 text-xs text-slate-500">{report.created_at ? new Date(report.created_at).toLocaleString("ko-KR") : "생성 시간 없음"} · {report.status ?? "draft"}</p></div><ArrowRight className="h-4 w-4 text-slate-400" /></Link>)}{recentReports.length === 0 && <p className="py-6 text-center text-sm text-slate-400">저장된 보고서가 없습니다.</p>}</CardContent></Card>
     </main>
   </div>
 }
 
 function AiReportPreview({ report }: { report: ReportOut }) {
   // 백엔드(AI_Model+Gemini)가 생성한 실제 보고서를 섹션별로 표시한다.
-  const sections = report.sections ?? []
+  const sections = Array.isArray(report.sections)
+    ? report.sections
+    : Object.entries(report.sections ?? {}).map(([title, body], index) => ({ id: String(index), title, body }))
   return <Card className="print-area mt-6 border-emerald-100 shadow-sm">
     <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-slate-100 pb-5">
       <div>
@@ -83,7 +95,7 @@ function AiReportPreview({ report }: { report: ReportOut }) {
         <CardTitle className="text-lg">{report.title}</CardTitle>
         <CardDescription className="mt-1">{report.summary} · 상태: {report.status}</CardDescription>
       </div>
-      <Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button>
+      <div className="flex gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href={`/reports/${report.report_id}`}><PencilLine className="mr-2 h-4 w-4" />초안 편집</Link></Button><Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button></div>
     </CardHeader>
     <CardContent className="space-y-5 p-6">
       {sections.length === 0 && <p className="text-sm text-slate-500">생성된 섹션이 없습니다.</p>}

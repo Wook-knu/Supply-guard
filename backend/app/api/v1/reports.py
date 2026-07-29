@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.models.report import Report
-from app.schemas.report import ReportCreate, ReportOut
+from app.schemas.report import ReportCreate, ReportOut, ReportUpdate
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -58,4 +58,17 @@ def get_report(report_id: int, db: Session = Depends(get_db)):
     report = db.get(Report, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="report not found")
+    return report
+
+
+@router.patch("/{report_id}", response_model=ReportOut)
+def update_report(report_id: int, payload: ReportUpdate, db: Session = Depends(get_db)):
+    """보고서 제목과 본문, 상태를 수정한다."""
+    report = db.get(Report, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(report, field, value)
+    db.commit()
+    db.refresh(report)
     return report

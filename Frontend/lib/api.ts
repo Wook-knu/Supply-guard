@@ -4,6 +4,8 @@
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1"
 
+const ACCESS_TOKEN_KEY = "access_token"
+
 // ── 백엔드 응답 타입 (backend/app/schemas 와 1:1) ──
 export type QueryCreate = {
   item_name?: string
@@ -59,9 +61,22 @@ export type ReportOut = {
   query_id: number | null
   title: string | null
   status: string | null
-  sections: ReportSection[] | null
+  sections: ReportSection[] | Record<string, string> | null
   summary: string | null
+  pdf_url: string | null
   created_at: string | null
+}
+
+export type ReportCreate = {
+  query_id?: number
+  title?: string
+}
+
+export type ReportUpdate = {
+  title?: string
+  status?: string
+  sections?: ReportSection[] | Record<string, string>
+  summary?: string
 }
 
 export type AnalyzeSummary = {
@@ -83,6 +98,7 @@ export type AnalyzeJob = {
 export type RiskOut = {
   country_code: string
   hs_code: string | null
+  as_of_date: string
   sgri_score: string | null
   level: string
 }
@@ -100,10 +116,39 @@ export type AlertOut = {
   created_at: string | null
 }
 
+export type LoginRequest = {
+  email: string
+  name?: string
+}
+
+export type UserOut = {
+  user_id: number
+  email: string
+  name: string | null
+  company_id: number | null
+  role: string | null
+}
+
+export type TokenResponse = {
+  access_token: string
+  token_type: string
+  user: UserOut
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  if (typeof window !== "undefined") {
+    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY)
+    if (token) headers.set("Authorization", `Bearer ${token}`)
+  }
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers,
   })
   if (!res.ok) {
     const detail = await res.text()
@@ -113,9 +158,19 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: async (body: LoginRequest) => {
+    const response = await http<TokenResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+    window.localStorage.setItem(ACCESS_TOKEN_KEY, response.access_token)
+    return response
+  },
+  getMe: () => http<UserOut>("/auth/me"),
   // F-01 품목 입력
   createQuery: (body: QueryCreate) =>
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
+  getQueries: () => http<QueryOut[]>("/queries"),
   getQuery: (queryId: number) => http<QueryOut>(`/queries/${queryId}`),
   // F-06 국가 추천 / F-07·08 기업 추천
   getCountryRecos: (queryId: number) =>
@@ -129,7 +184,13 @@ export const api = {
   getAnalyzeJob: (jobId: string) =>
     http<AnalyzeJob>(`/queries/analyze/jobs/${jobId}`),
   // F-10 보고서 조회
+  createReport: (body: ReportCreate) =>
+    http<ReportOut>("/reports", { method: "POST", body: JSON.stringify(body) }),
+  getReports: (queryId?: number) =>
+    http<ReportOut[]>(`/reports${queryId ? `?query_id=${queryId}` : ""}`),
   getReport: (reportId: number) => http<ReportOut>(`/reports/${reportId}`),
+  updateReport: (reportId: number, body: ReportUpdate) =>
+    http<ReportOut>(`/reports/${reportId}`, { method: "PATCH", body: JSON.stringify(body) }),
   // F-05 국가별 SGRI (대시보드 고위험 품목)
   getRisks: (hsCode?: string) =>
     http<RiskOut[]>(`/risks${hsCode ? `?hs_code=${hsCode}` : ""}`),
