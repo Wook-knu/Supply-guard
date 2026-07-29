@@ -54,6 +54,9 @@ def query_to_request(query: UserQuery) -> dict:
 
 def companies_to_candidates(companies: list[Company]) -> list[dict]:
     """companies → 모델 candidate 스키마. 우리에 없는 필드(단가·납기 등)는 null."""
+    def _num(v):
+        return float(v) if v is not None else None
+
     return [
         {
             "company_id": str(c.company_id),
@@ -62,6 +65,11 @@ def companies_to_candidates(companies: list[Company]) -> list[dict]:
             "business_type": c.company_type,
             "hs_codes": c.hs_codes or [],
             "certifications": c.certifications or [],
+            "unit_price": _num(c.unit_price),
+            "available_quantity": _num(c.available_quantity),
+            "lead_time_days": c.lead_time_days,
+            "on_time_delivery_rate": _num(c.on_time_delivery_rate),
+            "defect_rate_pct": _num(c.defect_rate_pct),
             "verified": c.status == "active",
             "source_urls": [],
         }

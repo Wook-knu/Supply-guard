@@ -1,7 +1,7 @@
 """
 companies 테이블 ORM 매핑 (기업 고정정보).
 """
-from sqlalchemy import BigInteger, Numeric, String
+from sqlalchemy import BigInteger, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,3 +22,9 @@ class Company(Base):
     annual_capacity: Mapped[float | None] = mapped_column(Numeric(20, 2))
     capacity_unit: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str | None] = mapped_column(String(20))
+    # 조달/추천용 (migrate_companies_procurement.sql 로 추가)
+    unit_price: Mapped[float | None] = mapped_column(Numeric(18, 4))
+    available_quantity: Mapped[float | None] = mapped_column(Numeric(20, 2))
+    lead_time_days: Mapped[int | None] = mapped_column(Integer)
+    on_time_delivery_rate: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    defect_rate_pct: Mapped[float | None] = mapped_column(Numeric(5, 2))

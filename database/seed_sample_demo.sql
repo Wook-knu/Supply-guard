@@ -42,6 +42,12 @@ FROM (VALUES
 ) AS v(name, name_en, cc, hs, certs, cap)
 WHERE NOT EXISTS (SELECT 1 FROM companies c WHERE c.name = v.name);
 
+-- 조달 데이터 보강 (단가·수량·리드타임·정시율·불량률) — 추천 차등화용
+-- ※ migrate_companies_procurement.sql 로 컬럼이 먼저 추가돼 있어야 함
+UPDATE companies SET unit_price=18.5, available_quantity=120000, lead_time_days=25, on_time_delivery_rate=95, defect_rate_pct=0.8 WHERE name='SQM';
+UPDATE companies SET unit_price=17.8, available_quantity=90000,  lead_time_days=30, on_time_delivery_rate=88, defect_rate_pct=1.5 WHERE name='Ganfeng Lithium';
+UPDATE companies SET unit_price=20.1, available_quantity=60000,  lead_time_days=35, on_time_delivery_rate=97, defect_rate_pct=0.5 WHERE name='Pilbara Minerals';
+
 
 -- ── 기업 추천 샘플 (supplier_recommendations) ─────────────────────────────
 -- 가장 최근 질의 + 위 기업들을 이름으로 이어붙인다.
