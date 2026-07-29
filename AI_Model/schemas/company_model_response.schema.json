@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://supplyguard.local/schemas/company_model_response.schema.json",
+  "title": "SupplyGuard Procurement Risk Response",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "model",
+    "procurement",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "3.0"
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "name",
+        "task",
+        "weights_may_use_llm",
+        "score_calculated_by"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "task": {
+          "const": "procurement_request_risk_evaluation"
+        },
+        "weights_may_use_llm": {
+          "const": true
+        },
+        "score_calculated_by": {
+          "const": "python_formula"
+        }
+      },
+      "additionalProperties": false
+    },
+    "procurement": {
+      "type": "object"
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "score",
+        "level",
+        "confidence",
+        "input_summary",
+        "weight_total",
+        "weight_profile",
+        "components",
+        "recommendations"
+      ],
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "very_high"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "input_summary": {
+          "type": "object"
+        },
+        "weight_total": {
+          "type": "number"
+        },
+        "weight_profile": {
+          "type": "object"
+        },
+        "components": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

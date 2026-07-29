@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://supplyguard.local/schemas/company_candidates.schema.json",
+  "title": "SupplyGuard Collected Company Candidates",
+  "type": "array",
+  "maxItems": 20,
+  "items": {
+    "type": "object",
+    "required": ["company_id", "company_name"],
+    "properties": {
+      "company_id": {"type": "string", "minLength": 1},
+      "company_name": {"type": "string", "minLength": 1},
+      "country": {"type": ["string", "null"]},
+      "business_type": {"type": ["string", "null"]},
+      "hs_codes": {"type": "array", "items": {"type": "string"}},
+      "unit_price": {"type": ["number", "null"], "minimum": 0},
+      "available_quantity": {"type": ["number", "null"], "minimum": 0},
+      "lead_time_days": {"type": ["number", "null"], "minimum": 0},
+      "certifications": {"type": "array", "items": {"type": "string"}},
+      "on_time_delivery_rate": {
+        "type": ["number", "null"],
+        "minimum": 0,
+        "maximum": 100
+      },
+      "defect_rate_pct": {
+        "type": ["number", "null"],
+        "minimum": 0,
+        "maximum": 100
+      },
+      "verified": {"type": "boolean"},
+      "source_urls": {"type": "array", "items": {"type": "string"}}
+    },
+    "additionalProperties": false
+  }
+}
