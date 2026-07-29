@@ -73,11 +73,16 @@ def list_queries(
 
 
 @router.post("/{query_id}/analyze", status_code=202)
-def analyze_query(query_id: int, background: BackgroundTasks, db: Session = Depends(get_db)):
+def analyze_query(
+    query_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """AI_Model 심층 분석을 백그라운드로 시작하고 즉시 job_id를 반환(202).
-    진행 상황은 GET /queries/analyze/jobs/{job_id} 로 폴링한다."""
+    진행 상황은 GET /queries/analyze/jobs/{job_id} 로 폴링한다. (본인 질의만)"""
     query = db.get(UserQuery, query_id)
-    if query is None:
+    if query is None or query.user_id != current_user.user_id:
         raise HTTPException(status_code=404, detail="query not found")
     job_id = uuid.uuid4().hex
     _ANALYZE_JOBS[job_id] = {"status": "pending"}
@@ -95,9 +100,13 @@ def analyze_job_status(job_id: str):
 
 
 @router.get("/{query_id}", response_model=QueryOut)
-def get_query(query_id: int, db: Session = Depends(get_db)):
-    """query_id 로 저장된 질의를 조회한다. 없으면 404."""
+def get_query(
+    query_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """query_id 로 저장된 질의를 조회한다 (본인 것만). 없거나 남의 것이면 404."""
     row = db.get(UserQuery, query_id)
-    if row is None:
+    if row is None or row.user_id != current_user.user_id:
         raise HTTPException(status_code=404, detail="query not found")
     return row
