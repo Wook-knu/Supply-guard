@@ -17,7 +17,7 @@
 DELETE FROM country_risk_scores WHERE hs_code = '283691';
 
 INSERT INTO country_risk_scores
-    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_v, sgri_score)
+    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_v, score_e, sgri_score)
 -- ※ 국가단위 행(hs=NULL)은 NULL 유니크 특성상 P행·L행이 분리 저장됨
 --   → GROUP BY 국가 + MAX 로 P·L을 한 행으로 합친다.
 SELECT
@@ -28,6 +28,7 @@ SELECT
     MAX(cl.score_l)   AS score_l,     -- 국가단위 L (GDACS/PortWatch)
     MAX(ic.score_c)   AS score_c,     -- 품목단위 C (HHI), 후보국 공통
     MAX(vv.score_v)   AS score_v,     -- 품목단위 V (원자재가+환율 변동성), 후보국 공통
+    MAX(ee.score_e)   AS score_e,     -- 품목단위 E (LCI 배출계수), 후보국 공통
     0                 AS sgri_score
 FROM country_risk_scores cl
 JOIN (
@@ -63,5 +64,11 @@ LEFT JOIN LATERAL (
           + CASE WHEN (SELECT cv FROM ecos_cv) IS NOT NULL THEN 1 ELSE 0 END ), 0)
     , 3), 100) AS score_v
 ) vv ON TRUE
+LEFT JOIN LATERAL (
+    -- E = LCI 배출계수(kgCO2e/kg) → 0~100 (참고 상한 20 기준). CBAM 비대상이라 LCI 사용.
+    SELECT LEAST(ROUND(AVG(emission_factor) / 20.0 * 100, 3), 100) AS score_e
+    FROM lci_emission_factors
+    WHERE hs_code = '283691' AND emission_factor IS NOT NULL
+) ee ON TRUE
 WHERE cl.hs_code IS NULL   -- 국가단위(P·L) 행에서만 가져옴
 GROUP BY cl.country_code;
