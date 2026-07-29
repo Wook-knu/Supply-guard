@@ -4,7 +4,7 @@ v1 라우터 집합.
 """
 from fastapi import APIRouter
 
-from app.api.v1 import queries, risks, recommendations, suppliers, reports
+from app.api.v1 import queries, risks, recommendations, suppliers, reports, alerts
 
 api_router = APIRouter()
 api_router.include_router(queries.router)
@@ -12,9 +12,10 @@ api_router.include_router(risks.router)
 api_router.include_router(recommendations.router)
 api_router.include_router(suppliers.router)
 api_router.include_router(reports.router)
+api_router.include_router(alerts.router)
 
 # 앞으로 추가될 라우터들 (파일 만들면 주석 해제):
-# from app.api.v1 import alerts, auth
+# from app.api.v1 import auth
 # api_router.include_router(reports.router)
 # api_router.include_router(alerts.router)
 # api_router.include_router(auth.router)

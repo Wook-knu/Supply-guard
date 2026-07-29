@@ -57,3 +57,15 @@ JOIN (VALUES
 JOIN companies c ON c.name = r.cname
 ON CONFLICT (query_id, company_id) DO UPDATE SET
     rank = EXCLUDED.rank, rationale = EXCLUDED.rationale;
+
+
+-- ── 위험 알림 샘플 (alerts) ───────────────────────────────────────────────
+-- 가장 최근 질의에 붙인다. title 기준 중복 방지로 재실행 안전.
+INSERT INTO alerts (query_id, country_code, hs_code, alert_type, severity, title, message, is_read)
+SELECT q.query_id, v.cc, v.hs, v.atype, v.sev, v.title, v.msg, FALSE
+FROM (SELECT query_id FROM user_queries ORDER BY query_id DESC LIMIT 1) q
+JOIN (VALUES
+    ('CL', '283691', '물류',   'high',   '칠레 발파라이소항 혼잡 심화',   '발파라이소항 혼잡지수 급등으로 리튬 선적 지연 가능. 납기 영향 검토 필요.'),
+    ('CN', '283691', '정책',   'medium', '중국 리튬 수출 정책 변화 신호', '중국 정부의 리튬 관련 수출 규제 논의 보도. 대체 조달처 검토 권고.')
+) AS v(cc, hs, atype, sev, title, msg) ON TRUE
+WHERE NOT EXISTS (SELECT 1 FROM alerts a WHERE a.title = v.title);
