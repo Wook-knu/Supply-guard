@@ -8,16 +8,25 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.security import get_current_user_optional
 from app.models.query import UserQuery
+from app.models.user import User
 from app.schemas.query import QueryCreate, QueryOut
 
 router = APIRouter(prefix="/queries", tags=["queries"])
 
 
 @router.post("", response_model=QueryOut, status_code=201)
-def create_query(payload: QueryCreate, db: Session = Depends(get_db)):
-    """품목·조달조건을 user_queries 에 저장하고 저장된 행을 돌려준다."""
+def create_query(
+    payload: QueryCreate,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+):
+    """품목·조달조건을 user_queries 에 저장하고 저장된 행을 돌려준다.
+    Authorization 토큰이 있으면 그 사용자의 것으로(user_id) 기록, 없으면 NULL."""
     row = UserQuery(**payload.model_dump(exclude_none=True))
+    if current_user is not None:
+        row.user_id = current_user.user_id
     db.add(row)
     db.commit()
     db.refresh(row)
