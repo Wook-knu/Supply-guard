@@ -30,8 +30,9 @@ def main():
             customs.run("0202", "202401", "202403")
         except Exception as e:  # data.go.kr 활용신청 미승인 시 403 → 건너뜀
             print(f"  관세청 건너뜀(키/활용신청 확인 필요): {e}")
-        print("\n[Comtrade] 국가별 무역")
-        comtrade.run("410", "2023", "283691", "M")   # 리튬 탄산염(HS 283691)
+        print("\n[Comtrade] 국가별 무역 (다년치 — S 변동성 계산용)")
+        for yr in ("2019", "2020", "2021", "2022", "2023"):
+            comtrade.run("410", yr, "283691", "M")   # 리튬 탄산염(HS 283691)
         print("\n[FRED] 원자재가격지수")
         fred.run("PALLFNFINDEXM")
         print("\n[ECOS] 환율")
