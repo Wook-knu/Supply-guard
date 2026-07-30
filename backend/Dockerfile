@@ -22,4 +22,5 @@ WORKDIR /app/backend
 EXPOSE 8000
 
 # DB·GEMINI 등은 런타임 환경변수로 주입 (이미지에 비밀정보 미포함)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway 등은 $PORT 를 주입 → 있으면 그 포트, 없으면 8000(로컬/compose)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
