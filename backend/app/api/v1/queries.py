@@ -7,7 +7,7 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal, get_db
@@ -48,7 +48,14 @@ def create_query(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     """품목·조달조건을 user_queries 에 저장하고, 규칙 기반 추천을 자동 생성한다.
-    Authorization 토큰이 있으면 그 사용자의 것으로(user_id) 기록, 없으면 NULL."""
+    Authorization 토큰이 있으면 그 사용자의 것으로(user_id) 기록, 없으면 NULL.
+    로그인 사용자는 요금제 품목 한도(Basic 5개)를 초과하면 402."""
+    if current_user is not None:
+        from app.services.plans import check_item_quota
+        count = db.execute(
+            select(func.count()).select_from(UserQuery).where(UserQuery.user_id == current_user.user_id)
+        ).scalar() or 0
+        check_item_quota(current_user, int(count))
     row = UserQuery(**payload.model_dump(exclude_none=True))
     if current_user is not None:
         row.user_id = current_user.user_id
@@ -100,6 +107,8 @@ def analyze_query(
     query = db.get(UserQuery, query_id)
     if query is None or query.user_id != current_user.user_id:
         raise HTTPException(status_code=404, detail="query not found")
+    from app.services.plans import require_feature
+    require_feature(current_user, "ai_reports")  # AI 보고서는 Pro 이상
     job_id = uuid.uuid4().hex
     _ANALYZE_JOBS[job_id] = {"status": "pending"}
     background.add_task(_run_analyze_job, job_id, query_id)
