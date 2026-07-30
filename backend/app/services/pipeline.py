@@ -94,7 +94,8 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         except Exception:  # noqa: BLE001 - 일부 연도 실패해도 계속
             pass
     try:
-        comtrade.run_world("410", comtrade.months("202401", "202512"), hs, "M")
+        # 무료 Comtrade preview는 기간 12개 이하만 허용 → 12개월 창 사용
+        comtrade.run_world("410", comtrade.months("202401", "202412"), hs, "M")
     except Exception:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
         pass
 
