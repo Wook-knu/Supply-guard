@@ -11,10 +11,12 @@ from app.core.config import settings
 
 app = FastAPI(title="SupplyGuard API", version="0.1.0")
 
-# 프론트(Next.js)에서 호출할 수 있게 CORS 허용
+# 프론트(Next.js)에서 호출할 수 있게 CORS 허용.
+# FRONTEND_ORIGIN(정확 일치) + 로컬 + 모든 *.vercel.app(프리뷰/프로덕션 도메인) 허용.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN],
+    allow_origins=[settings.FRONTEND_ORIGIN, "http://localhost:3000"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
