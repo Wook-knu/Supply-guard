@@ -63,6 +63,39 @@ psql -d supplyguard -f calc_sgri.sql                # 종합 SGRI
 2. **clean()** — 필드명 매핑·숫자 변환·결측 처리 (전처리)
 3. **run()** — fetch → clean → `db.upsert()` 로 적재
 
+## S(수급 불안정성) 소스에 대하여 — 임시 대체 중
+
+원래 계획: 관세청_품목별 수출입실적(15101609). **공공데이터포털 승인 대기로 사용 불가.**
+
+임시 대체: **UN Comtrade 의 World(전세계 합계) 행**. 성격이 같다 — 둘 다 "한국이 이 품목을
+월별로 얼마나 수입하는지"이고 국가 구분이 없다. Comtrade 는 키가 없으면 무료 preview
+엔드포인트(호출당 500행, 일일 무제한)로 자동 전환되므로 키 없이도 바로 돌아간다.
+
+```
+comtrade.run_world()  →  comtrade_trade_flows (partner_code = NULL)
+                              ↓
+                      s_source_monthly  (뷰)
+                              ↓
+              calc_merge_item.sql / calc_supply_instability.sql
+```
+
+계산 SQL 은 소스 테이블을 직접 읽지 않고 **`s_source_monthly` 뷰만** 바라본다.
+승인이 나면 `supplyguard_schema_v2.sql` [4] 섹션의 뷰 정의를 `customs_item_trade_stats`
+기준으로 바꾸고 `main.py` 의 `customs.run()` 을 되살리면 끝이다. 계산 로직·가중치·SGRI·
+테이블 구조는 바뀌지 않는다. (교체용 SQL 은 스키마 파일에 주석으로 적어둠)
+
+### ⚠️ 소스를 섞지 말 것
+
+Comtrade 는 UN 이 표준화한 값, 관세청은 CIF 신고값이라 같은 품목·같은 달인데 숫자가 다르다.
+한 시계열에 두 소스를 섞으면 **변동계수(CV)가 실제보다 크게 나와 S 가 과대평가된다.**
+소스를 교체할 때는 반드시 `score_s` 를 전 기간 재계산할 것.
+
+### 한계
+
+Comtrade 월별 데이터는 관세청보다 2~3개월 늦게 올라온다. 최신 월이 필요하면
+관세청 [수출입무역통계](https://tradedata.go.kr) 에서 xlsx/json/csv 로 직접 받을 수 있다
+(회원가입·승인 불필요).
+
 ## ⚠️ 보안
 
 - **API 키는 `.env` 에만** 두고, 이 파일은 절대 git 에 올리지 않는다.

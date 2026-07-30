@@ -21,16 +21,25 @@ from ingest import (customs, comtrade, fred, ecos,
 
 
 def main():
-    # ── 키 필요 소스 (S·C·V) ─────────────────────────────
+    # ── S(수급 불안정성) : 관세청 승인 대기 → Comtrade World 합계로 대체 ──
+    #   Comtrade 는 키가 없으면 무료 preview 엔드포인트로 자동 전환되므로
+    #   키 확인(check_keys) 앞에서 먼저 실행한다.
+    print("\n[Comtrade] 월별 World 합계 (S 대체 소스)")
+    for rng in (("202401", "202412"), ("202501", "202512")):
+        comtrade.run_world("410", comtrade.months(*rng), "283691", "M")
+
+    # ── 키 필요 소스 (C·V) ───────────────────────────────
     if not check_keys():
         print("키가 비어있어 키 필요 소스는 건너뜁니다.")
     else:
+        # 관세청 승인이 나면 아래를 되살리고, 스키마의 s_source_monthly 뷰도
+        # customs_item_trade_stats 기준으로 교체할 것 (교체용 SQL 은 스키마 [4] 섹션 참고)
         print("\n[관세청] 품목별 실적")
         try:
-            customs.run("0202", "202401", "202403")
+            customs.run("283691", "202401", "202512")
         except Exception as e:  # data.go.kr 활용신청 미승인 시 403 → 건너뜀
             print(f"  관세청 건너뜀(키/활용신청 확인 필요): {e}")
-        print("\n[Comtrade] 국가별 무역 (다년치 — S 변동성 계산용)")
+        print("\n[Comtrade] 국가별 무역 (C 집중도용)")
         for yr in ("2019", "2020", "2021", "2022", "2023"):
             comtrade.run("410", yr, "283691", "M")   # 리튬 탄산염(HS 283691)
         print("\n[FRED] 원자재가격지수")
