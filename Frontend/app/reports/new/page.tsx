@@ -24,14 +24,38 @@ const reportSections = [
 
 export default function NewReportPage() {
   const [sections, setSections] = useState(reportSections.map((section) => section.id))
-  const [title, setTitle] = useState("2026년 7월 리튬 탄산염 공급망 리스크 보고서")
+  const [title, setTitle] = useState("공급망 리스크 대응 보고서")
   const [loading, setLoading] = useState(false)
   const [aiReport, setAiReport] = useState<ReportOut | null>(null)
   const [recentReports, setRecentReports] = useState<ReportOut[]>([])
   const [error, setError] = useState("")
+  const [item, setItem] = useState<{ name: string; hs: string }>({ name: "", hs: "" })
+  const [stats, setStats] = useState<{ sgri: number | null; level: string; alt: number }>({ sgri: null, level: "", alt: 0 })
 
   useEffect(() => {
     api.getReports().then(setRecentReports).catch(() => setRecentReports([]))
+  }, [])
+
+  // 분석 대상 품목과 요약 통계를 실제 API에서 불러온다(하드코딩 데모값 대체).
+  useEffect(() => {
+    async function loadContext() {
+      const urlQid = Number(new URLSearchParams(window.location.search).get("query_id"))
+      const queries = await api.getQueries().catch(() => [])
+      const q = (urlQid ? queries.find((row) => row.query_id === urlQid) : undefined)
+        ?? queries.find((row) => row.hs_code)
+      if (!q?.hs_code) return
+      setItem({ name: q.item_name ?? `HS ${q.hs_code}`, hs: q.hs_code })
+      setTitle(`${q.item_name ?? `HS ${q.hs_code}`} 공급망 리스크 대응 보고서`)
+      const [risks, recos] = await Promise.all([
+        api.getRisks(q.hs_code).catch(() => []),
+        api.getCountryRecos(q.query_id).catch(() => []),
+      ])
+      const worst = risks.reduce((max, r) => Math.max(max, Number(r.sgri_score ?? 0)), 0)
+      const level = worst >= 50 ? "고위험" : worst >= 25 ? "주의" : "안정"
+      const alt = recos.filter((r) => Number(r.sgri_score ?? 0) < 25).length
+      setStats({ sgri: risks.length ? Math.round(worst) : null, level, alt })
+    }
+    loadContext()
   }, [])
 
   function toggleSection(id: string) { setSections((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
@@ -76,9 +100,9 @@ export default function NewReportPage() {
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href="/recommendations" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 추천 결과로 돌아가기</Link><div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><FileCheck2 className="h-4 w-4" /> AI 보고서 생성</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대응 보고서 초안 만들기</h1><p className="mt-2 text-sm text-slate-500">분석 결과를 바탕으로 사내 검토용 공급망 리스크 보고서를 생성합니다.</p></div><Badge className="w-fit border-violet-100 bg-violet-50 px-3 py-1.5 text-violet-700 hover:bg-violet-50">2 / 2 보고서 구성</Badge></div>
 
-      <div className="mt-7 grid gap-6 lg:grid-cols-3"><div className="space-y-6 lg:col-span-2"><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">보고서 기본 정보</CardTitle><CardDescription className="mt-1">생성된 보고서는 초안 상태로 저장되며, 검토 후 공유할 수 있습니다.</CardDescription></CardHeader><CardContent className="space-y-5 pt-6"><div><Label className="text-sm font-medium">보고서 제목</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2" /></div><div className="grid gap-5 md:grid-cols-2"><div><Label className="text-sm font-medium">분석 대상 품목</Label><div className="mt-2 flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium">리튬 탄산염 <span className="ml-2 text-xs font-normal text-slate-400">HS 2836.91</span></div></div><div><Label className="text-sm font-medium">보고서 유형</Label><div className="mt-2 flex h-10 items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm"><span>공급망 리스크 대응 보고서</span><ChevronDown className="h-4 w-4 text-slate-400" /></div></div></div><div><Label className="text-sm font-medium">추가 요청 사항 <span className="font-normal text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="강조하고 싶은 위험 요인, 사내 검토 관점 등을 입력하세요." /></div></CardContent></Card>
+      <div className="mt-7 grid gap-6 lg:grid-cols-3"><div className="space-y-6 lg:col-span-2"><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">보고서 기본 정보</CardTitle><CardDescription className="mt-1">생성된 보고서는 초안 상태로 저장되며, 검토 후 공유할 수 있습니다.</CardDescription></CardHeader><CardContent className="space-y-5 pt-6"><div><Label className="text-sm font-medium">보고서 제목</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2" /></div><div className="grid gap-5 md:grid-cols-2"><div><Label className="text-sm font-medium">분석 대상 품목</Label><div className="mt-2 flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium">{item.name || "품목 미선택"} {item.hs && <span className="ml-2 text-xs font-normal text-slate-400">HS {item.hs}</span>}</div></div><div><Label className="text-sm font-medium">보고서 유형</Label><div className="mt-2 flex h-10 items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm"><span>공급망 리스크 대응 보고서</span><ChevronDown className="h-4 w-4 text-slate-400" /></div></div></div><div><Label className="text-sm font-medium">추가 요청 사항 <span className="font-normal text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="강조하고 싶은 위험 요인, 사내 검토 관점 등을 입력하세요." /></div></CardContent></Card>
         <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">포함할 목차</CardTitle><CardDescription className="mt-1">필요한 항목을 선택하면 AI가 근거 데이터와 함께 초안을 작성합니다.</CardDescription></CardHeader><CardContent className="space-y-2">{reportSections.map((section, index) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-3 hover:border-slate-200 hover:bg-slate-50" key={section.id}><Checkbox checked={sections.includes(section.id)} onCheckedChange={() => toggleSection(section.id)} /><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-500">{index + 1}</div><div><p className="text-sm font-medium">{section.title}</p><p className="mt-0.5 text-xs text-slate-500">{section.description}</p></div></label>)}</CardContent></Card></div>
-        <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI 작성 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><Item text="SGRI 점수와 항목별 근거 반영" /><Item text="최신 뉴스·정책 변화 요약" /><Item text="대체 공급국 비교 및 제안" /><Item text="실행 가능한 대응 전략 구성" /><p className="border-t border-blue-100 pt-3 text-xs leading-5 text-slate-500">보고서는 의사결정을 돕는 초안입니다. 실제 계약·조달 전에는 담당자의 최종 검토가 필요합니다.</p></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">분석 데이터</CardTitle></CardHeader><CardContent className="space-y-3"><Data text="현재 공급국" value="중국" /><Data text="현재 SGRI" value="82 · 고위험" danger /><Data text="추천 대체국" value="호주 외 2개" /><Data text="반영된 뉴스" value="최근 24시간 7건" /></CardContent></Card></aside></div>
+        <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI 작성 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><Item text="SGRI 점수와 항목별 근거 반영" /><Item text="최신 뉴스·정책 변화 요약" /><Item text="대체 공급국 비교 및 제안" /><Item text="실행 가능한 대응 전략 구성" /><p className="border-t border-blue-100 pt-3 text-xs leading-5 text-slate-500">보고서는 의사결정을 돕는 초안입니다. 실제 계약·조달 전에는 담당자의 최종 검토가 필요합니다.</p></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">분석 데이터</CardTitle></CardHeader><CardContent className="space-y-3"><Data text="분석 품목" value={item.name || "-"} /><Data text="최고 SGRI" value={stats.sgri != null ? `${stats.sgri} · ${stats.level}` : "-"} danger={stats.level === "고위험"} /><Data text="안정 대체국" value={stats.alt ? `${stats.alt}개국` : "-"} /><Data text="분석 지표" value="6종 (S·C·V·L·P·E)" /></CardContent></Card></aside></div>
 
       <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다.</p></div><Button onClick={handleGenerate} disabled={sections.length === 0 || loading} className="w-fit bg-blue-600 hover:bg-blue-700">{loading ? <>AI가 작성 중...</> : aiReport ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button></section>
       {error && <p role="alert" className="mt-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
