@@ -102,6 +102,34 @@ api.saveAlertSettings({ high_risk: true, news: true, monthly_report: true, high_
 
 ---
 
+## 6. 구독/요금제 페이지 `/pricing` (또는 `/subscription`) ⭐
+
+**목표**: 요금제(Basic/Pro/Enterprise) 비교 → 구독/업그레이드 → 기능 잠금(paywall) 처리.
+수익모델 반영: Basic 30만/월, Pro 100만/월, Enterprise 300만+/별도견적.
+
+**화면**
+- 3개 플랜 카드(가격·대상·기능 목록), 현재 플랜 배지, 각 카드 "이 요금제로 변경" 버튼
+- 사용량 표시: "품목 3 / 5" (Basic 한도)
+- Enterprise는 `custom_quote:true` → "문의하기"
+
+**API**
+```ts
+api.getSubscription()   // GET /subscription → { plans:[...], current_plan, label, usage:{items,items_limit}, features }
+api.subscribe("pro")    // POST /subscription {plan} → 변경(데모 mock 결제, 즉시 반영)
+```
+`plans[]` 각 항목: `{ key, label, price_krw, target, max_items, custom_quote, highlights[], features{} }`
+
+**Paywall 처리 (중요)**: 아래 요청이 **402**를 주면 "요금제 업그레이드 필요" 안내 + `/pricing` 유도.
+- 품목 6개째 등록(`POST /queries`) — Basic 한도(5) 초과
+- AI 보고서 생성(`POST /queries/{id}/analyze`) — Pro 이상
+- 가중치 재계산(`POST /items/{hs}/reweight`) — Pro 이상
+> 402 응답 `detail` 에 사용자용 한글 안내 메시지가 담겨 있으니 그대로 표시하면 됨.
+> 현재 플랜 기능은 `getSubscription().features` (`recommendations/ai_reports/reweight/api_access`)로 미리 버튼 비활성화 가능.
+
+`UserOut` 에 `plan` 필드 추가됨 → 로그인 직후 플랜 표시 가능.
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -113,6 +141,8 @@ api.saveAlertSettings({ high_risk: true, news: true, monthly_report: true, high_
 | `POST /feedback` | 추천 피드백 | ✅ 있음 |
 | `GET /risks?hs_code=` | 국가별 SGRI(6지표 포함) | ✅ 있음 |
 | `GET/PUT /alert-settings` | 알림 설정 | 🔧 (원하면 추가) |
+| `GET /subscription` | 요금제 카탈로그+현재 플랜+사용량 | ✅ **추가됨** |
+| `POST /subscription` | 플랜 변경(mock 결제) | ✅ **추가됨** |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 

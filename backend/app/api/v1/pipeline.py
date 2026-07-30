@@ -64,5 +64,7 @@ def reweight_item(
     current_user: User = Depends(get_current_user),
 ):
     """이미 계산된 6지표를 근거로 제미나이 가중치만 다시 받아 SGRI를 재계산한다.
-    (Comtrade 재수집 없이 가벼움 — 가중치 실험/갱신용)"""
+    (Comtrade 재수집 없이 가벼움 — 가중치 실험/갱신용). Pro 이상 요금제 전용."""
+    from app.services.plans import require_feature
+    require_feature(current_user, "reweight")
     return apply_gemini_sgri(db, hs_code)

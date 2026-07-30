@@ -19,5 +19,6 @@ class User(Base):
     picture_url: Mapped[str | None] = mapped_column(String(500))
     company_id: Mapped[int | None] = mapped_column(BigInteger)
     role: Mapped[str | None] = mapped_column(String(20))
+    plan: Mapped[str] = mapped_column(String(20), default="basic", server_default="basic")  # 구독 요금제
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

@@ -19,6 +19,7 @@ class UserOut(BaseModel):
     name: str | None = None
     company_id: int | None = None
     role: str | None = None
+    plan: str | None = None   # 구독 요금제 (basic/pro/enterprise)
 
 
 class TokenResponse(BaseModel):
