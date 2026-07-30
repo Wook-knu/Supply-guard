@@ -10,6 +10,7 @@ from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.services.pipeline import build_item_sgri
+from app.services.weighting_ai import apply_gemini_sgri
 
 router = APIRouter(prefix="/items", tags=["pipeline"])
 
@@ -22,3 +23,14 @@ def build_item(
 ):
     """해당 HS 코드의 SGRI를 구축한다. 완료 후 국가 추천이 가능해진다."""
     return build_item_sgri(db, hs_code)
+
+
+@router.post("/{hs_code}/reweight")
+def reweight_item(
+    hs_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """이미 계산된 6지표를 근거로 제미나이 가중치만 다시 받아 SGRI를 재계산한다.
+    (Comtrade 재수집 없이 가벼움 — 가중치 실험/갱신용)"""
+    return apply_gemini_sgri(db, hs_code)

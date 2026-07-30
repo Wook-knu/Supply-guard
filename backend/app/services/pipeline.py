@@ -27,7 +27,7 @@ load_dotenv(_DB_DIR / ".env")
 # 품목 무관 재계산 파일 (comtrade에 있는 모든 품목 대상)
 _CALC_C = "calc_hhi_concentration.sql"      # C: supplier_concentration
 _CALC_S = "calc_supply_instability.sql"     # S: score_s
-_CALC_SGRI = "calc_sgri.sql"                # 종합
+# 종합 SGRI는 calc_sgri.sql(고정 가중치) 대신 제미나이 가중치(weighting_ai)로 계산
 
 # 국가×품목 병합 (calc_merge_item.sql 파라미터화). %(hs)s 로 임의 품목 지원.
 _MERGE_SQL = """
@@ -85,7 +85,7 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         except Exception:  # noqa: BLE001 - 일부 연도 실패해도 계속
             pass
 
-    # 2) calc 실행: C → 병합(P·L·C·V·E) → S → 종합 SGRI
+    # 2) 지표 계산(공식/SQL): C → 병합(P·L·C·V·E) → S
     raw = engine.raw_connection()
     try:
         cur = raw.cursor()
@@ -93,12 +93,18 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         cur.execute((_DB_DIR / _CALC_C).read_text(encoding="utf-8"))
         cur.execute(_MERGE_SQL, {"hs": hs})
         cur.execute((_DB_DIR / _CALC_S).read_text(encoding="utf-8"))
-        cur.execute((_DB_DIR / _CALC_SGRI).read_text(encoding="utf-8"))
         raw.commit()
     finally:
         raw.close()
 
-    n = db.execute(
-        text("SELECT count(*) FROM country_risk_scores WHERE hs_code = :h"), {"h": hs}
-    ).scalar()
-    return {"hs_code": hs, "comtrade_years_ingested": ingested, "countries": int(n or 0)}
+    # 3) 종합 SGRI: 제미나이 가중치(AI_Model) + Python 검증으로 가중합
+    from app.services.weighting_ai import apply_gemini_sgri
+    weighting = apply_gemini_sgri(db, hs)
+
+    return {
+        "hs_code": hs,
+        "comtrade_years_ingested": ingested,
+        "countries": weighting.get("countries", 0),
+        "uses_llm": weighting.get("uses_llm"),
+        "weights": weighting.get("weights"),
+    }
