@@ -1,34 +1,43 @@
 """
-인증 헬퍼 (지금은 STUB).
+인증 헬퍼 — 서명된 JWT 세션 토큰.
 
-⚠️ 이건 개발용 가짜 토큰이다.
-   토큰 형식: "stub-{user_id}"  (예: user_id=42 → "stub-42")
-   나중에 진짜 Google OAuth + JWT로 바꿀 때, 아래 _parse_token / create_access_token
-   두 곳만 교체하면 나머지 코드(get_current_user 등)는 그대로 둬도 된다.
+토큰: HS256 JWT, payload {sub: user_id, exp}. SECRET_KEY 로 서명(위조 불가).
+발급은 create_access_token, 검증은 _parse_token 에서만 한다(다른 코드는 그대로).
+로그인 방식(구글 OAuth / 이메일 스텁)은 auth.py 라우터가 담당.
 """
+from datetime import datetime, timedelta, timezone
+
+import jwt
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.db import get_db
 from app.models.user import User
 
+_ALGO = "HS256"
+
 
 def create_access_token(user_id: int) -> str:
-    """가짜 토큰 발급. (진짜 구현 시 JWT 인코딩으로 교체)"""
-    return f"stub-{user_id}"
+    """서명된 JWT 세션 토큰 발급."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=_ALGO)
 
 
 def _parse_token(authorization: str | None) -> int | None:
-    """Bearer 토큰에서 user_id를 뽑는다. 없거나 형식이 틀리면 None.
-    (진짜 구현 시 JWT 디코딩으로 교체)"""
+    """Bearer JWT 에서 user_id 추출. 없거나 서명/만료 불량이면 None."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization.removeprefix("Bearer ").strip()
-    if not token.startswith("stub-"):
-        return None
     try:
-        return int(token.removeprefix("stub-"))
-    except ValueError:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[_ALGO])
+        return int(payload["sub"])
+    except (jwt.InvalidTokenError, KeyError, ValueError):
         return None
 
 

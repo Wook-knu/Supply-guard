@@ -17,6 +17,7 @@ class UserOut(BaseModel):
     user_id: int
     email: str
     name: str | None = None
+    picture_url: str | None = None   # 구글 프로필 사진(있으면)
     company_id: int | None = None
     role: str | None = None
     plan: str | None = None   # 구독 요금제 (basic/pro/enterprise)
