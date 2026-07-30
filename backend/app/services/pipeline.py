@@ -26,7 +26,7 @@ load_dotenv(_DB_DIR / ".env")
 
 # 품목 무관 재계산 파일 (comtrade에 있는 모든 품목 대상)
 _CALC_C = "calc_hhi_concentration.sql"      # C: supplier_concentration
-_CALC_S = "calc_supply_instability.sql"     # S: score_s
+# S는 이제 _MERGE_SQL의 LATERAL(s_source_monthly)에서 산출 → 별도 calc_supply_instability 실행 안 함
 # 종합 SGRI는 calc_sgri.sql(고정 가중치) 대신 제미나이 가중치(weighting_ai)로 계산
 
 # 국가×품목 병합 (calc_merge_item.sql 파라미터화). %(hs)s 로 임의 품목 지원.
@@ -34,10 +34,10 @@ _MERGE_SQL = """
 DELETE FROM country_risk_scores WHERE hs_code = %(hs)s;
 
 INSERT INTO country_risk_scores
-    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_v, score_e, sgri_score)
+    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_s, score_v, score_e, sgri_score)
 SELECT
     cl.country_code, %(hs)s, DATE '2024-01-01',
-    MAX(cl.score_p), MAX(cl.score_l), MAX(ic.score_c), MAX(vv.score_v), MAX(ee.score_e), 0
+    MAX(cl.score_p), MAX(cl.score_l), MAX(ic.score_c), MAX(ss.score_s), MAX(vv.score_v), MAX(ee.score_e), 0
 FROM country_risk_scores cl
 JOIN (
     SELECT DISTINCT partner_code FROM comtrade_trade_flows
@@ -47,6 +47,13 @@ LEFT JOIN LATERAL (
     SELECT ROUND(hhi * 100, 3) AS score_c FROM supplier_concentration
     WHERE importer_code = 'KR' AND hs_code = %(hs)s ORDER BY period DESC LIMIT 1
 ) ic ON TRUE
+LEFT JOIN LATERAL (
+    -- S = 이 품목 월간 수입액의 변동계수(CV) → 0~100. 소스: s_source_monthly 뷰
+    --   (Comtrade World 합계 / 관세청 승인 후 뷰만 교체). run_world() 사전 적재 필요.
+    SELECT LEAST(ROUND(
+        STDDEV_SAMP(import_value) / NULLIF(AVG(import_value), 0) * 100, 3), 100) AS score_s
+    FROM s_source_monthly WHERE hs_code = %(hs)s HAVING COUNT(*) >= 2
+) ss ON TRUE
 LEFT JOIN LATERAL (
     WITH fred_cv AS (
         SELECT STDDEV_SAMP(value) / NULLIF(AVG(value), 0) AS cv FROM fred_observations
@@ -75,7 +82,9 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
     if len(hs) < 2:
         return {"hs_code": hs_code, "error": "invalid hs_code"}
 
-    # 1) Comtrade 다년치 수집 (S 변동성 계산용)
+    # 1) Comtrade 수집
+    #    - run(): 상대국별 연간 (C 집중도 HHI용)
+    #    - run_world(): World 합계 월별 (S 수급 변동성용 → s_source_monthly 뷰가 읽음)
     from ingest import comtrade  # database/ingest/comtrade
     ingested = 0
     for yr in ("2019", "2020", "2021", "2022", "2023"):
@@ -84,15 +93,18 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
             ingested += 1
         except Exception:  # noqa: BLE001 - 일부 연도 실패해도 계속
             pass
+    try:
+        comtrade.run_world("410", comtrade.months("202401", "202512"), hs, "M")
+    except Exception:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
+        pass
 
-    # 2) 지표 계산(공식/SQL): C → 병합(P·L·C·V·E) → S
+    # 2) 지표 계산(공식/SQL): C → 병합(P·L·C·S·V·E). S는 병합의 LATERAL에서 산출.
     raw = engine.raw_connection()
     try:
         cur = raw.cursor()
         cur.execute("SET client_encoding TO 'UTF8'")
         cur.execute((_DB_DIR / _CALC_C).read_text(encoding="utf-8"))
         cur.execute(_MERGE_SQL, {"hs": hs})
-        cur.execute((_DB_DIR / _CALC_S).read_text(encoding="utf-8"))
         raw.commit()
     finally:
         raw.close()
