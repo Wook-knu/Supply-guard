@@ -348,8 +348,45 @@ CREATE TABLE procurement_recommendations (
 CREATE INDEX idx_reco_query_rank ON procurement_recommendations(query_id, rank);
 
 -- ============================================================================
+-- [4] 소스 추상화 뷰
+-- ============================================================================
+
+-- S(수급 불안정성) 계산의 입력 소스.
+--
+-- S 는 "한국이 이 품목을 월별로 얼마나 들쭉날쭉 수입하는지"라서 국가 구분이 필요 없다.
+-- 원래는 관세청_품목별 수출입실적(15101609)으로 채울 계획이었으나 승인 대기 중이라,
+-- 당분간 UN Comtrade 의 World(전세계 합계) 행으로 대체한다.
+--
+-- calc_supply_instability.sql / calc_merge_item.sql 은 이 뷰만 바라본다.
+-- → 관세청 승인이 나면 아래 SELECT 만 customs_item_trade_stats 로 교체하면 되고,
+--   계산 로직·가중치·SGRI 는 건드릴 필요가 없다.
+--
+-- ⚠ 소스를 바꾸면 값 기준이 달라진다(Comtrade 표준화값 vs 관세청 CIF 신고값).
+--   두 소스를 한 시계열에 섞으면 변동계수(CV)가 실제보다 크게 나오므로,
+--   교체할 때는 score_s 를 전 기간 재계산해야 한다.
+CREATE VIEW s_source_monthly AS
+SELECT
+    hs_code,
+    period                AS period,          -- YYYYMM
+    trade_value_usd       AS import_value
+FROM comtrade_trade_flows
+WHERE flow_code = 'M'
+  AND partner_code IS NULL      -- World 합계행
+  AND trade_value_usd > 0;
+
+-- ── 관세청 승인 후 교체용 (위 뷰를 지우고 아래로 대체) ──────────────────────
+-- CREATE OR REPLACE VIEW s_source_monthly AS
+-- SELECT
+--     hs_code,
+--     REPLACE(period, '.', '') AS period,     -- 'YYYY.MM' → 'YYYYMM' 로 형식 통일
+--     import_usd               AS import_value
+-- FROM customs_item_trade_stats
+-- WHERE import_usd > 0;
+
+
+-- ============================================================================
 -- 지표 → 소스 매핑 요약
---   S : comtrade_trade_flows, customs_item_trade_stats
+--   S : s_source_monthly 뷰 (현재 comtrade_trade_flows World행 → 승인 후 관세청)
 --   C : comtrade_trade_flows → supplier_concentration(HHI)
 --   V : fred_observations, ecos_observations
 --   L : portwatch_port_activity, gdacs_alerts

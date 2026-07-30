@@ -7,17 +7,19 @@
 --   각 후보국 행(country, 283691)에:
 --     score_p, score_l = 그 국가의 국가단위 행(hs=NULL)에서 가져옴 (WGI/GDACS·PortWatch)
 --     score_c          = 이 품목의 HHI(집중도) — 후보국 공통(시장 취약성)
---   (S·V·E 는 데이터 확보 후 같은 방식으로 확장)
+--     score_s          = 이 품목의 월간 수입 변동계수 — 후보국 공통(시장 취약성)
+--   (V·E 는 아래 LATERAL 에서 함께 산출)
 --
 -- 실행 순서: calc_policy_risk → calc_hhi_concentration → calc_logistics_risk
 --            → (이 파일) → calc_sgri
+--   ※ S 를 채우려면 사전에 ingest.comtrade.run_world() 로 World 합계행 적재 필요
 -- ============================================================================
 
 -- 기존 품목 행 제거(데모 값 포함) 후 실데이터로 재생성
 DELETE FROM country_risk_scores WHERE hs_code = '283691';
 
 INSERT INTO country_risk_scores
-    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_v, score_e, sgri_score)
+    (country_code, hs_code, as_of_date, score_p, score_l, score_c, score_s, score_v, score_e, sgri_score)
 -- ※ 국가단위 행(hs=NULL)은 NULL 유니크 특성상 P행·L행이 분리 저장됨
 --   → GROUP BY 국가 + MAX 로 P·L을 한 행으로 합친다.
 SELECT
@@ -27,6 +29,7 @@ SELECT
     MAX(cl.score_p)   AS score_p,     -- 국가단위 P (WGI)
     MAX(cl.score_l)   AS score_l,     -- 국가단위 L (GDACS/PortWatch)
     MAX(ic.score_c)   AS score_c,     -- 품목단위 C (HHI), 후보국 공통
+    MAX(ss.score_s)   AS score_s,     -- 품목단위 S (월간 수입 변동성), 후보국 공통
     MAX(vv.score_v)   AS score_v,     -- 품목단위 V (원자재가+환율 변동성), 후보국 공통
     MAX(ee.score_e)   AS score_e,     -- 품목단위 E (LCI 배출계수), 후보국 공통
     0                 AS sgri_score
@@ -43,6 +46,16 @@ LEFT JOIN LATERAL (
     WHERE importer_code = 'KR' AND hs_code = '283691'
     ORDER BY period DESC LIMIT 1
 ) ic ON TRUE
+LEFT JOIN LATERAL (
+    -- S = 이 품목 월간 수입액의 변동계수(CV) → 0~100 (상한 100)
+    --   소스: s_source_monthly 뷰
+    --   현재 Comtrade World 합계행 / 관세청 승인 후 관세청 실적으로 교체 (뷰만 수정)
+    SELECT LEAST(ROUND(
+        STDDEV_SAMP(import_value) / NULLIF(AVG(import_value), 0) * 100, 3), 100) AS score_s
+    FROM s_source_monthly
+    WHERE hs_code = '283691'
+    HAVING COUNT(*) >= 2
+) ss ON TRUE
 LEFT JOIN LATERAL (
     -- V = FRED(원자재가지수) CV 와 ECOS(원/달러) CV 의 평균 → 0~100 (상한 100)
     WITH fred_cv AS (
