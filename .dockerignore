@@ -1,0 +1,13 @@
+# 백엔드 이미지 빌드 컨텍스트에서 제외 (용량·비밀정보)
+**/node_modules
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.next
+**/.git
+**/.env
+**/.env.*
+Frontend
+docs
+*.md

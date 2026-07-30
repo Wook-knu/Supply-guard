@@ -4,3 +4,17 @@
 /.next/
 /next-env.d.ts
 .DS_Store
+
+# 비밀정보 (전 서브디렉토리)
+**/.env
+**/.env.local
+!.env.example
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/venv/
+
+# DB 덤프
+*.dump
