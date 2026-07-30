@@ -7,7 +7,7 @@
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal, get_db
@@ -113,6 +113,29 @@ def analyze_job_status(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     return {"job_id": job_id, **job}
+
+
+@router.delete("/{query_id}", status_code=204)
+def delete_query(
+    query_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """등록 품목(질의)과 그에 딸린 추천·보고서·알림을 삭제한다 (본인 것만)."""
+    from app.models.alert import Alert
+    from app.models.recommendation import ProcurementRecommendation
+    from app.models.report import Report
+    from app.models.supplier_recommendation import SupplierRecommendation
+
+    query = db.get(UserQuery, query_id)
+    if query is None or query.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="query not found")
+    # FK ON DELETE 미설정 → 자식 행부터 정리 후 질의 삭제
+    for model in (ProcurementRecommendation, SupplierRecommendation, Report, Alert):
+        db.execute(delete(model).where(model.query_id == query_id))
+    db.delete(query)
+    db.commit()
+    return None
 
 
 @router.get("/{query_id}", response_model=QueryOut)
