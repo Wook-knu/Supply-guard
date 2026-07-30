@@ -231,6 +231,40 @@ api.chat({ message, query_id?, history? })
 
 ---
 
+## 10. 벤치마크 (동종 데이터 대비 상대 위치)
+
+**목표**: "내 품목/국가가 전체 대비 얼마나 위험한지" 정직하게(우리 데이터셋 내 상대 위치).
+- 예: "리튬은 **공급처 집중도**가 전체 품목 평균보다 +37.9점 위험" / "중국은 후보 22개국 중 **위험 상위 32%**"
+
+**화면**: 리스크 상세(`/risks/{hs}`) 안 탭/섹션 또는 별도 카드.
+- 6지표 **막대/레이더**: 이 품목 값 vs 전체 평균 (Δ·판정 표시)
+- 국가 선택 시 **percentile 게이지**("상위 N% 위험")
+
+> ⚠️ **국가와 기업은 기준이 다르다**: SGRI는 국가(+품목) 지수 → 국가 벤치마크에만 쓴다.
+> 기업 벤치마크는 **조달지표(단가·납기·품질)** 로 별도 계산(SGRI 아님).
+
+**① 국가/품목 벤치마크 (SGRI 기준)**
+```ts
+api.getItemBenchmark(hsCode, countryCode?)
+// GET /benchmark/item/{hs_code}?country_code=CN
+// → { item_avg_sgri, all_items_avg_sgri, sgri_delta, sgri_verdict,
+//     indicators:[{key,label,item_avg,all_avg,delta,verdict}],
+//     country?:{ country_code, sgri, candidate_countries, risk_percentile, vs_item_avg, summary } }
+```
+
+**② 기업 벤치마크 (조달지표 기준)**
+```ts
+api.getSupplierBenchmark(queryId, companyId)
+// GET /benchmark/supplier/{query_id}/{company_id}
+// → { company_name, candidate_count, fit_score,
+//     metrics:[{key,label,value,candidate_avg,better_is:"low"|"high",rank,candidate_count,verdict}] }
+```
+- 후보 공급사들끼리 단가·리드타임·정시납품률·불량률 비교. `better_is` 로 방향 표시(단가는 낮을수록 우수).
+- `verdict`: "우수" | "평균 수준" | "미흡".
+> 두 API 모두 `basis` 필드에 산출 기준 명시 → 화면에 라벨로 표기 권장.
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -251,6 +285,8 @@ api.chat({ message, query_id?, history? })
 | `GET/POST /boards`, `GET/PATCH/DELETE /boards/{id}` | 검토 보드 CRUD | ✅ **추가됨** |
 | `POST/PATCH/DELETE /boards/{id}/items[/{itemId}]` | 보드 카드 CRUD | ✅ **추가됨** |
 | `POST /chat` | AI 챗봇 (내 데이터 Q&A) | ✅ **추가됨** |
+| `GET /benchmark/item/{hs}` | 국가/품목 벤치마크(SGRI) | ✅ **추가됨** |
+| `GET /benchmark/supplier/{qid}/{cid}` | 기업 벤치마크(조달지표) | ✅ **추가됨** |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 
