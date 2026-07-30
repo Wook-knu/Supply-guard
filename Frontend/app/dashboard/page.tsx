@@ -53,7 +53,7 @@ import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
 
-type RiskRow = { item: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
+type RiskRow = { item: string; hs: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
 const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
 
 // 알림 severity → 화면용 한글 라벨 (최신 동향 카드에서 사용)
@@ -127,6 +127,7 @@ export default function Dashboard() {
       const query = monitoredItems.find((item) => item.hs_code === row.hs_code)
       return {
         item: query?.item_name ?? HS_NAME[row.hs_code ?? ""] ?? (row.hs_code ?? "품목"),
+        hs: row.hs_code ?? "",
         code: `HS ${row.hs_code ?? ""}`,
         country: getCountryName(row.country_code),
         score: Math.round(Number(row.sgri_score ?? 0)),
@@ -204,7 +205,7 @@ export default function Dashboard() {
               <a className="flex items-center gap-3 rounded-md bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700" href="#overview">
                 <Home className="h-4 w-4" /> 대시보드
               </a>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/risks/lithium-carbonate">
+              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/risks/283691">
                 <CircleAlert className="h-4 w-4" /> 리스크 분석
               </Link>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/recommendations">
@@ -275,7 +276,7 @@ export default function Dashboard() {
                   <Button variant="outline" size="sm" onClick={() => setShowAllRisks(!showAllRisks)}>{showAllRisks ? "간략히 보기" : "전체 보기"}<ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Button>
                 </CardHeader>
                 <CardContent className="px-0 pb-0">
-                  <Table><TableHeader><TableRow className="bg-slate-50 hover:bg-slate-50"><TableHead className="pl-6">품목</TableHead><TableHead>주요 공급국</TableHead><TableHead>위험도</TableHead><TableHead className="hidden lg:table-cell">주요 원인</TableHead><TableHead className="w-10" /></TableRow></TableHeader><TableBody>{risks.slice(0, showAllRisks ? risks.length : 3).map((risk) => <TableRow key={`${risk.code}-${risk.country}`} className="hover:bg-slate-50"><TableCell className="pl-6"><Link href="/risks/lithium-carbonate" className="font-medium hover:text-blue-600">{risk.item}</Link><div className="mt-0.5 text-xs text-slate-400">{risk.code}</div></TableCell><TableCell><span className="text-sm">{risk.country}</span></TableCell><TableCell><div className="flex items-center gap-2"><RiskBadge level={risk.level} /><span className="text-xs font-medium text-rose-600">{risk.score}</span></div></TableCell><TableCell className="hidden text-sm text-slate-500 lg:table-cell">{risk.factor}</TableCell><TableCell><Button asChild variant="ghost" size="icon" className="h-8 w-8"><Link href="/risks/lithium-carbonate"><MoreHorizontal className="h-4 w-4" /></Link></Button></TableCell></TableRow>)}</TableBody></Table>
+                  <Table><TableHeader><TableRow className="bg-slate-50 hover:bg-slate-50"><TableHead className="pl-6">품목</TableHead><TableHead>주요 공급국</TableHead><TableHead>위험도</TableHead><TableHead className="hidden lg:table-cell">주요 원인</TableHead><TableHead className="w-10" /></TableRow></TableHeader><TableBody>{risks.slice(0, showAllRisks ? risks.length : 3).map((risk) => <TableRow key={`${risk.code}-${risk.country}`} className="hover:bg-slate-50"><TableCell className="pl-6"><Link href={`/risks/${risk.hs}`} className="font-medium hover:text-blue-600">{risk.item}</Link><div className="mt-0.5 text-xs text-slate-400">{risk.code}</div></TableCell><TableCell><span className="text-sm">{risk.country}</span></TableCell><TableCell><div className="flex items-center gap-2"><RiskBadge level={risk.level} /><span className="text-xs font-medium text-rose-600">{risk.score}</span></div></TableCell><TableCell className="hidden text-sm text-slate-500 lg:table-cell">{risk.factor}</TableCell><TableCell><Button asChild variant="ghost" size="icon" className="h-8 w-8"><Link href={`/risks/${risk.hs}`}><MoreHorizontal className="h-4 w-4" /></Link></Button></TableCell></TableRow>)}</TableBody></Table>
                   {risks.length === 0 && <p className="py-8 text-center text-sm text-slate-400">조회된 위험 데이터가 없습니다.</p>}
                 </CardContent>
               </Card>

@@ -54,6 +54,25 @@ export type SupplierReco = {
   company: Company
 }
 
+export type CompanyDetail = {
+  company_id: number
+  name: string
+  name_en: string | null
+  country_code: string | null
+  company_type: string | null
+  website: string | null
+  hs_codes: string[] | null
+  certifications: string[] | null
+  annual_capacity: string | null
+  capacity_unit: string | null
+  status: string | null
+  unit_price: string | null
+  available_quantity: string | null
+  lead_time_days: number | null
+  on_time_delivery_rate: string | null
+  defect_rate_pct: string | null
+}
+
 export type ReportSection = { id: string; title: string; body: string }
 
 export type ReportOut = {
@@ -99,6 +118,12 @@ export type RiskOut = {
   country_code: string
   hs_code: string | null
   as_of_date: string
+  score_s: string | null
+  score_c: string | null
+  score_v: string | null
+  score_l: string | null
+  score_p: string | null
+  score_e: string | null
   sgri_score: string | null
   level: string
 }
@@ -177,6 +202,9 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
+  // 공급사 상세 (기업 공개 정보)
+  getCompany: (companyId: number) =>
+    http<CompanyDetail>(`/companies/${companyId}`),
   // F-09 AI 심층분석 시작 — 202 + job_id 반환(비동기)
   analyzeQuery: (queryId: number) =>
     http<AnalyzeJob>(`/queries/${queryId}/analyze`, { method: "POST" }),
