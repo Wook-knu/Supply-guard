@@ -107,9 +107,9 @@ api.saveAlertSettings({ high_risk: true, news: true, monthly_report: true, high_
 | 엔드포인트 | 용도 | 상태 |
 |---|---|---|
 | `GET /queries` | 내 품목 목록 | ✅ 있음 |
-| `DELETE /queries/{id}` | 품목 삭제 (본인만) | 🔧 추가 예정 |
-| `POST /items/{hs}/build-sgri` → `{job_id}` | 신규 품목 분석(비동기) | 🔧 job화 예정 |
-| `GET /items/build/jobs/{job_id}` | 분석 진행 상태 | 🔧 추가 예정 |
+| `DELETE /queries/{id}` | 품목 삭제 (본인만, 204) | ✅ **추가됨** |
+| `POST /items/{hs}/build-sgri` → `202 {job_id}` | 신규 품목 분석(비동기) | ✅ **job화 완료** |
+| `GET /items/build/jobs/{job_id}` | 분석 진행 상태 | ✅ **추가됨** |
 | `POST /feedback` | 추천 피드백 | ✅ 있음 |
 | `GET /risks?hs_code=` | 국가별 SGRI(6지표 포함) | ✅ 있음 |
 | `GET/PUT /alert-settings` | 알림 설정 | 🔧 (원하면 추가) |
