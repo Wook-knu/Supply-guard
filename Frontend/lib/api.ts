@@ -191,6 +191,15 @@ export const api = {
     window.localStorage.setItem(ACCESS_TOKEN_KEY, response.access_token)
     return response
   },
+  // 구글 로그인 — GIS credential(ID 토큰)을 검증받고 우리 JWT 저장
+  googleLogin: async (idToken: string) => {
+    const response = await http<TokenResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ id_token: idToken }),
+    })
+    window.localStorage.setItem(ACCESS_TOKEN_KEY, response.access_token)
+    return response
+  },
   getMe: () => http<UserOut>("/auth/me"),
   // F-01 품목 입력
   createQuery: (body: QueryCreate) =>
