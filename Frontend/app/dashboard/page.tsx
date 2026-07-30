@@ -3,7 +3,7 @@
 // 서비스의 핵심 현황을 위험도·알림·보고서 API 기반으로 요약합니다.
 
 import { useEffect, useMemo, useState } from "react"
-import { api, type AlertOut, type QueryOut, type ReportOut, type RiskOut } from "@/lib/api"
+import { api, type AlertOut, type CountryReco, type QueryOut, type ReportOut, type RiskOut } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 import {
   AlertTriangle,
@@ -56,18 +56,12 @@ import Link from "next/link"
 type RiskRow = { item: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
 const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
 
-const alternatives = [
-  { country: "호주", flag: "AU", score: 82, reason: "낮은 지정학 위험 · 안정적 광물 공급" },
-  { country: "칠레", flag: "CL", score: 76, reason: "가격 경쟁력 · 리튬 생산 기반" },
-  { country: "캐나다", flag: "CA", score: 72, reason: "ESG 적합 · FTA 활용 가능" },
-]
-
-// 추후 네이버 뉴스 API 또는 크롤링 뉴스 응답으로만 교체한다.
-const news = [
-  { title: "중국, 흑연 수출 허가 대상 확대 검토", source: "Reuters", time: "24분 전", level: "고위험" },
-  { title: "대만 해협 악천후로 선적 일정 일부 지연", source: "Lloyd's List", time: "2시간 전", level: "주의" },
-  { title: "인도네시아 니켈 생산량 전망 상향", source: "Bloomberg", time: "5시간 전", level: "안정" },
-]
+// 알림 severity → 화면용 한글 라벨 (최신 동향 카드에서 사용)
+function severityLabel(severity: string | null): "고위험" | "주의" | "안정" {
+  if (severity === "high" || severity === "높음") return "고위험"
+  if (severity === "low" || severity === "안정") return "안정"
+  return "주의"
+}
 
 function latestRiskRows(rows: RiskOut[]) {
   const latest = new Map<string, RiskOut>()
@@ -98,6 +92,7 @@ export default function Dashboard() {
   const [queries, setQueries] = useState<QueryOut[]>([])
   const [selectedHsCode, setSelectedHsCode] = useState("")
   const [alerts, setAlerts] = useState<AlertOut[]>([])
+  const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
 
@@ -143,6 +138,13 @@ export default function Dashboard() {
   const previousScore = scoreTrend.at(-2)?.score ?? currentScore
   const scoreChange = currentScore - previousScore
   const alertCount = alerts.filter((alert) => !alert.is_read).length
+  // 최신 동향 카드: 실제 알림을 최신순 상위 4건으로 표시한다(하드코딩 뉴스 대체).
+  const trend = useMemo(() => alerts.slice(0, 4).map((alert) => ({
+    title: alert.title ?? alert.message ?? "리스크 알림",
+    source: alert.alert_type ?? "SupplyGuard",
+    time: alert.created_at ? new Date(alert.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "",
+    level: severityLabel(alert.severity),
+  })), [alerts])
 
   // 대시보드의 위험도·알림·보고서·사용자 정보를 실제 API에서 불러온다.
   useEffect(() => {
@@ -156,6 +158,14 @@ export default function Dashboard() {
     api.getReports().then((rows) => setLatestReport(rows[0] ?? null)).catch(() => setLatestReport(null))
     api.getMe().then((user) => setUserName(user.name || user.email.split("@")[0])).catch(() => setUserName(""))
   }, [])
+
+  // 선택 품목의 대체 공급국 추천을 실제 API에서 불러온다(하드코딩 목록 대체).
+  useEffect(() => {
+    if (!selectedItem) { setCountryRecos([]); return }
+    api.getCountryRecos(selectedItem.query_id)
+      .then((rows) => setCountryRecos(rows.slice(0, 3)))
+      .catch(() => setCountryRecos([]))
+  }, [selectedItem])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -240,7 +250,7 @@ export default function Dashboard() {
             <Metric icon={ShieldAlert} label="선택 품목 위험도" value={String(currentScore)} suffix="/ 100" change={`직전 대비 ${scoreChange >= 0 ? "+" : ""}${scoreChange}`} tone="rose" />
             <Metric icon={Box} label="모니터링 품목" value={String(monitoredItems.length)} suffix="개" change="내 등록 품목" tone="blue" />
             <Metric icon={AlertTriangle} label="활성 경보" value={String(alertCount)} suffix="건" change="실시간 집계" tone="amber" />
-            <Metric icon={Globe2} label="대체 공급국" value="4" suffix="개" change="추천 업데이트됨" tone="emerald" />
+            <Metric icon={Globe2} label="대체 공급국" value={String(countryRecos.length)} suffix="개" change={selectedItem ? "추천 업데이트됨" : "품목 선택 시 표시"} tone="emerald" />
           </section>
 
           <section className="grid gap-6 xl:grid-cols-3">
@@ -277,9 +287,9 @@ export default function Dashboard() {
                 <CardContent><p className="text-sm leading-6 text-slate-600">{alerts[0]?.message ?? alerts[0]?.title ?? "새로운 리스크 브리핑 데이터가 없습니다."}</p><div className="mt-4 flex gap-2"><Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700"><Link href="/alerts">대응 전략 보기</Link></Button><Button asChild size="sm" variant="outline" className="border-blue-200 bg-white text-blue-700"><Link href="/reports/new">보고서 생성</Link></Button></div></CardContent>
               </Card>
 
-              <Card id="alternatives" className="scroll-mt-20 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3"><div><CardTitle className="text-base">대체 공급국 추천</CardTitle><CardDescription className="mt-1">리튬 탄산염 기준</CardDescription></div><Button variant="ghost" size="sm" className="text-blue-600">전체 보기</Button></CardHeader><CardContent className="space-y-3">{alternatives.map((alternative, index) => <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={alternative.country}><div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">{alternative.flag}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between"><span className="text-sm font-medium">{alternative.country}</span><span className="text-xs font-semibold text-emerald-600">적합도 {alternative.score}</span></div><p className="mt-1 truncate text-xs text-slate-500">{alternative.reason}</p></div>{index === 0 && <CheckCircle2 className="h-4 w-4 text-blue-600" />}</div>)}</CardContent></Card>
+              <Card id="alternatives" className="scroll-mt-20 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3"><div><CardTitle className="text-base">대체 공급국 추천</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} 기준` : "품목을 선택하면 표시됩니다"}</CardDescription></div><Button asChild variant="ghost" size="sm" className="text-blue-600"><Link href="/recommendations">전체 보기</Link></Button></CardHeader><CardContent className="space-y-3">{countryRecos.map((reco, index) => <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={reco.country_code}><div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">{reco.country_code}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between"><span className="text-sm font-medium">{getCountryName(reco.country_code)}</span><span className="text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(reco.fit_score ?? reco.sgri_score ?? 0))}</span></div><p className="mt-1 truncate text-xs text-slate-500">{reco.rationale ?? "SGRI 종합 평가 기반 추천"}</p></div>{index === 0 && <CheckCircle2 className="h-4 w-4 text-blue-600" />}</div>)}{countryRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">추천 데이터가 없습니다.</p>}</CardContent></Card>
 
-              <Card className="border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">연관 뉴스 및 정책 변화</CardDescription></div><Landmark className="h-4 w-4 text-slate-400" /></CardHeader><CardContent className="px-0 pb-0">{news.map((article) => <div className="border-t border-slate-100 px-6 py-3.5" key={article.title}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source} · {article.time}</p></div>)}</CardContent></Card>
+              <Card className="border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">최근 위험 알림 및 정책 변화</CardDescription></div><Landmark className="h-4 w-4 text-slate-400" /></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => <div className="border-t border-slate-100 px-6 py-3.5" key={`${article.title}-${index}`}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}</p></div>)}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
             </div>
           </section>
 
