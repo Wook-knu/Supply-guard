@@ -37,11 +37,16 @@ export default function NewReportPage() {
   function toggleSection(id: string) { setSections((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
 
   async function handleGenerate() {
-    // URL의 query_id로 백엔드 AI 분석을 실행하고 생성된 보고서를 불러온다.
-    const qid = Number(new URLSearchParams(window.location.search).get("query_id"))
+    // URL의 query_id, 없으면 사용자의 최근 등록 품목으로 AI 분석을 실행한다.
     setLoading(true); setError(""); setAiReport(null)
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
     try {
+      let qid = Number(new URLSearchParams(window.location.search).get("query_id"))
+      if (!qid) {
+        // query_id가 없으면 최근 등록 품목을 찾아 그걸로 분석 (없으면 빈 초안)
+        const queries = await api.getQueries().catch(() => [])
+        qid = queries.find((q) => q.hs_code)?.query_id ?? 0
+      }
       if (!qid) {
         const report = await api.createReport({ title: title.trim() || undefined })
         setAiReport(report)

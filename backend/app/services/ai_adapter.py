@@ -14,7 +14,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 # AI_Model 패키지를 import 경로에 추가 (repo_root/AI_Model)
@@ -75,6 +75,92 @@ def companies_to_candidates(companies: list[Company]) -> list[dict]:
         }
         for c in companies
     ]
+
+
+# ── 우리 DB 기반 위험 결과 (보고서 일관성) ───────────────────────────────
+# 6지표는 공식(SQL), 가중치는 제미나이 → 보고서도 이 값을 쓰게 해서
+# 대시보드·리스크 페이지와 숫자가 어긋나지 않게 한다.
+_KEY_COL = {"S": "score_s", "P": "score_p", "V": "score_v",
+            "L": "score_l", "C": "score_c", "E": "score_e"}
+_LABEL = {"S": "수급 불안정성", "P": "국가·정책 리스크", "V": "가격 변동성",
+          "L": "물류 리스크", "C": "공급처 집중도", "E": "ESG·탄소규제"}
+_BASE_W = {"S": 0.25, "P": 0.20, "V": 0.15, "L": 0.15, "C": 0.15, "E": 0.10}
+
+
+def _level_ko(score: float) -> str:
+    if score >= 50:
+        return "높음"
+    if score >= 25:
+        return "중간"
+    return "낮음"
+
+
+def build_db_risk_result(db: Session, hs_code: str) -> dict | None:
+    """country_risk_scores(실데이터 6지표 + 제미나이 가중치)로 보고서용 risk_result 생성.
+    데이터가 없으면 None → 호출부가 AI_Model 자체 계산으로 폴백."""
+    row = db.execute(text(
+        "SELECT count(*) n, avg(score_s) s, avg(score_p) p, avg(score_v) v, "
+        "avg(score_l) l, avg(score_c) c, avg(score_e) e, avg(sgri_score) sgri, "
+        "count(score_s) cs, count(score_p) cp, count(score_v) cv, "
+        "count(score_l) cl, count(score_c) cc, count(score_e) ce "
+        "FROM country_risk_scores WHERE hs_code = :h"), {"h": hs_code}).one()
+    if not row.n:
+        return None
+
+    avg_map = {"S": row.s, "P": row.p, "V": row.v, "L": row.l, "C": row.c, "E": row.e}
+    cnt_map = {"S": row.cs, "P": row.cp, "V": row.cv, "L": row.cl, "C": row.cc, "E": row.ce}
+
+    # 제미나이 가중치·근거 (reweight 시 저장됨) — 없으면 기본 가중치
+    wj = db.execute(text(
+        "SELECT weights_json FROM country_risk_scores "
+        "WHERE hs_code = :h AND weights_json IS NOT NULL LIMIT 1"), {"h": hs_code}).scalar()
+    weights = (wj or {}).get("effective_weights") or _BASE_W
+    rationales = (wj or {}).get("rationales") or {}
+
+    # 종합 점수 = 후보국 평균 지표의 가중합(있는 지표만 정규화) — 구성항목과 수식 일치
+    num = den = 0.0
+    for key in _KEY_COL:
+        v = avg_map[key]
+        if v is not None:
+            num += float(v) * weights.get(key, 0)
+            den += weights.get(key, 0)
+    score = round(num / den, 1) if den else round(float(row.sgri or 0), 1)
+
+    # 신뢰도 = 6지표 평균 데이터 커버리지(국가 대비 non-null 비율)
+    coverage = sum(cnt_map[k] for k in _KEY_COL) / (row.n * 6) * 100
+    confidence = round(coverage, 0)
+
+    components = [
+        {
+            "key": key,
+            "label": _LABEL[key],
+            "score": round(float(avg_map[key]), 1) if avg_map[key] is not None else 0.0,
+            "weight": round(weights.get(key, 0), 4),
+            "weight_percent": round(weights.get(key, 0) * 100, 1),
+            "weight_reason": rationales.get(key, "기준 가중치를 적용했습니다."),
+            "reasons": [] if avg_map[key] is not None else ["데이터 미확보 — 평가 제외"],
+        }
+        for key in _KEY_COL
+    ]
+
+    top = max(components, key=lambda c: c["score"])
+    recommendations = [
+        f"가장 높은 위험은 {top['label']}({top['score']}점)입니다 — 우선 대응을 권장합니다.",
+        "후보국 중 SGRI가 낮은 국가로 조달 다변화를 검토하세요.",
+    ]
+    if wj and wj.get("summary"):
+        recommendations.insert(0, wj["summary"])
+
+    return {
+        "title": f"{hs_code} 공급망 리스크 평가",
+        "score": score,
+        "level": _level_ko(score),
+        "level_ko": _level_ko(score),
+        "confidence": confidence,
+        "components": components,
+        "recommendations": recommendations,
+        "source": "supplyguard_db",  # 우리 DB 기반임을 표시
+    }
 
 
 # ── 응답 저장 ────────────────────────────────────────────────────────────
@@ -147,7 +233,24 @@ def run_ai_analysis(db: Session, query: UserQuery) -> dict:
     request = query_to_request(query)
     candidates = companies_to_candidates(companies)
 
-    resp = analyze_procurement(request, candidate_companies=candidates, use_live_apis=False)
-    resp = json.loads(resp) if isinstance(resp, str) else resp
+    # 위험수치·보고서는 우리 DB(실데이터 6지표 + 제미나이 가중치)로 생성해
+    # 대시보드/리스크 페이지 SGRI와 보고서 숫자를 일치시킨다. (company 추천은 AI_Model)
+    # 부품(recommend_companies + generate_report_draft)만 호출해 Gemini 중복 호출 방지.
+    db_risk = build_db_risk_result(db, query.hs_code)
+    if db_risk is not None:
+        from supplyguard_sgri import recommend_companies, reporting  # noqa: PLC0415
+        procurement = request["procurement"]
+        company_result = recommend_companies(procurement, candidates)
+        report = reporting.generate_report_draft(procurement, db_risk, company_result)
+        resp = {
+            "procurement": procurement,
+            "risk_assessment": db_risk,
+            "company_recommendations": company_result,
+            "report_draft": report,
+        }
+    else:
+        # DB에 해당 품목 SGRI가 없으면 AI_Model 자체 계산으로 폴백
+        resp = analyze_procurement(request, candidate_companies=candidates, use_live_apis=False)
+        resp = json.loads(resp) if isinstance(resp, str) else resp
 
     return _store_response(db, query, resp)
