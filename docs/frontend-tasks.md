@@ -176,6 +176,38 @@ api.explainSupplier(queryId, companyId)
 
 ---
 
+## 8. 조달 검토 워크스페이스 `/boards` (노션/칸반식) ⭐
+
+**목표**: 추천받은 국가·기업을 **보드에 담아** 상태(후보/검토중/선정/제외)·메모로 정리·의사결정.
+(추천 → 검토 → 결정의 마지막 단계. 담당자가 실제로 쓰는 정리 공간.)
+
+**화면**
+- `/boards` : 내 검토 보드 목록 + "새 보드"
+- `/boards/{id}` : **칸반 보드** — 컬럼 = 상태(후보/검토중/선정/제외), 카드 = 국가/기업/메모
+  - 카드 드래그로 상태 변경(= PATCH status), 카드 클릭 → 메모 편집
+  - "카드 추가": 추천 국가/기업 목록에서 선택해 담기 or 자유 메모
+- 추천 페이지(`/recommendations`)·공급사 상세에서 **"검토 보드에 추가"** 버튼 → 해당 보드에 카드 생성
+
+**API** (전부 로그인 필요, 본인 것만)
+```ts
+api.getBoards()                         // GET /boards → BoardOut[]
+api.createBoard({title, description?, query_id?})   // POST /boards
+api.getBoard(boardId)                   // GET /boards/{id} → { ...board, items: ItemOut[] }
+api.updateBoard(boardId, {title?, description?})    // PATCH /boards/{id}
+api.deleteBoard(boardId)                // DELETE /boards/{id} (카드 CASCADE 삭제)
+api.addBoardItem(boardId, {kind, title, ref_code?, memo?, status?})  // POST /boards/{id}/items
+api.updateBoardItem(boardId, itemId, {status?, memo?, title?, position?})  // PATCH .../items/{itemId}
+api.deleteBoardItem(boardId, itemId)    // DELETE .../items/{itemId}
+```
+- `kind`: `"country"` | `"company"` | `"note"`
+- `ref_code`: 국가면 country_code(예 `"AU"`), 기업이면 company_id(예 `"3"`), note면 생략
+- `status`: `"candidate"` | `"reviewing"` | `"selected"` | `"rejected"` (칸반 컬럼)
+- `ItemOut`: `{ item_id, board_id, kind, ref_code, title, memo, status, position }`
+
+> 드래그&드롭은 `updateBoardItem(status=...)` 한 번 호출로 반영. 순서는 `position`.
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -193,6 +225,8 @@ api.explainSupplier(queryId, companyId)
 | `GET /queries/{id}/countries/{code}/explain` | 국가 추천 AI 상세설명 | ✅ **추가됨** |
 | `GET /queries/{id}/suppliers` | 기업추천 (+단가·리드타임·정시납품·불량률) | ✅ **지표 추가됨** |
 | `GET /queries/{id}/suppliers/{cid}/explain` | 기업 추천 AI 상세설명 | ✅ **추가됨** |
+| `GET/POST /boards`, `GET/PATCH/DELETE /boards/{id}` | 검토 보드 CRUD | ✅ **추가됨** |
+| `POST/PATCH/DELETE /boards/{id}/items[/{itemId}]` | 보드 카드 CRUD | ✅ **추가됨** |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 
