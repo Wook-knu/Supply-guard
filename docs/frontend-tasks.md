@@ -208,6 +208,29 @@ api.deleteBoardItem(boardId, itemId)    // DELETE .../items/{itemId}
 
 ---
 
+## 9. AI 챗봇 (내 데이터 Q&A) ⭐
+
+**목표**: 사용자가 자연어로 물으면 **본인의 SGRI·추천·알림 데이터를 근거로** 답하는 어시스턴트.
+- 예: "리튬 대체 공급국 어디가 좋아?" → "슬로베니아(SGRI 28.9)가 1순위… 스페인은 산불 경보로 물류 검토 필요"
+
+**화면**: 우하단 **플로팅 챗 위젯**(모든 페이지 공통) 또는 `/assistant` 페이지.
+- 말풍선 대화 UI, 입력창, 전송
+- 답변 아래 **followups**(후속 질문 칩) → 클릭 시 자동 전송
+- 현재 보고 있는 품목이 있으면 `query_id` 를 함께 보내 맥락 강화
+
+**API**
+```ts
+api.chat({ message, query_id?, history? })
+// POST /chat
+// history: [{role:"user"|"assistant", content}]  (직전 대화 몇 턴)
+// → { answer: string, followups: string[], source: "gemini"|"fallback" }
+```
+- 멀티턴: 직전 대화를 `history` 로 넘기면 맥락 유지.
+- 로그인 시 그 사용자 데이터로 개인화(비로그인도 동작).
+- `source:"fallback"` 은 AI 한도 초과 시 데이터 기반 간이 답변(정상).
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -227,6 +250,7 @@ api.deleteBoardItem(boardId, itemId)    // DELETE .../items/{itemId}
 | `GET /queries/{id}/suppliers/{cid}/explain` | 기업 추천 AI 상세설명 | ✅ **추가됨** |
 | `GET/POST /boards`, `GET/PATCH/DELETE /boards/{id}` | 검토 보드 CRUD | ✅ **추가됨** |
 | `POST/PATCH/DELETE /boards/{id}/items[/{itemId}]` | 보드 카드 CRUD | ✅ **추가됨** |
+| `POST /chat` | AI 챗봇 (내 데이터 Q&A) | ✅ **추가됨** |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 
