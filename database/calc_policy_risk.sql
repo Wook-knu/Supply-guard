@@ -32,7 +32,7 @@ SELECT
     ROUND(GREATEST(0, LEAST(100, (2.5 - avg_est) / 5.0 * 100)), 3) AS score_p,
     0                 AS sgri_score
 FROM avg_gov
-ON CONFLICT (country_code, hs_code, as_of_date)
+ON CONFLICT (country_code, as_of_date) WHERE hs_code IS NULL
 DO UPDATE SET score_p = EXCLUDED.score_p;
 
 -- ============================================================================
