@@ -18,6 +18,11 @@ class CompanyOut(BaseModel):
     annual_capacity: Decimal | None = None
     capacity_unit: str | None = None
     status: str | None = None
+    # 비교·설명용 조달 지표
+    unit_price: Decimal | None = None
+    lead_time_days: int | None = None
+    on_time_delivery_rate: Decimal | None = None
+    defect_rate_pct: Decimal | None = None
 
 
 class SupplierRecommendationOut(BaseModel):

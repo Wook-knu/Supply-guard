@@ -130,6 +130,52 @@ api.subscribe("pro")    // POST /subscription {plan} → 변경(데모 mock 결�
 
 ---
 
+## 7. 실행 피드백 반영 (대시보드·추천 화면 개선)
+
+### 7-1. 대시보드 메트릭 카드 클릭 → 상세 (FE)
+4개 카드를 링크로:
+- 선택 품목 위험도 → `/risks/{hs_code}`
+- 모니터링 품목 → `/items`
+- 활성 경보 → `/alerts`
+- 대체 공급국 → `/recommendations?query_id={id}`
+
+### 7-2. 사이드바 공통 레이아웃 (FE)
+현재 대시보드에만 있는 좌측 메뉴가 상세 페이지로 가면 사라짐.
+→ 사이드바를 **공통 컴포넌트/레이아웃**으로 빼서 모든 내부 페이지(`/risks`, `/recommendations`, `/suppliers`, `/reports`, `/items`, `/settings`, `/pricing`)에 적용.
+(App Router `layout.tsx` 그룹 라우트 활용 추천)
+
+### 7-3. SGRI 설명 (FE)
+사용자가 "SGRI가 뭔지, 무슨 근거로 위험을 판단하는지" 알 수 있게:
+- SGRI 점수 옆 ⓘ 아이콘 → 툴팁/모달로 6지표(S·C·V·L·P·E) 요약
+- `/methodology` 안내 페이지 (내용은 [docs/methodology.md](methodology.md) 재사용)
+
+### 7-4. 국가 비교 기능 (FE) — "비교하기" 실제 동작
+- 국가 카드의 "비교" 체크박스로 2개 이상 선택 → "비교하기" 클릭
+- **6지표 표 + 레이더/막대 차트**로 나란히 비교 (가격·관세·리드타임도)
+- 데이터: `getCountryRecos()` 응답에 **6지표(score_s~e)가 이제 포함됨** → 별도 호출 불필요
+
+### 7-5. "왜 이 국가?" AI 상세 설명 (FE)
+- 추천 근거 카드에 "왜 추천했나요? (AI)" 버튼
+```ts
+api.explainCountry(queryId, countryCode)
+// GET /queries/{id}/countries/{code}/explain
+// → { summary, factors:[{label,detail}], recommendation, source }
+```
+버튼 클릭 시 로딩 후 summary + factors 표시. (`source:"gemini"|"fallback"`)
+
+### 7-6. 기업 추천 강조 + 여러 개 + 비교 + AI 설명 (FE)
+- 기업 추천을 **국가 추천과 동등한 비중**으로 (구석 배치 X → 별도 섹션/탭)
+- 여러 기업 카드 표시(현재 3곳), 국가처럼 **비교하기** 지원
+  - `getSupplierRecos()` 응답의 `company` 에 **단가·리드타임·정시납품률·불량률 포함됨**
+- 각 기업 "왜 추천? (AI)" 버튼
+```ts
+api.explainSupplier(queryId, companyId)
+// GET /queries/{id}/suppliers/{company_id}/explain → { summary, factors, recommendation, source }
+```
+> 기업 추천 *알고리즘* 고도화는 별도 담당(팀원). 현재는 데모용 규칙 기반이며, 위 화면/설명은 그 결과를 보여주는 UI.
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -143,6 +189,10 @@ api.subscribe("pro")    // POST /subscription {plan} → 변경(데모 mock 결�
 | `GET/PUT /alert-settings` | 알림 설정 | 🔧 (원하면 추가) |
 | `GET /subscription` | 요금제 카탈로그+현재 플랜+사용량 | ✅ **추가됨** |
 | `POST /subscription` | 플랜 변경(mock 결제) | ✅ **추가됨** |
+| `GET /queries/{id}/countries` | 국가추천 (+6지표 score_s~e) | ✅ **6지표 추가됨** |
+| `GET /queries/{id}/countries/{code}/explain` | 국가 추천 AI 상세설명 | ✅ **추가됨** |
+| `GET /queries/{id}/suppliers` | 기업추천 (+단가·리드타임·정시납품·불량률) | ✅ **지표 추가됨** |
+| `GET /queries/{id}/suppliers/{cid}/explain` | 기업 추천 AI 상세설명 | ✅ **추가됨** |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 

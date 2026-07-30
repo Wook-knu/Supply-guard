@@ -12,6 +12,13 @@ class RecommendationOut(BaseModel):
     country_code: str
     rank: int
     sgri_score: Decimal | None = None
+    # 6지표 (비교·설명용) — S수급 C집중도 V가격 L물류 P정책 E ESG
+    score_s: Decimal | None = None
+    score_c: Decimal | None = None
+    score_v: Decimal | None = None
+    score_l: Decimal | None = None
+    score_p: Decimal | None = None
+    score_e: Decimal | None = None
     fit_score: Decimal | None = None
     est_unit_price: Decimal | None = None
     tariff_percent: Decimal | None = None
