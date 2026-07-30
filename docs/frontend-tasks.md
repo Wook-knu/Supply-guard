@@ -265,6 +265,27 @@ api.getSupplierBenchmark(queryId, companyId)
 
 ---
 
+## 11. 구글 로그인 (Google Identity Services)
+
+**목표**: 로그인 화면에 **구글 로그인 버튼** 추가 (기존 이메일 로그인은 데모용으로 유지 가능).
+
+**흐름**
+1. Google Identity Services 스크립트 로드(`https://accounts.google.com/gsi/client`)
+2. 버튼 렌더(`NEXT_PUBLIC_GOOGLE_CLIENT_ID` 사용) → 사용자가 구글 계정 선택
+3. 콜백으로 받은 `credential`(ID 토큰)을 백엔드로:
+```ts
+api.googleLogin(credential)
+// POST /auth/google { id_token: credential }
+// → { access_token(JWT), user }  → access_token 을 localStorage 에 저장(기존과 동일)
+```
+- 이후는 기존과 동일(`Authorization: Bearer <access_token>`). 세션 토큰이 **JWT로 업그레이드**됨(위조 방지).
+- `user.picture_url` 로 프로필 사진 표시 가능.
+
+**환경변수(프론트)**: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` = 백엔드와 같은 Client ID.
+> Client ID 발급·설정은 [google-oauth-setup.md](google-oauth-setup.md) 참고(사용자 직접).
+
+---
+
 ## 백엔드 제공 API (프론트 언블록용)
 
 | 엔드포인트 | 용도 | 상태 |
@@ -287,6 +308,8 @@ api.getSupplierBenchmark(queryId, companyId)
 | `POST /chat` | AI 챗봇 (내 데이터 Q&A) | ✅ **추가됨** |
 | `GET /benchmark/item/{hs}` | 국가/품목 벤치마크(SGRI) | ✅ **추가됨** |
 | `GET /benchmark/supplier/{qid}/{cid}` | 기업 벤치마크(조달지표) | ✅ **추가됨** |
+| `POST /auth/google` | 구글 로그인(ID 토큰 검증→JWT) | ✅ **추가됨** |
+| `POST /auth/login` | 이메일 스텁 로그인(데모, JWT 발급) | ✅ (JWT 업그레이드) |
 
 > `api.ts` 에 신규 메서드(`deleteQuery`, `buildItemSgri`, `getBuildJob`, `sendFeedback`, `getAlertSettings`, `saveAlertSettings`)를 추가해야 함. 백엔드 배포 후 시그니처 공유 예정.
 
