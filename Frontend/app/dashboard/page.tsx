@@ -2,7 +2,7 @@
 
 // 서비스의 핵심 현황을 위험도·알림·보고서 API 기반으로 요약합니다.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { api, type AlertOut, type CountryReco, type QueryOut, type ReportOut, type RiskOut } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 import {
@@ -20,8 +20,10 @@ import {
   Globe2,
   Home,
   Landmark,
+  Loader2,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   ShieldAlert,
@@ -54,7 +56,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link"
 
 type RiskRow = { item: string; hs: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
-const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
+type SearchResult = {
+  key: string
+  hsCode: string
+  itemName: string
+  countryCode?: string
+  countryName?: string
+  sgriScore?: number
+}
 
 // 알림 severity → 화면용 한글 라벨 (최신 동향 카드에서 사용)
 function severityLabel(severity: string | null): "고위험" | "주의" | "안정" {
@@ -95,6 +104,11 @@ export default function Dashboard() {
   const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchDataStatus, setSearchDataStatus] = useState<"loading" | "ready" | "error">("loading")
+  const [searchReloadKey, setSearchReloadKey] = useState(0)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   const periodDays = period === "최근 30일" ? 30 : period === "최근 90일" ? 90 : 7
   const monitoredItems = useMemo(() => {
@@ -126,7 +140,7 @@ export default function Dashboard() {
     .map((row) => {
       const query = monitoredItems.find((item) => item.hs_code === row.hs_code)
       return {
-        item: query?.item_name ?? HS_NAME[row.hs_code ?? ""] ?? (row.hs_code ?? "품목"),
+        item: query?.item_name?.trim() || (row.hs_code ? `HS ${row.hs_code}` : "품목명 없음"),
         hs: row.hs_code ?? "",
         code: `HS ${row.hs_code ?? ""}`,
         country: getCountryName(row.country_code),
@@ -135,6 +149,49 @@ export default function Dashboard() {
         level: row.level === "높음" ? "high" : row.level === "중간" ? "medium" : "low",
       }
     }), [monitoredHsCodes, monitoredItems, riskHistory])
+  const searchResults = useMemo<SearchResult[]>(() => {
+    const normalizedTerm = searchTerm.trim().toLocaleLowerCase("ko")
+    if (!normalizedTerm) return []
+
+    const compactTerm = normalizedTerm.replace(/[^0-9a-z]/g, "")
+    const latestRisks = latestRiskRows(riskHistory)
+    const results: SearchResult[] = []
+
+    monitoredItems.forEach((item) => {
+      const hsCode = item.hs_code
+      if (!hsCode) return
+
+      const itemName = item.item_name?.trim() || `HS ${hsCode}`
+      const normalizedHsCode = hsCode.toLocaleLowerCase()
+      const itemMatches = itemName.toLocaleLowerCase("ko").includes(normalizedTerm)
+        || normalizedHsCode.includes(normalizedTerm)
+        || (compactTerm.length > 0 && normalizedHsCode.replace(/[^0-9a-z]/g, "").includes(compactTerm))
+
+      if (itemMatches) {
+        results.push({ key: `item-${hsCode}`, hsCode, itemName })
+      }
+
+      latestRisks
+        .filter((risk) => risk.hs_code === hsCode)
+        .forEach((risk) => {
+          const countryName = getCountryName(risk.country_code)
+          const countryMatches = risk.country_code.toLocaleLowerCase().includes(normalizedTerm)
+            || countryName.toLocaleLowerCase("ko").includes(normalizedTerm)
+          if (!countryMatches) return
+
+          results.push({
+            key: `country-${hsCode}-${risk.country_code}`,
+            hsCode,
+            itemName,
+            countryCode: risk.country_code,
+            countryName,
+            sgriScore: Math.round(Number(risk.sgri_score ?? 0)),
+          })
+        })
+    })
+
+    return results.slice(0, 8)
+  }, [monitoredItems, riskHistory, searchTerm])
   const currentScore = scoreTrend.at(-1)?.score ?? 0
   const previousScore = scoreTrend.at(-2)?.score ?? currentScore
   const scoreChange = currentScore - previousScore
@@ -147,14 +204,35 @@ export default function Dashboard() {
     level: severityLabel(alert.severity),
   })), [alerts])
 
-  // 대시보드의 위험도·알림·보고서·사용자 정보를 실제 API에서 불러온다.
+  // 검색과 품목 현황에 필요한 두 API를 함께 불러와 로딩·오류 상태를 구분한다.
   useEffect(() => {
-    api.getRisks().then(setRiskHistory).catch(() => setRiskHistory([]))
-    api.getQueries().then((rows) => {
-      setQueries(rows)
-      const firstHsCode = rows.find((row) => row.hs_code)?.hs_code
-      if (firstHsCode) setSelectedHsCode(firstHsCode)
-    }).catch(() => { setQueries([]); setSelectedHsCode("") })
+    let isActive = true
+    setSearchDataStatus("loading")
+
+    Promise.all([api.getRisks(), api.getQueries()])
+      .then(([riskRows, queryRows]) => {
+        if (!isActive) return
+        setRiskHistory(riskRows)
+        setQueries(queryRows)
+        setSelectedHsCode((current) => {
+          if (queryRows.some((row) => row.hs_code === current)) return current
+          return queryRows.find((row) => row.hs_code)?.hs_code ?? ""
+        })
+        setSearchDataStatus("ready")
+      })
+      .catch(() => {
+        if (!isActive) return
+        setRiskHistory([])
+        setQueries([])
+        setSelectedHsCode("")
+        setSearchDataStatus("error")
+      })
+
+    return () => { isActive = false }
+  }, [searchReloadKey])
+
+  // 검색과 무관한 대시보드 데이터는 각각 독립적으로 불러온다.
+  useEffect(() => {
     api.getAlerts().then(setAlerts).catch(() => setAlerts([]))
     api.getReports().then((rows) => setLatestReport(rows[0] ?? null)).catch(() => setLatestReport(null))
     api.getMe().then((user) => setUserName(user.name || user.email.split("@")[0])).catch(() => setUserName(""))
@@ -184,9 +262,91 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input className="w-72 border-slate-200 bg-slate-50 pl-9 text-sm focus:bg-white" placeholder="품목, 국가, 공급사 검색" />
+          <div
+            ref={searchRef}
+            className="relative hidden md:block"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsSearchOpen(false)
+            }}
+          >
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              role="combobox"
+              aria-label="모니터링 품목과 국가 검색"
+              aria-autocomplete="list"
+              aria-controls="dashboard-search-results"
+              aria-expanded={isSearchOpen && searchTerm.trim().length > 0}
+              aria-busy={searchDataStatus === "loading"}
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value)
+                setIsSearchOpen(true)
+              }}
+              onFocus={() => setIsSearchOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setIsSearchOpen(false)
+              }}
+              className="w-80 border-slate-200 bg-slate-50 pl-9 text-sm focus:bg-white lg:w-96"
+              placeholder="품목명, HS 코드, 국가 검색"
+            />
+            {isSearchOpen && searchTerm.trim() && (
+              <div id="dashboard-search-results" role="listbox" className="absolute right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                {searchDataStatus === "loading" ? (
+                  <div className="flex items-center gap-3 px-5 py-6 text-sm text-slate-500">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    검색 데이터를 불러오는 중입니다.
+                  </div>
+                ) : searchDataStatus === "error" ? (
+                  <div className="px-5 py-6 text-center">
+                    <CircleAlert className="mx-auto h-6 w-6 text-rose-500" />
+                    <p className="mt-2 text-sm font-medium text-slate-700">검색 데이터를 불러오지 못했습니다.</p>
+                    <p className="mt-1 text-xs text-slate-500">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setSearchReloadKey((current) => current + 1)} className="mt-4 border-slate-200">
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> 다시 시도
+                    </Button>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="max-h-96 overflow-y-auto p-2">
+                    {searchResults.map((result) => {
+                      const isCountryResult = Boolean(result.countryCode)
+                      const ResultIcon = isCountryResult ? Globe2 : Box
+                      return (
+                        <Link
+                          role="option"
+                          aria-selected="false"
+                          key={result.key}
+                          href={`/risks/${result.hsCode}`}
+                          onClick={() => {
+                            setSearchTerm("")
+                            setIsSearchOpen(false)
+                          }}
+                          className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                        >
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isCountryResult ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"}`}>
+                            <ResultIcon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-slate-800">
+                              {isCountryResult ? `${result.countryName} (${result.countryCode})` : result.itemName}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              {isCountryResult ? `${result.itemName} · HS ${result.hsCode}` : `HS ${result.hsCode} · 리스크 상세 보기`}
+                            </span>
+                          </span>
+                          {isCountryResult && <span className="text-xs font-semibold text-slate-500">SGRI {result.sgriScore}</span>}
+                          <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+                        </Link>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="px-5 py-8 text-center">
+                    <Search className="mx-auto h-6 w-6 text-slate-300" />
+                    <p className="mt-2 text-sm text-slate-500">일치하는 모니터링 품목이나 국가가 없습니다.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <Button asChild variant="ghost" size="icon" className="relative text-slate-600">
             <Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link>
@@ -205,6 +365,9 @@ export default function Dashboard() {
               <a className="flex items-center gap-3 rounded-md bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700" href="#overview">
                 <Home className="h-4 w-4" /> 대시보드
               </a>
+              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/items">
+                <Box className="h-4 w-4" /> 품목 관리
+              </Link>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/risks/283691">
                 <CircleAlert className="h-4 w-4" /> 리스크 분석
               </Link>

@@ -24,6 +24,7 @@ export type QueryOut = QueryCreate & {
 }
 
 export type CountryReco = {
+  reco_id: number
   country_code: string
   rank: number
   sgri_score: string | null
@@ -32,6 +33,19 @@ export type CountryReco = {
   tariff_percent: string | null
   est_lead_days: number | null
   rationale: string | null
+}
+
+export type FeedbackCreate = {
+  reco_type: "country" | "supplier"
+  reco_id: number
+  rating: 1 | -1
+  comment?: string
+}
+
+export type FeedbackOut = FeedbackCreate & {
+  feedback_id: number
+  user_id: number | null
+  created_at: string | null
 }
 
 export type Company = {
@@ -114,6 +128,22 @@ export type AnalyzeJob = {
   error?: string
 }
 
+export type BuildItemSgriResult = {
+  hs_code: string
+  comtrade_years_ingested: number
+  countries: number
+  uses_llm: boolean | null
+  weights: Record<string, number> | null
+  error?: string
+}
+
+export type BuildItemSgriJob = {
+  job_id: string
+  status: "pending" | "done" | "error"
+  result?: BuildItemSgriResult
+  error?: string
+}
+
 export type RiskOut = {
   country_code: string
   hs_code: string | null
@@ -179,6 +209,8 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = await res.text()
     throw new Error(`API ${res.status}: ${detail}`)
   }
+  // DELETE처럼 성공 응답에 본문이 없는 경우 JSON 파싱을 시도하지 않는다.
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
@@ -206,11 +238,15 @@ export const api = {
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
   getQueries: () => http<QueryOut[]>("/queries"),
   getQuery: (queryId: number) => http<QueryOut>(`/queries/${queryId}`),
+  deleteQuery: (queryId: number) =>
+    http<void>(`/queries/${queryId}`, { method: "DELETE" }),
   // F-06 국가 추천 / F-07·08 기업 추천
   getCountryRecos: (queryId: number) =>
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
+  sendFeedback: (body: FeedbackCreate) =>
+    http<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
   // 공급사 상세 (기업 공개 정보)
   getCompany: (companyId: number) =>
     http<CompanyDetail>(`/companies/${companyId}`),
@@ -220,6 +256,12 @@ export const api = {
   // 분석 작업 상태 폴링
   getAnalyzeJob: (jobId: string) =>
     http<AnalyzeJob>(`/queries/analyze/jobs/${jobId}`),
+  // 신규 HS 코드의 Comtrade 수집 및 SGRI 계산 시작
+  buildItemSgri: (hsCode: string) =>
+    http<BuildItemSgriJob>(`/items/${encodeURIComponent(hsCode)}/build-sgri`, { method: "POST" }),
+  // 신규 품목 SGRI 작업 상태 폴링
+  getBuildJob: (jobId: string) =>
+    http<BuildItemSgriJob>(`/items/build/jobs/${encodeURIComponent(jobId)}`),
   // F-10 보고서 조회
   createReport: (body: ReportCreate) =>
     http<ReportOut>("/reports", { method: "POST", body: JSON.stringify(body) }),

@@ -3,12 +3,14 @@
 """
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RecommendationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)  # ORM 객체 → JSON 변환 스위치
 
+    # ORM의 기본키 id를 피드백 API가 요구하는 명확한 필드명으로 반환한다.
+    reco_id: int = Field(validation_alias="id")
     country_code: str
     rank: int
     sgri_score: Decimal | None = None
