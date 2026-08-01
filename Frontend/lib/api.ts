@@ -180,14 +180,145 @@ export type UserOut = {
   user_id: number
   email: string
   name: string | null
+  picture_url: string | null
   company_id: number | null
   role: string | null
+  plan: string | null
+}
+
+export type PlanFeatures = {
+  monitoring: boolean
+  country_risk: boolean
+  price_alerts: boolean
+  recommendations: boolean
+  ai_reports: boolean
+  reweight: boolean
+  api_access: boolean
+}
+
+export type SubscriptionPlan = {
+  key: string
+  label: string
+  price_krw: number
+  target: string
+  max_items: number | null
+  custom_quote: boolean
+  highlights: string[]
+  features: PlanFeatures
+}
+
+export type SubscriptionState = {
+  plans: SubscriptionPlan[]
+  current_plan: string
+  label: string
+  usage: {
+    items: number
+    items_limit: number | null
+  }
+  features: PlanFeatures
+}
+
+export type SubscribeResult = Omit<SubscriptionState, "plans"> & { ok: boolean }
+
+export type ReweightResult = {
+  hs_code: string
+  countries: number
+  uses_llm?: boolean
+  weights?: Record<string, number>
+}
+
+export type ChatHistoryMessage = {
+  role: "user" | "assistant"
+  content: string
+}
+
+export type ChatRequest = {
+  message: string
+  query_id?: number
+  history?: ChatHistoryMessage[]
+}
+
+export type ChatResponse = {
+  answer: string
+  followups: string[]
+  source: "gemini" | "fallback"
+}
+
+export type BoardStatus = "candidate" | "reviewing" | "selected" | "rejected"
+export type BoardItemKind = "country" | "company" | "note"
+
+export type BoardCreate = {
+  title: string
+  description?: string
+  query_id?: number
+}
+
+export type BoardUpdate = {
+  title?: string
+  description?: string
+}
+
+export type BoardOut = {
+  board_id: number
+  user_id: number | null
+  query_id: number | null
+  title: string
+  description: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type BoardItemCreate = {
+  kind: BoardItemKind
+  title: string
+  ref_code?: string
+  memo?: string
+  status?: BoardStatus
+}
+
+export type BoardItemUpdate = {
+  title?: string
+  memo?: string
+  status?: BoardStatus
+  position?: number
+}
+
+export type BoardItemOut = {
+  item_id: number
+  board_id: number
+  kind: BoardItemKind
+  ref_code: string | null
+  title: string
+  memo: string | null
+  status: BoardStatus | null
+  position: number | null
+  created_at: string | null
+}
+
+export type BoardDetailOut = BoardOut & {
+  items: BoardItemOut[]
 }
 
 export type TokenResponse = {
   access_token: string
   token_type: string
   user: UserOut
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly detail: string
+
+  constructor(status: number, detail: string) {
+    super(detail || `API ${status}`)
+    this.name = "ApiError"
+    this.status = status
+    this.detail = detail
+  }
+}
+
+export function isUpgradeRequiredError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 402
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -206,8 +337,15 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   })
   if (!res.ok) {
-    const detail = await res.text()
-    throw new Error(`API ${res.status}: ${detail}`)
+    const responseText = await res.text()
+    let detail = responseText
+    try {
+      const body = JSON.parse(responseText) as { detail?: unknown }
+      if (typeof body.detail === "string") detail = body.detail
+    } catch {
+      // JSON이 아닌 오류 응답은 원문을 사용자에게 전달한다.
+    }
+    throw new ApiError(res.status, detail || `요청을 처리하지 못했습니다. (${res.status})`)
   }
   // DELETE처럼 성공 응답에 본문이 없는 경우 JSON 파싱을 시도하지 않는다.
   if (res.status === 204) return undefined as T
@@ -233,6 +371,12 @@ export const api = {
     return response
   },
   getMe: () => http<UserOut>("/auth/me"),
+  getSubscription: () => http<SubscriptionState>("/subscription"),
+  subscribe: (plan: string) =>
+    http<SubscribeResult>("/subscription", {
+      method: "POST",
+      body: JSON.stringify({ plan }),
+    }),
   // F-01 품목 입력
   createQuery: (body: QueryCreate) =>
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
@@ -262,6 +406,24 @@ export const api = {
   // 신규 품목 SGRI 작업 상태 폴링
   getBuildJob: (jobId: string) =>
     http<BuildItemSgriJob>(`/items/build/jobs/${encodeURIComponent(jobId)}`),
+  reweightItem: (hsCode: string) =>
+    http<ReweightResult>(`/items/${encodeURIComponent(hsCode)}/reweight`, { method: "POST" }),
+  chat: (body: ChatRequest) =>
+    http<ChatResponse>("/chat", { method: "POST", body: JSON.stringify(body) }),
+  getBoards: () => http<BoardOut[]>("/boards"),
+  createBoard: (body: BoardCreate) =>
+    http<BoardOut>("/boards", { method: "POST", body: JSON.stringify(body) }),
+  getBoard: (boardId: number) => http<BoardDetailOut>(`/boards/${boardId}`),
+  updateBoard: (boardId: number, body: BoardUpdate) =>
+    http<BoardOut>(`/boards/${boardId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoard: (boardId: number) =>
+    http<void>(`/boards/${boardId}`, { method: "DELETE" }),
+  addBoardItem: (boardId: number, body: BoardItemCreate) =>
+    http<BoardItemOut>(`/boards/${boardId}/items`, { method: "POST", body: JSON.stringify(body) }),
+  updateBoardItem: (boardId: number, itemId: number, body: BoardItemUpdate) =>
+    http<BoardItemOut>(`/boards/${boardId}/items/${itemId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoardItem: (boardId: number, itemId: number) =>
+    http<void>(`/boards/${boardId}/items/${itemId}`, { method: "DELETE" }),
   // F-10 보고서 조회
   createReport: (body: ReportCreate) =>
     http<ReportOut>("/reports", { method: "POST", body: JSON.stringify(body) }),

@@ -5,13 +5,13 @@
 
 import Link from "next/link"
 import { use, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, Bell, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Bot, CheckCircle2, CircleAlert, FileText, Globe2, Loader2, RefreshCw, ShieldAlert, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { api, type RiskOut } from "@/lib/api"
+import { api, isUpgradeRequiredError, type RiskOut } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 
 // HS 코드 → 품목명 (알려진 품목만; 없으면 코드 표기)
@@ -36,13 +36,48 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   const { hsCode } = use(params)
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [canReweight, setCanReweight] = useState<boolean | null>(null)
+  const [reweighting, setReweighting] = useState(false)
+  const [reweightMessage, setReweightMessage] = useState("")
+  const [upgradeMessage, setUpgradeMessage] = useState("")
 
   useEffect(() => {
+    setLoaded(false)
     api.getRisks(hsCode)
       .then((data) => setRows(data))
       .catch(() => setRows([]))
       .finally(() => setLoaded(true))
-  }, [hsCode])
+  }, [hsCode, reloadKey])
+
+  useEffect(() => {
+    api.getSubscription()
+      .then((state) => setCanReweight(state.features.reweight))
+      .catch(() => setCanReweight(null))
+  }, [])
+
+  async function handleReweight() {
+    if (reweighting) return
+    setReweighting(true)
+    setReweightMessage("")
+    setUpgradeMessage("")
+    try {
+      const result = await api.reweightItem(hsCode)
+      setReweightMessage(result.countries > 0
+        ? `${result.countries}개 국가의 SGRI 가중치를 다시 계산했습니다.`
+        : "재계산할 국가 위험 데이터가 없습니다.")
+      setReloadKey((current) => current + 1)
+    } catch (error) {
+      if (isUpgradeRequiredError(error)) {
+        setUpgradeMessage(error.detail)
+        setCanReweight(false)
+      } else {
+        setReweightMessage(error instanceof Error ? error.message : "가중치를 다시 계산하지 못했습니다.")
+      }
+    } finally {
+      setReweighting(false)
+    }
+  }
 
   const itemName = HS_NAME[hsCode] ?? `HS ${hsCode}`
   // 국가를 SGRI 높은 순으로 정렬, 최고 위험국을 대표로 사용
@@ -65,10 +100,14 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
           <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{worst ? ` · 최고 위험국 ${getCountryName(worst.country_code)}` : ""}</p>
         </div>
         <div className="flex gap-2">
+          {canReweight === false ? <Button asChild variant="outline" className="border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"><Link href="/pricing"><RefreshCw className="mr-2 h-4 w-4" />가중치 재계산 · Pro</Link></Button> : <Button type="button" onClick={() => void handleReweight()} disabled={reweighting || !loaded || rows.length === 0} variant="outline" className="border-slate-200 bg-white">{reweighting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}가중치 재계산</Button>}
           <Button asChild variant="outline" className="border-slate-200 bg-white"><Link href="/recommendations"><Globe2 className="mr-2 h-4 w-4" />대체 공급국 보기</Link></Button>
           <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href="/reports/new"><FileText className="mr-2 h-4 w-4" />보고서 생성</Link></Button>
         </div>
       </div>
+
+      {upgradeMessage && <div role="alert" className="mt-5 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-amber-900">요금제 업그레이드가 필요합니다.</p><p className="mt-1 text-sm text-amber-800">{upgradeMessage}</p></div><Button asChild className="shrink-0 bg-amber-600 hover:bg-amber-700"><Link href="/pricing">요금제 보기</Link></Button></div>}
+      {reweightMessage && <div role="status" className={`mt-5 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${reweightMessage.includes("다시 계산했습니다") ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}>{reweightMessage.includes("다시 계산했습니다") && <CheckCircle2 className="h-4 w-4" />}{reweightMessage}</div>}
 
       {!loaded ? <p className="mt-16 text-center text-sm text-slate-400">불러오는 중…</p>
         : rows.length === 0 ? <div className="mt-16 text-center text-sm text-slate-500">해당 품목의 위험 데이터가 없습니다.<div className="mt-3"><Button asChild variant="outline"><Link href="/dashboard">대시보드로</Link></Button></div></div>

@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { api, type CompanyDetail, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
+import { AddToBoard } from "@/components/add-to-board"
 
 function num(v: string | number | null): number { return Number(v ?? 0) }
 
@@ -69,6 +70,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
           </div>
           <div className="mt-7 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
             {company.website && <Button asChild variant="ghost" className="text-slate-600"><a href={company.website} target="_blank" rel="noreferrer">공개 출처 보기 <ExternalLink className="ml-2 h-4 w-4" /></a></Button>}
+            <AddToBoard kind="company" title={company.name} refCode={String(company.company_id)} memo={reco?.rationale || undefined} queryId={queryId} />
             <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>검토 보고서에 추가 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
           </div>
         </section>

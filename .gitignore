@@ -18,3 +18,9 @@
 
 # DB 덤프
 *.dump
+
+# macOS/Finder에서 생성된 DB SQL 복사본
+database/* 2.sql
+
+# Notion에 수동 게시하는 로컬 일일 작업 기록
+docs/notion-frontend-daily-*.md

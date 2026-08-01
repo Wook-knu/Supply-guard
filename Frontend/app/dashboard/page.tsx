@@ -16,7 +16,9 @@ import {
   ChevronDown,
   CircleAlert,
   ClipboardList,
+  CreditCard,
   FileText,
+  FolderKanban,
   Globe2,
   Home,
   Landmark,
@@ -40,7 +42,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -104,6 +106,8 @@ export default function Dashboard() {
   const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
+  const [userPlan, setUserPlan] = useState("")
+  const [userPicture, setUserPicture] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchDataStatus, setSearchDataStatus] = useState<"loading" | "ready" | "error">("loading")
@@ -235,7 +239,15 @@ export default function Dashboard() {
   useEffect(() => {
     api.getAlerts().then(setAlerts).catch(() => setAlerts([]))
     api.getReports().then((rows) => setLatestReport(rows[0] ?? null)).catch(() => setLatestReport(null))
-    api.getMe().then((user) => setUserName(user.name || user.email.split("@")[0])).catch(() => setUserName(""))
+    api.getMe().then((user) => {
+      setUserName(user.name || user.email.split("@")[0])
+      setUserPlan(user.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : "Basic")
+      setUserPicture(user.picture_url ?? "")
+    }).catch(() => {
+      setUserName("")
+      setUserPlan("")
+      setUserPicture("")
+    })
   }, [])
 
   // 선택 품목의 대체 공급국 추천을 실제 API에서 불러온다(하드코딩 목록 대체).
@@ -351,8 +363,10 @@ export default function Dashboard() {
           <Button asChild variant="ghost" size="icon" className="relative text-slate-600">
             <Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link>
           </Button>
+          {userPlan && <Link href="/pricing"><Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-100">{userPlan}</Badge></Link>}
           <Avatar className="h-8 w-8 border border-slate-200">
-            <AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback>
+            {userPicture && <AvatarImage src={userPicture} alt={`${userName || "사용자"} 프로필`} />}
+            <AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">{userName ? userName.slice(0, 2).toUpperCase() : "SW"}</AvatarFallback>
           </Avatar>
         </div>
       </header>
@@ -374,8 +388,14 @@ export default function Dashboard() {
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/recommendations">
                 <Globe2 className="h-4 w-4" /> 대체 공급처
               </Link>
+              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/boards">
+                <FolderKanban className="h-4 w-4" /> 조달 검토 보드
+              </Link>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/reports/new">
                 <FileText className="h-4 w-4" /> AI 보고서
+              </Link>
+              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/pricing">
+                <CreditCard className="h-4 w-4" /> 구독·요금제
               </Link>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/settings">
                 <Settings className="h-4 w-4" /> 설정

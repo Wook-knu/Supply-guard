@@ -4,7 +4,7 @@
 
 import Link from "next/link"
 import { FormEvent, useEffect, useRef, useState } from "react"
-import { api, type BuildItemSgriResult, type QueryOut } from "@/lib/api"
+import { api, isUpgradeRequiredError, type BuildItemSgriResult, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
 import { ArrowLeft, ArrowRight, Bell, Box, Check, ChevronDown, CircleAlert, CircleHelp, Globe2, Info, Loader2, PackagePlus, RefreshCw, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -49,6 +49,7 @@ export default function NewItemPage() {
   const [countryInput, setCountryInput] = useState("")
   const [isCountryListOpen, setIsCountryListOpen] = useState(false)
   const [error, setError] = useState("")
+  const [upgradeMessage, setUpgradeMessage] = useState("")
   const [createdItem, setCreatedItem] = useState<QueryOut | null>(null)
   const [buildStatus, setBuildStatus] = useState<"idle" | "pending" | "done" | "error">("idle")
   const [buildProgress, setBuildProgress] = useState(0)
@@ -84,6 +85,7 @@ export default function NewItemPage() {
   const updateField = (field: keyof ItemForm, value: string) => {
     // 모든 텍스트 입력을 하나의 form 상태에서 관리합니다.
     setError("")
+    setUpgradeMessage("")
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -118,6 +120,7 @@ export default function NewItemPage() {
       return
     }
     setError("")
+    setUpgradeMessage("")
     setSubmitting(true)
     try {
       // 등록 요청 중 새로고침해도 복원할 수 있도록 최신 초안을 저장합니다.
@@ -138,7 +141,11 @@ export default function NewItemPage() {
       setCreatedItem(created)
       window.localStorage.removeItem(STORAGE_KEY)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
+      if (isUpgradeRequiredError(err)) {
+        setUpgradeMessage(err.detail)
+      } else {
+        setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
+      }
     } finally {
       setSubmitting(false)
     }
@@ -208,6 +215,7 @@ export default function NewItemPage() {
             <div className="border-t border-slate-100" />
             <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50 text-amber-600"><CircleHelp className="h-4 w-4" /></div><h2 className="text-sm font-semibold">분석 우선순위</h2></div><div className="grid gap-3 sm:grid-cols-3">{[{ id: "high", title: "높음", description: "매일 위험 신호를 확인" }, { id: "normal", title: "보통", description: "주간 리포트로 확인" }, { id: "low", title: "낮음", description: "월간 리포트로 확인" }].map((option) => <button type="button" key={option.id} onClick={() => updateField("priority", option.id)} className={`rounded-lg border p-4 text-left transition-colors ${form.priority === option.id ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold">{option.title}</span>{form.priority === option.id && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600"><Check className="h-3 w-3 text-white" /></span>}</div><p className="mt-1 text-xs text-slate-500">{option.description}</p></button>)}</div></section>
             {error && <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+            {upgradeMessage && <div role="alert" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-amber-900">요금제 업그레이드가 필요합니다.</p><p className="mt-1 text-sm text-amber-800">{upgradeMessage}</p></div><Button asChild type="button" className="shrink-0 bg-amber-600 hover:bg-amber-700"><Link href="/pricing">요금제 보기</Link></Button></div>}
           </CardContent></Card></fieldset></form>
 
           <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50/80 to-cyan-50/60 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Sparkles className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI가 분석하는 항목</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><AnalysisItem text="국가·공급처 의존도" /><AnalysisItem text="수출 규제 및 지정학 리스크" /><AnalysisItem text="물류 지연과 항만 혼잡도" /><AnalysisItem text="가격 변동성과 ESG 규제" /><div className="mt-4 rounded-lg border border-blue-100 bg-white/80 p-3 text-xs leading-5 text-slate-500"><Info className="mr-1 inline h-3.5 w-3.5 text-blue-600" /> 공개 무역 통계와 뉴스 데이터를 결합해 SGRI 점수를 계산합니다.</div></CardContent></Card>

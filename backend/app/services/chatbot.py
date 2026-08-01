@@ -47,10 +47,15 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
     ctx: dict = {}
 
     # 모니터링 품목 (+ 최고 SGRI)
-    q_stmt = select(UserQuery)
+    # 비로그인 사용자는 다른 사용자의 질의 데이터를 볼 수 없도록 개인 목록을 비운다.
+    queries = []
     if user_id is not None:
-        q_stmt = q_stmt.where(UserQuery.user_id == user_id)
-    queries = db.execute(q_stmt.order_by(UserQuery.query_id.desc())).scalars().all()
+        q_stmt = (
+            select(UserQuery)
+            .where(UserQuery.user_id == user_id)
+            .order_by(UserQuery.query_id.desc())
+        )
+        queries = db.execute(q_stmt).scalars().all()
     items = []
     seen = set()
     for q in queries:
@@ -70,8 +75,13 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
 
     # 특정 품목 포커스
     focus_qid = query_id or (queries[0].query_id if queries else None)
-    if focus_qid:
-        fq = db.get(UserQuery, focus_qid)
+    if focus_qid and user_id is not None:
+        fq = db.execute(
+            select(UserQuery).where(
+                UserQuery.query_id == focus_qid,
+                UserQuery.user_id == user_id,
+            )
+        ).scalars().first()
         if fq and fq.hs_code:
             countries = db.execute(
                 select(ProcurementRecommendation)
@@ -103,10 +113,10 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
             }
 
     # 최근 알림
-    a_stmt = select(Alert).order_by(Alert.alert_id.desc()).limit(5)
+    alerts = []
     if user_id is not None:
         a_stmt = select(Alert).where(Alert.user_id == user_id).order_by(Alert.alert_id.desc()).limit(5)
-    alerts = db.execute(a_stmt).scalars().all()
+        alerts = db.execute(a_stmt).scalars().all()
     ctx["recent_alerts"] = [
         {"title": a.title, "severity": a.severity, "message": a.message} for a in alerts
     ]

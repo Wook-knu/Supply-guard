@@ -4,7 +4,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { api, type ReportOut } from "@/lib/api"
+import { api, isUpgradeRequiredError, type ReportOut } from "@/lib/api"
 import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -29,11 +29,16 @@ export default function NewReportPage() {
   const [aiReport, setAiReport] = useState<ReportOut | null>(null)
   const [recentReports, setRecentReports] = useState<ReportOut[]>([])
   const [error, setError] = useState("")
+  const [upgradeMessage, setUpgradeMessage] = useState("")
+  const [canUseAiReports, setCanUseAiReports] = useState<boolean | null>(null)
   const [item, setItem] = useState<{ name: string; hs: string }>({ name: "", hs: "" })
   const [stats, setStats] = useState<{ sgri: number | null; level: string; alt: number }>({ sgri: null, level: "", alt: 0 })
 
   useEffect(() => {
     api.getReports().then(setRecentReports).catch(() => setRecentReports([]))
+    api.getSubscription()
+      .then((state) => setCanUseAiReports(state.features.ai_reports))
+      .catch(() => setCanUseAiReports(null))
   }, [])
 
   // 분석 대상 품목과 요약 통계를 실제 API에서 불러온다(하드코딩 데모값 대체).
@@ -62,7 +67,7 @@ export default function NewReportPage() {
 
   async function handleGenerate() {
     // URL의 query_id, 없으면 사용자의 최근 등록 품목으로 AI 분석을 실행한다.
-    setLoading(true); setError(""); setAiReport(null)
+    setLoading(true); setError(""); setUpgradeMessage(""); setAiReport(null)
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
     try {
       let qid = Number(new URLSearchParams(window.location.search).get("query_id"))
@@ -90,7 +95,12 @@ export default function NewReportPage() {
       setAiReport(report)
       setRecentReports((current) => [report, ...current.filter((item) => item.report_id !== report.report_id)])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "생성 중 오류가 발생했습니다.")
+      if (isUpgradeRequiredError(err)) {
+        setUpgradeMessage(err.detail)
+        setCanUseAiReports(false)
+      } else {
+        setError(err instanceof Error ? err.message : "생성 중 오류가 발생했습니다.")
+      }
     } finally {
       setLoading(false)
     }
@@ -104,7 +114,8 @@ export default function NewReportPage() {
         <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">포함할 목차</CardTitle><CardDescription className="mt-1">필요한 항목을 선택하면 AI가 근거 데이터와 함께 초안을 작성합니다.</CardDescription></CardHeader><CardContent className="space-y-2">{reportSections.map((section, index) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-3 hover:border-slate-200 hover:bg-slate-50" key={section.id}><Checkbox checked={sections.includes(section.id)} onCheckedChange={() => toggleSection(section.id)} /><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-500">{index + 1}</div><div><p className="text-sm font-medium">{section.title}</p><p className="mt-0.5 text-xs text-slate-500">{section.description}</p></div></label>)}</CardContent></Card></div>
         <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI 작성 기준</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><Item text="SGRI 점수와 항목별 근거 반영" /><Item text="최신 뉴스·정책 변화 요약" /><Item text="대체 공급국 비교 및 제안" /><Item text="실행 가능한 대응 전략 구성" /><p className="border-t border-blue-100 pt-3 text-xs leading-5 text-slate-500">보고서는 의사결정을 돕는 초안입니다. 실제 계약·조달 전에는 담당자의 최종 검토가 필요합니다.</p></CardContent></Card><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">분석 데이터</CardTitle></CardHeader><CardContent className="space-y-3"><Data text="분석 품목" value={item.name || "-"} /><Data text="최고 SGRI" value={stats.sgri != null ? `${stats.sgri} · ${stats.level}` : "-"} danger={stats.level === "고위험"} /><Data text="안정 대체국" value={stats.alt ? `${stats.alt}개국` : "-"} /><Data text="분석 지표" value="6종 (S·C·V·L·P·E)" /></CardContent></Card></aside></div>
 
-      <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다.</p></div><Button onClick={handleGenerate} disabled={sections.length === 0 || loading} className="w-fit bg-blue-600 hover:bg-blue-700">{loading ? <>AI가 작성 중...</> : aiReport ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button></section>
+      <section className="mt-6 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div><p className="font-semibold">선택된 목차 {sections.length}개</p><p className="mt-1 text-sm text-slate-500">{canUseAiReports === false ? "AI 보고서는 Pro 이상 요금제에서 이용할 수 있습니다." : "생성 후 본문을 자유롭게 수정하고 PDF로 내보낼 수 있습니다."}</p></div>{canUseAiReports === false ? <Button asChild className="w-fit bg-blue-600 hover:bg-blue-700"><Link href="/pricing">Pro로 업그레이드 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : <Button onClick={handleGenerate} disabled={sections.length === 0 || loading} className="w-fit bg-blue-600 hover:bg-blue-700">{loading ? <>AI가 작성 중...</> : aiReport ? <><Check className="mr-2 h-4 w-4" />초안 생성 완료</> : <><Sparkles className="mr-2 h-4 w-4" />AI 초안 생성</>}</Button>}</section>
+      {upgradeMessage && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-amber-900">요금제 업그레이드가 필요합니다.</p><p className="mt-1 text-sm text-amber-800">{upgradeMessage}</p></div><Button asChild className="shrink-0 bg-amber-600 hover:bg-amber-700"><Link href="/pricing">요금제 보기</Link></Button></div>}
       {error && <p role="alert" className="mt-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
       {aiReport && <AiReportPreview report={aiReport} />}
       <Card className="mt-6 border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">최근 보고서</CardTitle><CardDescription>저장된 보고서를 최신순으로 표시합니다.</CardDescription></CardHeader><CardContent className="space-y-3">{recentReports.map((report) => <Link href={`/reports/${report.report_id}`} key={report.report_id} className="flex items-center justify-between rounded-lg border border-slate-200 p-4 hover:border-blue-200 hover:bg-blue-50/40"><div><p className="text-sm font-medium">{report.title ?? `보고서 #${report.report_id}`}</p><p className="mt-1 text-xs text-slate-500">{report.created_at ? new Date(report.created_at).toLocaleString("ko-KR") : "생성 시간 없음"} · {report.status ?? "draft"}</p></div><ArrowRight className="h-4 w-4 text-slate-400" /></Link>)}{recentReports.length === 0 && <p className="py-6 text-center text-sm text-slate-400">저장된 보고서가 없습니다.</p>}</CardContent></Card>

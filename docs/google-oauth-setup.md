@@ -17,7 +17,7 @@
    - Application type: **Web application**
    - **Authorized JavaScript origins** 에 프론트 주소 추가:
      - 개발: `http://localhost:3000`
-     - 배포: `https://<당신-프론트-도메인>` (예: `https://supplyguard.vercel.app`)
+     - 현재 배포: `https://supply-guard-one.vercel.app`
    - (ID 토큰 방식은 redirect URI 불필요)
 4. 생성되면 **Client ID** 복사 (`xxxx.apps.googleusercontent.com`)
 
@@ -26,7 +26,8 @@
 - **백엔드**: `GOOGLE_CLIENT_ID=<복사한 Client ID>` , `SECRET_KEY=<랜덤 32바이트+>`
   - SECRET_KEY 생성: `python -c "import secrets;print(secrets.token_urlsafe(48))"`
   - 운영에선 `ALLOW_STUB_LOGIN=false` (이메일 스텁 비활성)
-- **프론트**: `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<같은 Client ID>` (버튼 렌더용)
+- **프론트(Vercel)**: `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<같은 Client ID>` (버튼 렌더용)
+  - Production 환경에 저장한 뒤 반드시 재배포한다. `NEXT_PUBLIC_*` 값은 빌드 시 번들에 반영된다.
 
 ## 3. 동작 확인
 - 프론트 구글 버튼 클릭 → 구글 계정 선택 → 백엔드가 검증 후 로그인 완료

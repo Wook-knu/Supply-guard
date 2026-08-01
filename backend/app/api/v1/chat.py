@@ -4,7 +4,9 @@ AI 챗봇 라우터.
 ※ 로그인 시 그 사용자 데이터로 개인화, 없으면 일반.
 """
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -16,12 +18,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 class ChatMessage(BaseModel):
-    role: str        # user | assistant
-    content: str
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=2000)
     query_id: int | None = None            # 특정 품목 맥락(선택)
     history: list[ChatMessage] | None = None
 

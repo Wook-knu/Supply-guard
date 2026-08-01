@@ -54,9 +54,11 @@ http://localhost:8000/api/v1
 
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 ```
 
 환경변수 파일은 `.gitignore`에 포함되어 있으므로 커밋하지 않습니다. 값을 바꾼 뒤에는 개발 서버를 다시 실행해야 합니다.
+Google 로그인을 사용할 때는 백엔드 `GOOGLE_CLIENT_ID`에도 같은 값을 설정하고, Google Cloud Console의 Authorized JavaScript origins에 프론트 주소를 등록해야 합니다.
 
 ## 폴더 구조
 
@@ -67,7 +69,7 @@ Frontend/
 │   ├── page.tsx                      # 루트 경로 → /login 이동
 │   ├── globals.css                   # 전역 스타일과 인쇄 스타일
 │   ├── login/
-│   │   └── page.tsx                  # 이메일 로그인
+│   │   └── page.tsx                  # Google GIS + 데모 이메일 로그인
 │   ├── dashboard/
 │   │   └── page.tsx                  # 품목별 공급망 위험 대시보드
 │   ├── items/new/

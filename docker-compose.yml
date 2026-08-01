@@ -31,6 +31,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production-min-32-bytes!}
+      ALLOW_STUB_LOGIN: ${ALLOW_STUB_LOGIN:-true}
     depends_on:
       db:
         condition: service_healthy
@@ -43,6 +46,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     depends_on:
       - backend
     ports:

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 
 // 모든 페이지에 공통 적용되는 최상위 레이아웃입니다.
 // 사이트 메타데이터, 아이콘, 전역 스타일과 운영 환경 분석 도구를 설정합니다.
 import { Analytics } from '@vercel/analytics/next'
+import { AssistantChat } from '@/components/assistant-chat'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -36,6 +38,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className="font-sans antialiased">
         {children}
+        <Suspense fallback={null}><AssistantChat /></Suspense>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
