@@ -5,7 +5,7 @@
 import Link from "next/link"
 import { DragEvent, FormEvent, use, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Building2, CheckCircle2, CircleAlert, Edit3, FileText, FolderKanban, Globe2, GripVertical, Loader2, MoreHorizontal, Plus, RefreshCw, Save, ShieldAlert, Trash2, X } from "lucide-react"
+import { ArrowLeft, Building2, CheckCircle2, CircleAlert, Edit3, FileText, FolderKanban, Globe2, GripVertical, Loader2, Plus, RefreshCw, Save, ShieldAlert, Trash2, X } from "lucide-react"
 import { api, type BoardDetailOut, type BoardItemKind, type BoardItemOut, type BoardStatus, type CountryReco, type QueryOut, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 import { Badge } from "@/components/ui/badge"
@@ -176,7 +176,7 @@ export default function BoardDetailPage({ params }: { params: Promise<{ boardId:
       <section className="mt-6 grid min-w-0 gap-4 xl:grid-cols-4">
         {COLUMNS.map((column) => (
           <div key={column.key} data-board-column={column.key} onDragOver={(event) => { event.preventDefault(); setDropTarget(column.key) }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null) }} onDrop={(event) => handleDrop(event, column.key)} className={`min-h-[440px] rounded-2xl border p-3 transition ${column.color} ${dropTarget === column.key ? "ring-2 ring-blue-400 ring-offset-2" : ""}`}>
-            <div className="flex items-start justify-between px-1 py-1"><div><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${column.dot}`} /><h2 className="text-sm font-semibold">{column.label}</h2><Badge className="border-white bg-white/80 text-slate-600 hover:bg-white/80">{itemsByStatus[column.key].length}</Badge></div><p className="mt-1.5 text-xs text-slate-500">{column.description}</p></div><MoreHorizontal className="h-4 w-4 text-slate-400" /></div>
+            <div className="flex items-start justify-between px-1 py-1"><div><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${column.dot}`} /><h2 className="text-sm font-semibold">{column.label}</h2><Badge className="border-white bg-white/80 text-slate-600 hover:bg-white/80">{itemsByStatus[column.key].length}</Badge></div><p className="mt-1.5 text-xs text-slate-500">{column.description}</p></div></div>
             <div className="mt-3 space-y-3">
               {itemsByStatus[column.key].map((item) => {
                 const meta = KIND_META[item.kind] ?? KIND_META.note
@@ -197,7 +197,7 @@ export default function BoardDetailPage({ params }: { params: Promise<{ boardId:
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center border-b border-slate-200 bg-white px-5 md:px-8"><Link href="/dashboard" className="flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold tracking-tight">SupplyGuard</span></Link></header><main className="mx-auto max-w-[1600px] px-4 py-7 md:px-8">{children}</main></div>
+  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center border-b border-slate-200 bg-white px-5 md:px-8"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold tracking-tight">SupplyGuard</span></Link></header><main className="mx-auto max-w-[1600px] px-4 py-7 md:px-8">{children}</main></div>
 }
 
 function DialogFrame({ title, description, onClose, disabled, children }: { title: string; description: string; onClose: () => void; disabled: boolean; children: React.ReactNode }) {

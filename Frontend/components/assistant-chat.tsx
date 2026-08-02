@@ -218,7 +218,7 @@ export function AssistantChat() {
         </section>
       )}
 
-      <Button type="button" onClick={() => setIsOpen((current) => !current)} aria-label={isOpen ? "AI 어시스턴트 닫기" : "AI 어시스턴트 열기"} className="no-print fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 p-0 text-white shadow-lg hover:from-blue-700 hover:to-cyan-600 sm:bottom-6 sm:right-6">{isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}</Button>
+      <Button type="button" onClick={() => setIsOpen((current) => !current)} aria-label={isOpen ? "AI 어시스턴트 닫기" : "AI 어시스턴트 열기"} className="no-print fixed bottom-20 right-5 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 p-0 text-white shadow-lg hover:from-blue-700 hover:to-cyan-600 lg:bottom-6 lg:right-6">{isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}</Button>
     </>
   )
 }

@@ -271,7 +271,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
         <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 lg:hidden">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm">
               <ShieldAlert className="h-4 w-4 text-white" />
             </div>
@@ -370,7 +370,7 @@ export default function Dashboard() {
             )}
           </div>
           <Button asChild variant="ghost" size="icon" className="relative text-slate-600">
-            <Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link>
+            <Link href="/alerts" aria-label={alertCount > 0 ? `알림 보기 (안읽음 ${alertCount}건)` : "알림 보기"}><Bell className="h-4 w-4" />{alertCount > 0 && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />}</Link>
           </Button>
           {userPlan && <Link href="/pricing"><Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-100">{userPlan}</Badge></Link>}
           <Avatar className="h-8 w-8 border border-slate-200">

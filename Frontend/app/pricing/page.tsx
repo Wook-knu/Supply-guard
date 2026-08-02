@@ -81,7 +81,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div>
           <span className="font-semibold tracking-tight">SupplyGuard</span>
         </Link>

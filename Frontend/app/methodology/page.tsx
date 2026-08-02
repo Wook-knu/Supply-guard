@@ -14,7 +14,7 @@ const indicators = [
 
 export default function MethodologyPage() {
   return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-6xl items-center px-5 md:px-8"><Link href="/dashboard" className="flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold">SupplyGuard</span></Link></div></header>
+    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-6xl items-center px-5 md:px-8"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold">SupplyGuard</span></Link></div></header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
       <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" />대시보드로 돌아가기</Link>
       <section className="mt-6 rounded-2xl bg-gradient-to-br from-blue-700 to-cyan-600 p-7 text-white md:p-10"><Badge className="border-white/20 bg-white/10 text-white hover:bg-white/10"><BookOpen className="mr-1.5 h-3.5 w-3.5" />산정 방법론</Badge><h1 className="mt-4 text-3xl font-semibold">SGRI 공급망 위험지수</h1><p className="mt-3 max-w-3xl leading-7 text-blue-50">국가·품목별 공급망 위험을 여섯 가지 지표로 표준화하고 가중 합산한 0~100점 지수입니다. 점수가 높을수록 공급 차질 가능성과 대응 필요성이 큽니다.</p></section>

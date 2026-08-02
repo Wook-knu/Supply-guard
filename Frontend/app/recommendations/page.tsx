@@ -6,9 +6,10 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { api, type ItemBenchmark, type RecommendationExplanation } from "@/lib/api"
+import { UserAvatar } from "@/components/user-avatar"
+import { AlertBell } from "@/components/alert-bell"
 import { getCountryName } from "@/lib/countries"
-import { ArrowLeft, ArrowRight, Bell, Bot, Building2, Check, CheckCircle2, CircleAlert, FileText, Info, Loader2, RefreshCw, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ArrowLeft, ArrowRight, Bot, Building2, Check, CheckCircle2, CircleAlert, FileText, Info, Loader2, RefreshCw, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -213,7 +214,7 @@ export default function RecommendationsPage() {
   }
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts" aria-label="알림 보기"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
+    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><AlertBell /><UserAvatar /></div></header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
       {dataStatus === "loading" ? (
         <Card className="border-slate-200 shadow-sm"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /><p className="mt-4 text-sm font-medium text-slate-700">추천 데이터를 불러오는 중입니다.</p><p className="mt-1 text-xs text-slate-500">품목과 국가·공급사 추천을 확인하고 있습니다.</p></CardContent></Card>

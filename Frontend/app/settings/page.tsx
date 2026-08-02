@@ -5,9 +5,9 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { api, type AlertSettings, type UserOut } from "@/lib/api"
+import { UserAvatar } from "@/components/user-avatar"
 import { getCountryName } from "@/lib/countries"
 import { ArrowLeft, Check, Plus, Save, Settings2, ShieldAlert } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,7 +31,13 @@ export default function SettingsPage() {
     if (["company", "items", "team", "alerts"].includes(requestedTab ?? "")) setActiveTab(requestedTab!)
     api.getMe().then(setUser).catch(() => setUser(null))
     api.getAlertSettings().then(setAlerts).catch(() => setSaveError("알림 설정을 불러오지 못했습니다."))
-    api.getRisks().then((rows) => {
+    // 품목명은 사용자가 등록한 값(item_name)에서 가져오고, 없을 때만 HS 코드로 표기한다.
+    Promise.all([api.getRisks(), api.getQueries().catch(() => [])]).then(([rows, queries]) => {
+      const nameByHsCode = new Map<string, string>()
+      queries.forEach((query) => {
+        const name = query.item_name?.trim()
+        if (query.hs_code && name) nameByHsCode.set(query.hs_code, name)
+      })
       const latestByItem = new Map<string, typeof rows[number]>()
       rows.forEach((row) => {
         const key = row.hs_code ?? ""
@@ -39,7 +45,7 @@ export default function SettingsPage() {
         if (!current || row.as_of_date > current.as_of_date || (row.as_of_date === current.as_of_date && Number(row.sgri_score) > Number(current.sgri_score))) latestByItem.set(key, row)
       })
       setRiskItems([...latestByItem.values()].map((row) => ({
-        name: row.hs_code === "283691" ? "리튬 탄산염" : `HS ${row.hs_code ?? "미지정"}`,
+        name: (row.hs_code ? nameByHsCode.get(row.hs_code) : "") || `HS ${row.hs_code ?? "미지정"}`,
         code: `HS ${row.hs_code ?? "-"}`,
         country: getCountryName(row.country_code),
         risk: row.level === "높음" ? "고위험" : row.level === "중간" ? "주의" : "안정",
@@ -53,7 +59,7 @@ export default function SettingsPage() {
     catch { setSaveError("알림 설정을 저장하지 못했습니다.") }
     finally { setSaving(false) }
   }
-  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></header>
+  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><UserAvatar /></header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link><div className="mt-6"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><Settings2 className="h-4 w-4" /> 계정·공급망 설정</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">서비스 설정</h1><p className="mt-2 text-sm text-slate-500">로그인 계정과 모니터링 품목을 확인하고 개인 알림 기준을 변경합니다.</p></div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-7"><TabsList className="h-auto flex-wrap bg-slate-100"><TabsTrigger value="company">계정 정보</TabsTrigger><TabsTrigger value="items">공급망 품목</TabsTrigger><TabsTrigger value="team">현재 사용자</TabsTrigger><TabsTrigger value="alerts">알림 기준</TabsTrigger></TabsList>
         <TabsContent value="company" className="mt-6"><Card className="border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base">로그인 계정 정보</CardTitle><CardDescription>현재 로그인 API에서 조회한 사용자와 소속 기업 연결 정보입니다.</CardDescription></CardHeader><CardContent className="grid gap-5 md:grid-cols-2"><Field label="담당자명"><Input value={user?.name ?? ""} readOnly placeholder="이름 미등록" /></Field><Field label="담당자 이메일"><Input value={user?.email ?? ""} readOnly placeholder="로그인 정보 없음" /></Field><Field label="계정 권한"><Input value={user?.role ?? ""} readOnly placeholder="권한 미지정" /></Field><Field label="소속 기업 ID"><Input value={user?.company_id != null ? String(user.company_id) : ""} readOnly placeholder="소속 기업 미등록" /></Field></CardContent></Card></TabsContent>

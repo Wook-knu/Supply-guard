@@ -5,8 +5,9 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { api, isUpgradeRequiredError, type ItemBenchmark, type ReportOut } from "@/lib/api"
-import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
+import { AlertBell } from "@/components/alert-bell"
+import { ArrowLeft, ArrowRight, Bot, Check, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 const reportSections = [
   { id: "summary", title: "경영진 요약", description: "현재 위험도와 우선 대응 사항을 한 페이지로 요약" },
   { id: "risk", title: "공급망 리스크 분석", description: "국가·품목별 SGRI 점수와 주요 위험 원인" },
-  { id: "alternative", title: "대체 공급처 제안", description: "호주·칠레·캐나다 후보 및 추천 근거" },
+  { id: "alternative", title: "대체 공급처 제안", description: "안정적인 대체 공급국 후보 및 추천 근거" },
   { id: "action", title: "권장 대응 전략", description: "단기·중기 실행 항목과 검토 우선순위" },
 ]
 
@@ -126,7 +127,7 @@ export default function NewReportPage() {
   }
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts" aria-label="알림 보기"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
+    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><AlertBell /><UserAvatar /></div></header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href={backHref} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 추천 결과로 돌아가기</Link><div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><FileCheck2 className="h-4 w-4" /> AI 보고서 생성</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대응 보고서 초안 만들기</h1><p className="mt-2 text-sm text-slate-500">분석 결과를 바탕으로 사내 검토용 공급망 리스크 보고서를 생성합니다.</p></div><Badge className="w-fit border-violet-100 bg-violet-50 px-3 py-1.5 text-violet-700 hover:bg-violet-50">2 / 2 보고서 구성</Badge></div>
 
       <div className="mt-7 grid gap-6 lg:grid-cols-3"><div className="space-y-6 lg:col-span-2"><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">보고서 기본 정보</CardTitle><CardDescription className="mt-1">생성된 보고서는 초안 상태로 저장되며, 검토 후 공유할 수 있습니다.</CardDescription></CardHeader><CardContent className="space-y-5 pt-6"><div><Label className="text-sm font-medium">보고서 제목</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2" /></div><div className="grid gap-5 md:grid-cols-2"><div><Label className="text-sm font-medium">분석 대상 품목</Label><div className="mt-2 flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium">{item.name || "품목 미선택"} {item.hs && <span className="ml-2 text-xs font-normal text-slate-400">HS {item.hs}</span>}</div></div><div><Label className="text-sm font-medium">보고서 유형</Label><div className="mt-2 flex h-10 items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm"><span>공급망 리스크 대응 보고서</span><ChevronDown className="h-4 w-4 text-slate-400" /></div></div></div><div><Label className="text-sm font-medium">추가 요청 사항 <span className="font-normal text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="강조하고 싶은 위험 요인, 사내 검토 관점 등을 입력하세요." /></div></CardContent></Card>

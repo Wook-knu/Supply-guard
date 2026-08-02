@@ -5,18 +5,16 @@
 
 import Link from "next/link"
 import { use, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CheckCircle2, CircleAlert, FileText, Globe2, Loader2, RefreshCw, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ArrowLeft, ArrowRight, BarChart3, Bot, CheckCircle2, CircleAlert, FileText, Globe2, Loader2, RefreshCw, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { api, isUpgradeRequiredError, type ItemBenchmark, type RiskOut } from "@/lib/api"
+import { UserAvatar } from "@/components/user-avatar"
+import { AlertBell } from "@/components/alert-bell"
 import { getCountryName } from "@/lib/countries"
 import { SgriInfo } from "@/components/sgri-info"
-
-// HS 코드 → 품목명 (알려진 품목만; 없으면 코드 표기)
-const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
 
 // 6지표 메타 (표시 순서·라벨)
 const INDICATORS: { key: keyof RiskOut; label: string; note: string }[] = [
@@ -43,6 +41,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   const [reweightMessage, setReweightMessage] = useState("")
   const [upgradeMessage, setUpgradeMessage] = useState("")
   const [recommendationQueryId, setRecommendationQueryId] = useState<number | null>(null)
+  const [registeredItemName, setRegisteredItemName] = useState("")
   const [benchmark, setBenchmark] = useState<ItemBenchmark | null>(null)
   const [benchmarkStatus, setBenchmarkStatus] = useState<"loading" | "ready" | "empty">("loading")
 
@@ -61,10 +60,18 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   }, [])
 
   // 추천 API는 HS 코드가 아니라 사용자가 등록한 query_id를 요구하므로 현재 품목과 연결한다.
+  // 품목명도 등록 정보(item_name)에서 함께 가져와 화면에 표시한다.
   useEffect(() => {
     api.getQueries()
-      .then((queries) => setRecommendationQueryId(queries.find((query) => query.hs_code === hsCode)?.query_id ?? null))
-      .catch(() => setRecommendationQueryId(null))
+      .then((queries) => {
+        const matched = queries.find((query) => query.hs_code === hsCode)
+        setRecommendationQueryId(matched?.query_id ?? null)
+        setRegisteredItemName(matched?.item_name?.trim() ?? "")
+      })
+      .catch(() => {
+        setRecommendationQueryId(null)
+        setRegisteredItemName("")
+      })
   }, [hsCode])
 
   // 품목 평균과 전체 데이터셋 평균을 비교하고, 대표 위험국의 상대 위치도 함께 조회한다.
@@ -110,7 +117,8 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
     }
   }
 
-  const itemName = HS_NAME[hsCode] ?? `HS ${hsCode}`
+  // 사용자가 등록한 품목명을 우선 사용하고, 없을 때만 HS 코드로 표기한다.
+  const itemName = registeredItemName || `HS ${hsCode}`
   // 국가를 SGRI 높은 순으로 정렬, 최고 위험국을 대표로 사용
   const ranked = useMemo(() => [...rows].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [rows])
   const worst = ranked[0]
@@ -121,8 +129,8 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-      <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-      <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+      <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+      <div className="flex items-center gap-3"><AlertBell /><UserAvatar /></div>
     </header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
       <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>

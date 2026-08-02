@@ -100,7 +100,7 @@ export default function BoardsPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 md:px-8">
-        <Link href="/dashboard" className="flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+        <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></span><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
         <Button type="button" onClick={() => setIsCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700"><Plus className="mr-2 h-4 w-4" />새 보드</Button>
       </header>
 
