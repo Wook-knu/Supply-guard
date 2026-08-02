@@ -16,6 +16,7 @@ SupplyGuard는 기업의 조달 품목과 국가별 공급망 위험을 분석�
 | 품목 관리 | 등록 품목 목록, 최고 SGRI, 상세·추천·보고서 이동, 삭제 | 구현 |
 | 신규 품목 분석 | 품목 등록 후 build-SGRI 작업 실행, 폴링 및 진행 상태 표시 | 구현 |
 | 리스크·추천 | 국가별 SGRI 확인, 대체 공급국·공급사 추천 | 구현 |
+| 상대 벤치마크 | 품목·국가 SGRI 상대 위치와 후보 공급사 조달지표 순위 | 구현 |
 | 추천 피드백 | 국가 추천에 도움 여부를 저장 | 구현 |
 | AI 보고서 | 비동기 분석 작업 실행 및 결과 확인 | 구현, Pro 이상 |
 | 구독·요금제 | Basic·Pro·Enterprise 비교, 사용량 및 402 paywall 안내 | 데모 결제 방식 구현 |
@@ -187,7 +188,6 @@ npm run build
 
 - 알림 설정 저장 API와 화면 연동
 - 실행 피드백 항목: 지표 상세 링크, 공통 사이드바, SGRI 방법론, 국가 비교, 국가·공급사 AI 설명 및 공급사 비교
-- 벤치마크 API를 사용하는 프론트엔드 화면
 - 대시보드의 전체 글로벌 품목·국가 탐색 검색 UX와 데이터 범위
 - “도움이 안 됐어요” 이후 1위 국가를 제외해 재추천할지에 대한 정책
 - 실제 결제·Enterprise 문의 흐름
@@ -199,6 +199,8 @@ npm run build
 ## 관련 문서
 
 - [프론트엔드 작업 목록](docs/frontend-tasks.md)
+- [벤치마크 기능 정의](docs/benchmark.md)
+- [고객사 데이터 기반 벤치마크 확장 회의안](docs/benchmark-expansion-meeting-2026-08-04.md)
 - [배포 가이드](docs/deployment.md)
 - [Google OAuth 설정](docs/google-oauth-setup.md)
 - [백엔드 안내](backend/README.md)

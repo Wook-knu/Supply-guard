@@ -7,13 +7,13 @@
 import Link from "next/link"
 import { use, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { ArrowLeft, ArrowRight, BadgeCheck, Bell, Building2, Check, ExternalLink, Globe2, MapPin, ShieldAlert, ShieldCheck, Truck } from "lucide-react"
+import { ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Bell, Building2, Check, ExternalLink, Globe2, Loader2, MapPin, ShieldAlert, ShieldCheck, Truck } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { api, type CompanyDetail, type SupplierReco } from "@/lib/api"
+import { api, type CompanyDetail, type SupplierBenchmark, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 import { AddToBoard } from "@/components/add-to-board"
 
@@ -25,6 +25,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
   const [company, setCompany] = useState<CompanyDetail | null>(null)
   const [reco, setReco] = useState<SupplierReco | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [benchmark, setBenchmark] = useState<SupplierBenchmark | null>(null)
+  const [benchmarkStatus, setBenchmarkStatus] = useState<"idle" | "loading" | "ready" | "empty">("idle")
 
   useEffect(() => {
     api.getCompany(Number(companyId))
@@ -35,15 +37,35 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
 
   // 질의 맥락이 있으면 이 회사의 추천 적합도·근거를 함께 불러온다.
   useEffect(() => {
-    if (!queryId) return
-    api.getSupplierRecos(queryId)
-      .then((rows) => setReco(rows.find((r) => r.company.company_id === Number(companyId)) ?? null))
-      .catch(() => setReco(null))
+    if (!queryId) {
+      setBenchmarkStatus("idle")
+      return
+    }
+    let active = true
+    setBenchmarkStatus("loading")
+    Promise.all([
+      api.getSupplierRecos(queryId),
+      api.getSupplierBenchmark(queryId, Number(companyId)).catch(() => null),
+    ])
+      .then(([rows, benchmarkResult]) => {
+        if (!active) return
+        setReco(rows.find((r) => r.company.company_id === Number(companyId)) ?? null)
+        setBenchmark(benchmarkResult?.error ? null : benchmarkResult)
+        setBenchmarkStatus(benchmarkResult && !benchmarkResult.error ? "ready" : "empty")
+      })
+      .catch(() => {
+        if (!active) return
+        setReco(null)
+        setBenchmark(null)
+        setBenchmarkStatus("empty")
+      })
+    return () => { active = false }
   }, [queryId, companyId])
 
   const fit = reco?.fit_score ? Math.round(num(reco.fit_score)) : null
   const onTime = company ? Math.round(num(company.on_time_delivery_rate)) : 0
   const defect = company ? num(company.defect_rate_pct) : 0
+  const recommendationHref = queryId ? `/recommendations?query_id=${queryId}` : "/items"
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
@@ -51,10 +73,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
       <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
     </header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <Link href="/recommendations" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대체 공급처 추천으로 돌아가기</Link>
+      <Link href={recommendationHref} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대체 공급처 추천으로 돌아가기</Link>
 
       {!loaded ? <p className="mt-16 text-center text-sm text-slate-400">불러오는 중…</p>
-        : !company ? <div className="mt-16 text-center text-sm text-slate-500">해당 공급사 정보를 찾을 수 없습니다.<div className="mt-3"><Button asChild variant="outline"><Link href="/recommendations">추천 목록으로</Link></Button></div></div>
+        : !company ? <div className="mt-16 text-center text-sm text-slate-500">해당 공급사 정보를 찾을 수 없습니다.<div className="mt-3"><Button asChild variant="outline"><Link href={recommendationHref}>추천 목록으로</Link></Button></div></div>
         : <>
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
           <div className="flex flex-col justify-between gap-5 md:flex-row">
@@ -88,6 +110,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
                 <div><div className="mb-1.5 flex justify-between text-sm"><span className="text-slate-500">불량률</span><span className={`font-medium ${defect > 3 ? "text-rose-600" : "text-emerald-600"}`}>{defect}%</span></div><Progress value={Math.min(defect * 10, 100)} className="h-2" /></div>
               </CardContent>
             </Card>
+            <SupplierBenchmarkCard benchmark={benchmark} status={benchmarkStatus} />
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="pb-3"><CardTitle className="text-base">공개 기업 정보</CardTitle><CardDescription className="mt-1">등록·공개 자료 기반 참고 정보입니다.</CardDescription></CardHeader>
               <CardContent className="divide-y divide-slate-100">
@@ -121,7 +144,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
                 <CheckItem text="정제·가공 단계 공급 가능 여부" />
                 <CheckItem text="납기·인코텀즈 조건 협의" />
                 <CheckItem text="샘플 및 품질 인증 검토" />
-                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href="/recommendations">다른 공급사 비교 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={recommendationHref}>다른 공급사 비교 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
               </CardContent>
             </Card>
           </aside>
@@ -129,6 +152,20 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
       </>}
     </main>
   </div>
+}
+
+function SupplierBenchmarkCard({ benchmark, status }: { benchmark: SupplierBenchmark | null; status: "idle" | "loading" | "ready" | "empty" }) {
+  if (status === "idle") return <Card className="border-dashed border-slate-300 shadow-sm"><CardContent className="p-5"><p className="text-sm font-medium text-slate-700">공급사 상대 비교는 추천 목록에서 진입하면 확인할 수 있습니다.</p><p className="mt-1 text-xs text-slate-500">품목별 후보 공급사를 기준으로 순위와 평균을 계산합니다.</p></CardContent></Card>
+  if (status === "loading") return <Card className="border-slate-200 shadow-sm"><CardContent className="flex items-center gap-2 p-5 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-blue-600" />후보 공급사와 조달지표를 비교하고 있습니다.</CardContent></Card>
+  if (!benchmark || status === "empty" || !(benchmark.metrics?.length)) return <Card className="border-dashed border-slate-300 shadow-sm"><CardContent className="p-5"><p className="text-sm font-medium text-slate-700">비교 가능한 공급사가 충분하지 않습니다.</p><p className="mt-1 text-xs text-slate-500">같은 품목의 후보 공급사가 추가되면 단가·납기·품질 순위를 표시합니다.</p></CardContent></Card>
+
+  return <Card className="overflow-hidden border-blue-100 shadow-sm"><CardHeader className="border-b border-blue-100 bg-blue-50 pb-4"><div className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-blue-600" /><CardTitle className="text-base">후보 공급사 내 상대 위치</CardTitle></div><CardDescription className="mt-1">{benchmark.basis} · 타사 고객정보를 사용하지 않습니다.</CardDescription></CardHeader><CardContent className="p-5"><div className="mb-4 flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"><div><p className="text-xs text-slate-500">비교 후보</p><p className="mt-1 text-sm font-semibold">{benchmark.candidate_count}개 공급사</p></div>{benchmark.fit_score != null && <div className="text-right"><p className="text-xs text-slate-500">조달 적합도</p><p className="mt-1 text-lg font-semibold text-blue-600">{benchmark.fit_score.toFixed(1)}점</p></div>}</div><div className="grid gap-3 sm:grid-cols-2">{benchmark.metrics.map((metric) => { const good = metric.verdict === "우수"; const bad = metric.verdict === "미흡"; return <div key={metric.key} className="rounded-xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-slate-800">{metric.label}</p><p className="mt-1 text-xs text-slate-500">후보 평균 {formatMetric(metric.key, metric.candidate_avg)}</p></div><Badge className={`border ${good ? "border-emerald-100 bg-emerald-50 text-emerald-700" : bad ? "border-rose-100 bg-rose-50 text-rose-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>{metric.verdict}</Badge></div><div className="mt-4 flex items-end justify-between"><p className="text-xl font-semibold text-slate-900">{formatMetric(metric.key, metric.value)}</p><p className="text-xs font-medium text-blue-600">{metric.candidate_count}개 중 {metric.rank}위</p></div></div> })}</div><p className="mt-4 text-xs leading-5 text-slate-500">단가·리드타임·불량률은 낮을수록, 정시 납품률은 높을수록 우수한 순위입니다.</p></CardContent></Card>
+}
+
+function formatMetric(key: string, value: number) {
+  if (key === "unit_price") return `$${value.toLocaleString()}`
+  if (key === "lead_time_days") return `${value.toLocaleString()}일`
+  return `${value.toLocaleString()}%`
 }
 
 function Stat({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-lg font-semibold">{value}</p></div> }

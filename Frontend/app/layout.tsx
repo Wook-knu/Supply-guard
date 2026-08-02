@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 // 사이트 메타데이터, 아이콘, 전역 스타일과 운영 환경 분석 도구를 설정합니다.
 import { Analytics } from '@vercel/analytics/next'
 import { AssistantChat } from '@/components/assistant-chat'
+import { AppShell } from '@/components/app-shell'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -37,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="font-sans antialiased">
-        {children}
+        <AppShell>{children}</AppShell>
         <Suspense fallback={null}><AssistantChat /></Suspense>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

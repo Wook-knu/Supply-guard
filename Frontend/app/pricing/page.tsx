@@ -142,7 +142,7 @@ export default function PricingPage() {
                       {current ? (
                         <Button type="button" disabled className="mt-7 w-full">현재 이용 중</Button>
                       ) : plan.custom_quote ? (
-                        <Button asChild variant="outline" className="mt-7 w-full border-slate-300"><Link href="/settings">문의하기</Link></Button>
+                        <Button asChild variant="outline" className="mt-7 w-full border-slate-300"><a href="mailto:jswook@kookmin.ac.kr?subject=SupplyGuard%20Enterprise%20문의">이메일로 문의하기</a></Button>
                       ) : (
                         <Button type="button" onClick={() => void changePlan(plan)} disabled={changingPlan !== null} className={`mt-7 w-full ${isPro ? "bg-blue-600 hover:bg-blue-700" : ""}`}>{changingPlan === plan.key ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />변경 중...</> : "이 요금제로 변경"}</Button>
                       )}

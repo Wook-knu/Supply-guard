@@ -3,13 +3,12 @@ AI_Model(supplyguard_sgri) 연동 어댑터.
 
 역할:
   - 우리 DB(user_queries, companies) → 모델 입력(JSON)으로 변환
-  - analyze_procurement() 호출
+  - DB 위험 분석을 바탕으로 공급사 추천·보고서 생성
   - 모델 응답 → 우리 DB(supplier_recommendations, reports)로 저장
 
 ※ 국가 추천(procurement_recommendations)은 규칙 엔진 담당(결정 #4). 여기선 안 건드림.
 ※ AI_Model은 표준 라이브러리만 쓰므로 sys.path만 잡아주면 import된다.
 """
-import json
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -22,12 +21,12 @@ _AI_MODEL = Path(__file__).resolve().parents[3] / "AI_Model"
 if str(_AI_MODEL) not in sys.path:
     sys.path.insert(0, str(_AI_MODEL))
 
-from supplyguard_sgri import analyze_procurement  # noqa: E402
-
 from app.models.company import Company
 from app.models.query import UserQuery
+from app.models.recommendation import ProcurementRecommendation
 from app.models.report import Report
 from app.models.supplier_recommendation import SupplierRecommendation
+from app.services.recommend import generate_recommendations
 
 
 # ── 입력 변환 ────────────────────────────────────────────────────────────
@@ -237,20 +236,34 @@ def run_ai_analysis(db: Session, query: UserQuery) -> dict:
     # 대시보드/리스크 페이지 SGRI와 보고서 숫자를 일치시킨다. (company 추천은 AI_Model)
     # 부품(recommend_companies + generate_report_draft)만 호출해 Gemini 중복 호출 방지.
     db_risk = build_db_risk_result(db, query.hs_code)
-    if db_risk is not None:
-        from supplyguard_sgri import recommend_companies, reporting  # noqa: PLC0415
-        procurement = request["procurement"]
-        company_result = recommend_companies(procurement, candidates)
-        report = reporting.generate_report_draft(procurement, db_risk, company_result)
-        resp = {
-            "procurement": procurement,
-            "risk_assessment": db_risk,
-            "company_recommendations": company_result,
-            "report_draft": report,
-        }
-    else:
-        # DB에 해당 품목 SGRI가 없으면 AI_Model 자체 계산으로 폴백
-        resp = analyze_procurement(request, candidate_companies=candidates, use_live_apis=False)
-        resp = json.loads(resp) if isinstance(resp, str) else resp
+    if db_risk is None:
+        raise ValueError("국가별 SGRI 분석이 완료되지 않았습니다. 품목 위험도 분석을 먼저 실행해 주세요.")
+
+    # 공급사 추천은 같은 질의의 국가 추천이 실제로 생성된 경우에만 만든다.
+    country_reco = db.execute(
+        select(ProcurementRecommendation.id)
+        .where(ProcurementRecommendation.query_id == query.query_id)
+        .limit(1)
+    ).first()
+    if country_reco is None:
+        generate_recommendations(db, query)
+        country_reco = db.execute(
+            select(ProcurementRecommendation.id)
+            .where(ProcurementRecommendation.query_id == query.query_id)
+            .limit(1)
+        ).first()
+    if country_reco is None:
+        raise ValueError("국가 추천이 생성되지 않아 공급사 추천을 진행할 수 없습니다.")
+
+    from supplyguard_sgri import recommend_companies, reporting  # noqa: PLC0415
+    procurement = request["procurement"]
+    company_result = recommend_companies(procurement, candidates)
+    report = reporting.generate_report_draft(procurement, db_risk, company_result)
+    resp = {
+        "procurement": procurement,
+        "risk_assessment": db_risk,
+        "company_recommendations": company_result,
+        "report_draft": report,
+    }
 
     return _store_response(db, query, resp)

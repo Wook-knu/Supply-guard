@@ -24,15 +24,30 @@ export type QueryOut = QueryCreate & {
 }
 
 export type CountryReco = {
-  reco_id: number
+  reco_id?: number
+  // 구버전 백엔드가 기본키를 id로 반환한 경우를 위한 호환 필드입니다.
+  id?: number
   country_code: string
   rank: number
   sgri_score: string | null
+  score_s: string | null
+  score_c: string | null
+  score_v: string | null
+  score_l: string | null
+  score_p: string | null
+  score_e: string | null
   fit_score: string | null
   est_unit_price: string | null
   tariff_percent: string | null
   est_lead_days: number | null
   rationale: string | null
+}
+
+export type RecommendationExplanation = {
+  summary: string
+  factors: Array<{ label: string; detail: string }>
+  recommendation: string
+  source: "gemini" | "fallback"
 }
 
 export type FeedbackCreate = {
@@ -56,6 +71,10 @@ export type Company = {
   annual_capacity: string | null
   capacity_unit: string | null
   status: string | null
+  unit_price: string | null
+  lead_time_days: number | null
+  on_time_delivery_rate: string | null
+  defect_rate_pct: string | null
 }
 
 export type SupplierReco = {
@@ -158,6 +177,56 @@ export type RiskOut = {
   level: string
 }
 
+export type ItemBenchmarkIndicator = {
+  key: string
+  label: string
+  item_avg: number
+  all_avg: number
+  delta: number
+  verdict: "평균보다 위험" | "평균보다 안전" | "평균 수준"
+}
+
+export type ItemBenchmark = {
+  hs_code: string
+  basis?: string
+  item_avg_sgri?: number
+  all_items_avg_sgri?: number
+  sgri_delta?: number
+  sgri_verdict?: "평균보다 위험" | "평균보다 안전" | "평균 수준"
+  indicators?: ItemBenchmarkIndicator[]
+  country?: {
+    country_code: string
+    sgri: number
+    candidate_countries: number
+    risk_percentile: number
+    vs_item_avg: number
+    summary: string
+  }
+  error?: string
+}
+
+export type SupplierBenchmarkMetric = {
+  key: string
+  label: string
+  value: number
+  candidate_avg: number
+  better_is: "low" | "high"
+  rank: number
+  candidate_count: number
+  verdict: "우수" | "평균 수준" | "미흡"
+}
+
+export type SupplierBenchmark = {
+  query_id: number
+  company_id?: number
+  company_name?: string
+  candidate_count?: number
+  fit_score?: number | null
+  basis?: string
+  metrics?: SupplierBenchmarkMetric[]
+  error?: string
+}
+
 export type AlertOut = {
   alert_id: number
   query_id: number | null
@@ -167,8 +236,18 @@ export type AlertOut = {
   severity: string | null
   title: string | null
   message: string | null
+  // 뉴스 수집기가 원문 주소를 제공하는 경우 대시보드에서 직접 연결한다.
+  source_url?: string | null
   is_read: boolean | null
   created_at: string | null
+}
+
+export type AlertSettings = {
+  user_id?: number
+  high_risk: boolean
+  news: boolean
+  monthly_report: boolean
+  high_threshold: number
 }
 
 export type LoginRequest = {
@@ -371,6 +450,9 @@ export const api = {
     return response
   },
   getMe: () => http<UserOut>("/auth/me"),
+  getAlertSettings: () => http<AlertSettings>("/alert-settings"),
+  saveAlertSettings: (body: AlertSettings) =>
+    http<AlertSettings>("/alert-settings", { method: "PUT", body: JSON.stringify(body) }),
   getSubscription: () => http<SubscriptionState>("/subscription"),
   subscribe: (plan: string) =>
     http<SubscribeResult>("/subscription", {
@@ -389,6 +471,14 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
+  getItemBenchmark: (hsCode: string, countryCode?: string) =>
+    http<ItemBenchmark>(`/benchmark/item/${encodeURIComponent(hsCode)}${countryCode ? `?country_code=${encodeURIComponent(countryCode)}` : ""}`),
+  getSupplierBenchmark: (queryId: number, companyId: number) =>
+    http<SupplierBenchmark>(`/benchmark/supplier/${queryId}/${companyId}`),
+  explainCountry: (queryId: number, countryCode: string) =>
+    http<RecommendationExplanation>(`/queries/${queryId}/countries/${encodeURIComponent(countryCode)}/explain`),
+  explainSupplier: (queryId: number, companyId: number) =>
+    http<RecommendationExplanation>(`/queries/${queryId}/suppliers/${companyId}/explain`),
   sendFeedback: (body: FeedbackCreate) =>
     http<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
   // 공급사 상세 (기업 공개 정보)
