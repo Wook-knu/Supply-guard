@@ -18,7 +18,7 @@ const FEATURE_ROWS: { key: string; label: string }[] = [
   { key: "monitoring", label: "품목 모니터링" },
   { key: "country_risk", label: "국가 의존도·SGRI 분석" },
   { key: "price_alerts", label: "원자재 가격 변동 알림" },
-  { key: "recommendations", label: "대체 공급처 추천" },
+  { key: "recommendations", label: "대체 공급국 추천" },
   { key: "ai_reports", label: "AI 리스크 보고서" },
   { key: "reweight", label: "AI 가중치 재계산" },
   { key: "api_access", label: "API 연동 제공" },

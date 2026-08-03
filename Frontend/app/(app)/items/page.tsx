@@ -240,7 +240,7 @@ export default function ItemsPage() {
                 <PackageOpen className="h-7 w-7" />
               </div>
               <h2 className="mt-5 text-lg font-semibold">아직 등록한 품목이 없습니다</h2>
-              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">품목을 등록하면 국가별 공급망 위험도와 대체 공급처 추천을 한곳에서 관리할 수 있습니다.</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">품목을 등록하면 국가별 공급망 위험도와 대체 공급국 추천을 한곳에서 관리할 수 있습니다.</p>
               <Button asChild className="mt-6 bg-blue-600 hover:bg-blue-700">
                 <Link href="/items/new"><Plus className="mr-2 h-4 w-4" />첫 품목 등록하기</Link>
               </Button>

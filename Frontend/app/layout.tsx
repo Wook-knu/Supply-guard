@@ -7,7 +7,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'SupplyGuard | 공급망 리스크 관리',
-  description: 'AI 기반 공급망 리스크 예측 및 대체 공급처 의사결정 도우미',
+  description: 'AI 기반 공급망 리스크 예측 및 대체 공급국 의사결정 도우미',
   icons: {
     icon: [
       {

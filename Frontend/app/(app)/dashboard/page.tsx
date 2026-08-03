@@ -493,8 +493,8 @@ export default function Dashboard() {
                   <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
                 </div>
               </CardHeader>
-              <CardContent className="px-0 pb-2">
-                {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).slice(0, 5).map((row) => (
+              <CardContent className="max-h-96 overflow-y-auto px-0 pb-2">
+                {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).map((row) => (
                   <Link key={`${row.hs}-${row.countryCode}`} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.name}</p>
@@ -517,8 +517,8 @@ export default function Dashboard() {
                   <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
                 </div>
               </CardHeader>
-              <CardContent className="px-0 pb-2">
-                {[...regCompanies].filter((c) => !compTradingOnly || c.status === "trading").sort((a, b) => compDesc ? b.fit - a.fit : a.fit - b.fit).slice(0, 5).map((c) => (
+              <CardContent className="max-h-96 overflow-y-auto px-0 pb-2">
+                {[...regCompanies].filter((c) => !compTradingOnly || c.status === "trading").sort((a, b) => compDesc ? b.fit - a.fit : a.fit - b.fit).map((c) => (
                   <Link key={`${c.hs}-${c.companyId}`} href={`/suppliers/${c.companyId}?query_id=${c.queryId}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c.name}</p>

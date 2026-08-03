@@ -13,7 +13,7 @@ const NAV = [
   { href: "/dashboard", label: "대시보드", icon: Home },
   { href: "/items", label: "내 품목", icon: LayoutGrid },
   { href: "/risks/283691", label: "리스크 분석", icon: CircleAlert, match: "/risks" },
-  { href: "/recommendations", label: "대체 공급처", icon: Globe2 },
+  { href: "/recommendations", label: "대체 공급국", icon: Globe2 },
   { href: "/map", label: "글로벌 지도", icon: Map },
   { href: "/compare", label: "비교하기", icon: GitCompareArrows },
   { href: "/benchmark", label: "벤치마크", icon: BarChart3 },

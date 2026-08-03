@@ -9,7 +9,7 @@ import { Bot, Loader2, Send, Sparkles, X } from "lucide-react"
 
 const GREETING: ChatMessage = {
   role: "assistant",
-  content: "안녕하세요! SupplyGuard AI 어시스턴트예요. 등록한 품목의 공급망 위험, 대체 공급처, 지표 해석 등 무엇이든 물어보세요.",
+  content: "안녕하세요! SupplyGuard AI 어시스턴트예요. 등록한 품목의 공급망 위험, 대체 공급국, 지표 해석 등 무엇이든 물어보세요.",
 }
 const STARTER_QUESTIONS = ["내 품목 중 가장 위험한 게 뭐야?", "대체 공급국을 추천해줘", "SGRI 지표가 뭐야?"]
 

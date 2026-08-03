@@ -219,7 +219,7 @@ export default function NewItemPage() {
         <div className="mt-6">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><PackagePlus className="h-4 w-4" /> 공급망 등록</div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">모니터링할 품목을 등록하세요</h1>
-          <p className="mt-2 text-sm text-slate-500">단계별로 입력하면 AI가 공급망 위험도(SGRI)를 분석하고 대체 공급처를 추천합니다.</p>
+          <p className="mt-2 text-sm text-slate-500">단계별로 입력하면 AI가 공급망 위험도(SGRI)를 분석하고 대체 공급국를 추천합니다.</p>
         </div>
 
         {/* 가로 스테퍼 */}

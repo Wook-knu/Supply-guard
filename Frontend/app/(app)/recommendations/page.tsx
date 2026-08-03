@@ -4,6 +4,7 @@
 // 추천 점수와 사유, 공급사 목록은 백엔드 추천 API 결과만 사용합니다.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { api, type QueryOut } from "@/lib/api"
@@ -202,7 +203,7 @@ export default function RecommendationsPage() {
       <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-blue-600"><Sparkles className="h-4 w-4" /> AI 추천 결과</div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대체 국가·기업 추천</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대체 공급국 추천</h1>
         </div>
         {items.length > 0 && (
           <div className="flex items-center gap-2">
@@ -220,7 +221,7 @@ export default function RecommendationsPage() {
       ) : !selectedCountry || !topCountry ? (
         <Card className="border-dashed border-slate-300 shadow-sm"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><Sparkles className="h-9 w-9 text-slate-400" /><p className="mt-4 font-semibold text-slate-800">추천 결과가 없습니다.</p><p className="mt-1 text-sm text-slate-500">품목 분석이 완료된 뒤 다시 확인해 주세요.</p><Button asChild className="mt-5 bg-blue-600 hover:bg-blue-700"><Link href="/items">품목 목록으로</Link></Button></CardContent></Card>
       ) : <>
-      <Link href="/items/new" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 품목 정보 수정</Link>
+      <BackLink />
       <div className="mt-2 flex flex-col justify-between gap-3 md:flex-row md:items-end"><div><h2 className="text-lg font-semibold">{itemLabel}</h2><p className="mt-1 text-sm text-slate-500">조달 후보 <span className="font-medium text-blue-600">{countries.length}개국</span>을 SGRI 위험도 기준으로 비교했습니다.</p></div><Button asChild variant="outline" className="w-fit border-slate-200 bg-white"><Link href="/items/new"><SlidersHorizontal className="mr-2 h-4 w-4" />조건 수정</Link></Button></div>
 
       <Card className="mt-7 border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 shadow-sm"><CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-5 w-5" /></div><div className="flex-1"><p className="font-semibold">AI 요약: {topCountry ? `${topCountry.name}를 1순위로 검토하세요` : "추천 결과를 확인하세요"}</p><p className="mt-1 text-sm leading-6 text-slate-600">{topCountry ? `${itemLabel} 대체 공급국 중 ${topCountry.name}의 종합 적합도가 ${topCountry.score}점으로 가장 높습니다 (SGRI 위험도 ${topCountry.sgri}점). ${topCountry.description || "리스크·가격·물류·ESG를 종합한 결과입니다."}` : "품목을 등록하면 SGRI 기반 대체 공급국을 추천합니다."}</p></div><Badge className="w-fit border-blue-100 bg-white px-3 py-1.5 text-blue-700 hover:bg-white">{countries.length}개국 비교</Badge></CardContent></Card>

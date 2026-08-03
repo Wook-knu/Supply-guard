@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 const reportSections = [
   { id: "summary", title: "경영진 요약", description: "현재 위험도와 우선 대응 사항을 한 페이지로 요약" },
   { id: "risk", title: "공급망 리스크 분석", description: "국가·품목별 SGRI 점수와 주요 위험 원인" },
-  { id: "alternative", title: "대체 공급처 제안", description: "호주·칠레·캐나다 후보 및 추천 근거" },
+  { id: "alternative", title: "대체 공급국 제안", description: "호주·칠레·캐나다 후보 및 추천 근거" },
   { id: "action", title: "권장 대응 전략", description: "단기·중기 실행 항목과 검토 우선순위" },
 ]
 

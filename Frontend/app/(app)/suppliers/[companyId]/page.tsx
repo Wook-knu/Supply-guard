@@ -109,6 +109,23 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
           </div>
         </section>
 
+        {/* 추천 이유 — 조달 지표 위 전체폭 */}
+        <Card className="mt-6 border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm">
+          <CardHeader className="pb-3"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><ShieldCheck className="h-4 w-4" /></div><CardTitle className="text-base">추천 이유</CardTitle></div></CardHeader>
+          <CardContent>
+            <p className="text-sm leading-6 text-slate-700">{reco?.rationale || `${getCountryName(company.country_code ?? "")} 소재의 ${company.name} 공급사입니다.`} 아래 근거를 종합해 추천 후보로 선정했습니다.</p>
+            <div className="mt-4 grid gap-x-8 gap-y-4 border-t border-blue-100 pt-4 sm:grid-cols-2">
+              {fit !== null && <Reason icon={ShieldCheck} title={`조달 적합도 ${fit}점`} text="소재 국가의 공급망 위험도(SGRI)와 조달 조건을 종합한 점수입니다. 높을수록 안정적으로 조달할 수 있습니다." />}
+              <Reason icon={Globe2} title={`소재 국가 · ${getCountryName(company.country_code ?? "") || "미상"}`} text={`${getCountryName(company.country_code ?? "")}의 SGRI 위험도(정책·물류 등)를 적합도에 반영했습니다. 국가 위험이 낮을수록 우선 검토 대상입니다.`} />
+              <Reason icon={Truck} title={`정시 납품률 ${onTime}%`} text={onTime >= 90 ? "납기 준수 신뢰도가 높아 생산 일정 리스크가 낮습니다." : onTime > 0 ? "납기 준수 이력을 확인한 뒤 계약을 권장합니다." : "정시 납품 데이터가 없어 사전 확인이 필요합니다."} />
+              {defect > 0 && <Reason icon={ShieldCheck} title={`불량률 ${defect}%`} text={defect <= 3 ? "품질 안정성이 양호한 수준입니다." : "품질 편차가 있을 수 있어 샘플 검수를 권장합니다."} />}
+              {(company.certifications ?? []).length > 0 && <Reason icon={BadgeCheck} title="보유 인증" text={`${(company.certifications ?? []).join(", ")} 인증을 보유해 품질·환경 기준을 충족합니다.`} />}
+              {company.lead_time_days != null && <Reason icon={Truck} title={`예상 리드타임 ${company.lead_time_days}일`} text="발주부터 납품까지 예상 기간입니다. 안전재고·발주 시점 계획에 참고하세요." />}
+              <Reason icon={MapPin} title="조달 다변화 가치" text="특정국·특정기업 의존도를 낮추는 대체 공급 후보로, 공급망 리스크 분산에 기여합니다." />
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <Card className="border-slate-200 shadow-sm">
@@ -136,21 +153,6 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
             </Card>
           </div>
           <aside className="space-y-6">
-            <Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm">
-              <CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><ShieldCheck className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">추천 이유</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm leading-6 text-slate-700">{reco?.rationale || `${getCountryName(company.country_code ?? "")} 소재의 ${company.name} 공급사입니다.`} 아래 근거를 종합해 추천 후보로 선정했습니다.</p>
-                <div className="space-y-3 border-t border-blue-100 pt-3">
-                  {fit !== null && <Reason icon={ShieldCheck} title={`조달 적합도 ${fit}점`} text="소재 국가의 공급망 위험도(SGRI)와 조달 조건을 종합한 점수입니다. 높을수록 안정적으로 조달할 수 있습니다." />}
-                  <Reason icon={Globe2} title={`소재 국가 · ${getCountryName(company.country_code ?? "") || "미상"}`} text={`${getCountryName(company.country_code ?? "")}의 SGRI 위험도(정책·물류 등)를 적합도에 반영했습니다. 국가 위험이 낮을수록 우선 검토 대상입니다.`} />
-                  <Reason icon={Truck} title={`정시 납품률 ${onTime}%`} text={onTime >= 90 ? "납기 준수 신뢰도가 높아 생산 일정 리스크가 낮습니다." : onTime > 0 ? "납기 준수 이력을 확인한 뒤 계약을 권장합니다." : "정시 납품 데이터가 없어 사전 확인이 필요합니다."} />
-                  {defect > 0 && <Reason icon={ShieldCheck} title={`불량률 ${defect}%`} text={defect <= 3 ? "품질 안정성이 양호한 수준입니다." : "품질 편차가 있을 수 있어 샘플 검수를 권장합니다."} />}
-                  {(company.certifications ?? []).length > 0 && <Reason icon={BadgeCheck} title="보유 인증" text={`${(company.certifications ?? []).join(", ")} 인증을 보유해 품질·환경 기준을 충족합니다.`} />}
-                  {company.lead_time_days != null && <Reason icon={Truck} title={`예상 리드타임 ${company.lead_time_days}일`} text="발주부터 납품까지 예상 기간입니다. 안전재고·발주 시점 계획에 참고하세요." />}
-                  <Reason icon={MapPin} title="조달 다변화 가치" text="특정국·특정기업 의존도를 낮추는 대체 공급 후보로, 공급망 리스크 분산에 기여합니다." />
-                </div>
-              </CardContent>
-            </Card>
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="pb-3"><CardTitle className="text-base">검토 전 확인 사항</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-600">
@@ -158,7 +160,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
                 <CheckItem text="정제·가공 단계 공급 가능 여부" />
                 <CheckItem text="납기·인코텀즈 조건 협의" />
                 <CheckItem text="샘플 및 품질 인증 검토" />
-                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href="/recommendations">다른 공급사 비교 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/recommendations/companies?query_id=${queryId}` : "/recommendations/companies"}>다른 기업 추천 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
               </CardContent>
             </Card>
           </aside>

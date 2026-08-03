@@ -123,7 +123,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
               <div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-600">{refStatusLabel} SGRI ({ref ? getCountryName(ref.country_code) : "-"})</span><CircleAlert className={`h-5 w-5 ${toneOf(topScore)}`} /></div>
               <div className="mt-5 flex items-end gap-2"><span className={`text-5xl font-semibold tracking-tight ${toneOf(topScore)}`}>{topScore}</span><span className="mb-1 text-sm text-slate-400">/ 100</span></div>
               <div className="mt-4"><Badge className={`border ${topLevel === "high" ? "border-rose-100 bg-rose-100 text-rose-700 hover:bg-rose-100" : topLevel === "medium" ? "border-amber-100 bg-amber-100 text-amber-700 hover:bg-amber-100" : "border-emerald-100 bg-emerald-100 text-emerald-700 hover:bg-emerald-100"}`}>{LEVEL_LABEL[topLevel]}</Badge></div>
-              <p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">{topLevel === "high" ? "즉시 대체 공급처 검토가 권장되는 수준입니다." : topLevel === "medium" ? "주기적 모니터링과 대체 후보 확보를 권장합니다." : "현재 안정 범위이나 변동을 지켜보세요."}</p>
+              <p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">{topLevel === "high" ? "즉시 대체 공급국 검토가 권장되는 수준입니다." : topLevel === "medium" ? "주기적 모니터링과 대체 후보 확보를 권장합니다." : "현재 안정 범위이나 변동을 지켜보세요."}</p>
             </CardContent>
           </Card>
           <Card className="border-slate-200 shadow-sm lg:col-span-3">
@@ -160,7 +160,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
                 <Action number="1" title="저위험 공급국 견적 요청" note={`${ranked.filter((r) => levelOf(num(r.sgri_score)) === "low").length}개국이 안정 범위입니다.`} />
                 <Action number="2" title="안전재고 확보 검토" note="납기 지연 가능성에 대비합니다." />
                 <Action number="3" title="리스크 보고서 공유" note="구매·생산 부서에 초안을 전달합니다." />
-                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={recoHref}>대체 공급처 검토 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={recoHref}>대체 공급국 검토 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">
