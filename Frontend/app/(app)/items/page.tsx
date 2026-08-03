@@ -114,6 +114,8 @@ export default function ItemsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deleteErrorId, setDeleteErrorId] = useState<number | null>(null)
   const [successMessage, setSuccessMessage] = useState("")
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())  // 선택 삭제용
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -156,6 +158,24 @@ export default function ItemsPage() {
     if (!b.created_at) return -1
     return b.created_at.localeCompare(a.created_at)
   }), [items])
+
+  const allSelected = sortedItems.length > 0 && sortedItems.every((i) => selectedIds.has(i.query_id))
+  const toggleSelect = (id: number) => setSelectedIds((cur) => { const n = new Set(cur); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleSelectAll = () => setSelectedIds(allSelected ? new Set() : new Set(sortedItems.map((i) => i.query_id)))
+
+  // 선택한 품목 일괄 삭제
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0 || bulkDeleting) return
+    setBulkDeleting(true); setSuccessMessage("")
+    const ids = [...selectedIds]
+    const results = await Promise.allSettled(ids.map((id) => api.deleteQuery(id)))
+    const okIds = ids.filter((_, i) => results[i].status === "fulfilled")
+    setItems((cur) => cur.filter((row) => !okIds.includes(row.query_id)))
+    setSelectedIds(new Set())
+    setBulkDeleting(false)
+    const failed = ids.length - okIds.length
+    setSuccessMessage(`${okIds.length}개 품목을 삭제했습니다.${failed ? ` (${failed}개 실패)` : ""}`)
+  }
 
   const deleteItem = async (item: QueryOut) => {
     setDeletingId(item.query_id)
@@ -254,11 +274,18 @@ export default function ItemsPage() {
                   <CardTitle className="text-base">모니터링 품목</CardTitle>
                   <CardDescription className="mt-1">총 {sortedItems.length}개 품목 · 등록한 거래국 기준 SGRI(미지정 시 최고 위험국)</CardDescription>
                 </div>
-                {failedRiskHsCodes.size > 0 && (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setReloadKey((current) => current + 1)} className="w-fit border-amber-200 text-amber-700">
-                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />위험도 다시 불러오기
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedIds.size > 0 && (
+                    <Button type="button" size="sm" onClick={() => void deleteSelected()} disabled={bulkDeleting} className="w-fit bg-rose-600 hover:bg-rose-700">
+                      {bulkDeleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}선택 {selectedIds.size}개 삭제
+                    </Button>
+                  )}
+                  {failedRiskHsCodes.size > 0 && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setReloadKey((current) => current + 1)} className="w-fit border-amber-200 text-amber-700">
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />위험도 다시 불러오기
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="px-0 pb-0">
@@ -270,7 +297,8 @@ export default function ItemsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead className="min-w-48 pl-6">품목</TableHead>
+                    <TableHead className="w-10 pl-6"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} aria-label="전체 선택" className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-rose-600" /></TableHead>
+                    <TableHead className="min-w-48">품목</TableHead>
                     <TableHead className="min-w-32">HS 코드</TableHead>
                     <TableHead className="min-w-40">국가</TableHead>
                     <TableHead className="min-w-48">SGRI</TableHead>
@@ -288,23 +316,27 @@ export default function ItemsPage() {
                     const isConfirming = pendingDeleteId === item.query_id
 
                     return (
-                      <TableRow key={item.query_id} className="hover:bg-slate-50/70">
-                        <TableCell className="pl-6">
+                      <TableRow key={item.query_id} className={selectedIds.has(item.query_id) ? "bg-rose-50/40" : "hover:bg-slate-50/70"}>
+                        <TableCell className="pl-6"><input type="checkbox" checked={selectedIds.has(item.query_id)} onChange={() => toggleSelect(item.query_id)} aria-label="선택" className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-rose-600" /></TableCell>
+                        <TableCell>
                           <p className="font-medium text-slate-800">{item.item_name?.trim() || (hsCode ? `HS ${hsCode}` : "품목명 없음")}</p>
                         </TableCell>
                         <TableCell><span className="font-mono text-sm text-slate-600">{hsCode || "HS 코드 없음"}</span></TableCell>
                         <TableCell>
-                          {riskSummary?.countryCode ? (
+                          {riskSummary?.countryCode && riskSummary.status !== "fallback" ? (
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-slate-700">{getCountryName(riskSummary.countryCode) || riskSummary.countryCode}</span>
-                              <span className={`text-xs ${riskSummary.status === "trading" ? "text-blue-600" : riskSummary.status === "registered" ? "text-slate-500" : "text-slate-400"}`}>{riskSummary.status === "trading" ? "현재 거래국" : riskSummary.status === "registered" ? "등록 국가" : "최고 위험국"}</span>
+                              <span className={`text-xs ${riskSummary.status === "trading" ? "text-blue-600" : "text-emerald-600"}`}>{riskSummary.status === "trading" ? "현재 거래국" : "등록 국가"}</span>
                             </div>
-                          ) : <span className="text-sm text-slate-400">—</span>}
+                          ) : (
+                            <Link href={`/recommendations?query_id=${item.query_id}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 hover:border-blue-300 hover:text-blue-600" title="대체 공급국에서 국가를 등록하세요"><span className="text-rose-500">✕</span> 국가등록</Link>
+                          )}
                         </TableCell>
                         <TableCell>
                           {riskFailed ? <span className="text-sm text-rose-600">불러오기 실패</span>
-                            : riskSummary ? <RiskBadge summary={riskSummary} />
-                              : <span className="text-sm text-slate-400">위험 데이터 없음</span>}
+                            : riskSummary && riskSummary.status !== "fallback" ? <RiskBadge summary={riskSummary} />
+                              : riskSummary ? <span className="text-xs text-slate-400">국가 등록 후 표시</span>
+                                : <span className="text-sm text-slate-400">위험 데이터 없음</span>}
                         </TableCell>
                         <TableCell className="text-sm text-slate-500">{formatCreatedAt(item.created_at)}</TableCell>
                         <TableCell className="pr-6">

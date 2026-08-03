@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { BarChart3, ChevronsLeft, ChevronsRight, ClipboardList, CreditCard, GitCompareArrows, Home, LayoutGrid, Map, Settings, ShieldAlert, Sparkles, TrendingUp } from "lucide-react"
+import { BarChart3, ChevronsLeft, ChevronsRight, ClipboardList, CreditCard, GitCompareArrows, Home, LayoutGrid, Map, Settings, ShieldAlert, TrendingUp } from "lucide-react"
 import ChatWidget from "@/components/chat-widget"
 
 const NAV: { href: string; label: string; icon: typeof Home; match?: string }[] = [
@@ -16,7 +16,6 @@ const NAV: { href: string; label: string; icon: typeof Home; match?: string }[] 
   { href: "/compare", label: "SGRI 비교하기", icon: GitCompareArrows },
   { href: "/benchmark", label: "벤치마크", icon: BarChart3 },
   { href: "/boards", label: "검토 보드", icon: ClipboardList },
-  { href: "/trends", label: "최신동향 분석", icon: TrendingUp },
   { href: "/pricing", label: "요금제", icon: CreditCard },
   { href: "/settings", label: "설정", icon: Settings },
 ]
@@ -74,12 +73,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
         {!collapsed && (
-          <div className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 p-4">
-            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm"><Sparkles className="h-4 w-4" /></div>
-            <p className="text-sm font-semibold">AI 리스크 브리핑</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">오늘의 공급망 변화를 확인하세요.</p>
-            <Link href="/reports/new" className="mt-2 inline-block text-xs font-semibold text-blue-700">보고서 생성 →</Link>
-          </div>
+          <Link href="/trends" className="mx-3 mb-3 block rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm"><TrendingUp className="h-4 w-4" /></div>
+            <p className="text-sm font-semibold">최신동향 분석</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">등록 품목의 국가·기업 현황과 SGRI를 AI가 요약합니다.</p>
+            <span className="mt-2 inline-block text-xs font-semibold text-blue-700">분석 보기 →</span>
+          </Link>
         )}
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
