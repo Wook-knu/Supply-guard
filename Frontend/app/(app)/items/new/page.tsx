@@ -174,6 +174,8 @@ export default function NewItemPage() {
         lead_time_days: leadDays,
         importer_code: "KR",
         origin_country: form.countries.length ? form.countries.join(",") : undefined,
+        // 품목등록에서 입력한 '지금 조달 중인 국가'는 현재 거래중 국가로 저장 → 추천에서 최상단 표시.
+        trading_country: form.countries.length ? form.countries.join(",") : undefined,
       })
       setCreatedItem(created)
       window.localStorage.removeItem(STORAGE_KEY)
