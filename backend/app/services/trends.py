@@ -23,15 +23,19 @@ _TREND_SCHEMA = {
 _SYSTEM = (
     "당신은 SupplyGuard의 공급망 동향 분석가입니다. 제공된 사용자 데이터(context)만 근거로 "
     "'지금 이 사용자의 공급망 동향'을 한국어로 요약하세요. 데이터에 없는 사건은 지어내지 마세요. "
-    "SGRI는 0(안전)~100(위험)입니다. summary(3~5문장 개관), highlights(핵심 변화 3~4개, 각 한 문장), "
-    "watch_items(주의 깊게 볼 품목/국가 2~3개)를 반환하세요."
+    "SGRI는 0(안전)~100(위험)입니다. context.registered_items는 각 품목의 '등록 국가 기준 SGRI'이니 "
+    "품목을 언급할 때는 반드시 '{국가}의 {품목}(SGRI 점수)' 형식으로 국가를 함께 쓰세요. "
+    "summary(3~5문장 개관), highlights(핵심 변화 3~4개, 각 한 문장), "
+    "watch_items(주의 깊게 볼 국가·품목 2~3개)를 반환하세요."
 )
 
 
 def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
     """차트용 집계: 품목별 최고 SGRI, 알림 유형/심각도 분포."""
     # 품목별 SGRI = '등록 국가(거래중 우선)'의 SGRI. 최고 SGRI로 대체하지 않는다.
-    name_to_code = {r[1]: r[0] for r in db.execute(text("SELECT country_code, name_ko FROM countries")).all()}
+    _crows = db.execute(text("SELECT country_code, name_ko FROM countries")).all()
+    name_to_code = {r[1]: r[0] for r in _crows}
+    code_to_name = {r[0]: r[1] for r in _crows}
 
     def _to_code(raw: str) -> str | None:
         n = raw.strip()
@@ -54,6 +58,7 @@ def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
             origin = [c for c in (_to_code(x) for x in (q["origin_country"] or "").split(",")) if c]
             pref = trading + [c for c in origin if c not in trading]
             sgri = None
+            ref_code = None
             for c in pref:
                 v = db.execute(text(
                     "SELECT sgri_score FROM country_risk_scores WHERE hs_code = :h AND country_code = :c "
@@ -61,12 +66,14 @@ def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
                 ), {"h": hs, "c": c}).scalar()
                 if v is not None:
                     sgri = round(float(v))
+                    ref_code = c
                     break
             if sgri is None:  # 등록 국가 SGRI가 없으면 제외(최고 SGRI로 대체 안 함)
                 continue
             seen.add(hs)
             lvl = "높음" if sgri >= 50 else "중간" if sgri >= 25 else "낮음"
-            items.append({"name": q["item_name"] or f"HS {hs}", "hs": hs, "sgri": sgri, "level": lvl})
+            items.append({"name": q["item_name"] or f"HS {hs}", "hs": hs, "sgri": sgri, "level": lvl,
+                          "country": code_to_name.get(ref_code, ref_code), "country_code": ref_code})
     # 알림 유형/심각도 분포 (사용자 전체 알림에서)
     types: Counter = Counter()
     sev: Counter = Counter()
@@ -110,17 +117,23 @@ def _fallback(ctx: dict, stats: dict) -> dict:
                 "highlights": [], "watch_items": [], "source": "fallback"}
     hi = [i for i in items if (i["sgri"] or 0) >= 50]
     top = items[0]
+    top_c = top.get("country")
     summary = (f"모니터링 중인 {len(items)}개 품목 중 {len(hi)}개가 고위험(SGRI 50+) 구간입니다. "
-               f"가장 위험도가 높은 품목은 {top['name']}(SGRI {top['sgri']:.0f})입니다. "
+               f"가장 위험도가 높은 것은 {top_c + '의 ' if top_c else ''}{top['name']}(SGRI {top['sgri']:.0f})입니다. "
                f"최근 알림은 총 {stats['alert_total']}건이 집계되었습니다.")
-    highlights = [f"{i['name']} · SGRI {i['sgri']:.0f} ({i['level']})" for i in items[:4]]
+    highlights = [f"{(i.get('country') + '의 ') if i.get('country') else ''}{i['name']} · SGRI {i['sgri']:.0f} ({i['level']})" for i in items[:4]]
     return {"summary": summary, "highlights": highlights,
-            "watch_items": [i["name"] for i in hi[:3]], "source": "fallback"}
+            "watch_items": [f"{(i.get('country') + ' ') if i.get('country') else ''}{i['name']}" for i in hi[:3]], "source": "fallback"}
 
 
 def build_trend_brief(db: Session, user_id: int | None) -> dict:
     ctx = gather_context(db, user_id, None)
     stats = _stats(db, ctx, user_id)
+    # 등록 국가 기준 품목 SGRI를 컨텍스트에 얹어 AI 요약도 '국가의 품목' 형태로 쓰게 한다.
+    ctx["registered_items"] = [
+        {"item": i["name"], "country": i.get("country"), "sgri": i["sgri"], "level": i["level"]}
+        for i in stats["items"]
+    ]
     ai = _gemini_brief(ctx)
     brief = {**ai, "source": "gemini"} if ai else _fallback(ctx, stats)
     return {**brief, "stats": stats}
