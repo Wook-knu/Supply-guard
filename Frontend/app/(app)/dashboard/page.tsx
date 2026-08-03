@@ -103,6 +103,8 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<AlertOut[]>([])
   const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [supplierRecos, setSupplierRecos] = useState<SupplierReco[]>([])
+  // 품목별 1순위 추천 기업(hs_code → {이름·적합도·AI여부}) — 통합 위험도 카드용
+  const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean }>>({})
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -150,6 +152,27 @@ export default function Dashboard() {
         level: row.level === "높음" ? "high" : row.level === "중간" ? "medium" : "low",
       }
     }), [monitoredHsCodes, monitoredItems, riskHistory])
+  // 품목별 요약: 국가 위험도(최고 SGRI) + 기업(1순위 적합도) — 통합 카드용, 위험 높은 순.
+  const perItemRisk = useMemo(() => {
+    const byHs = new Map<string, RiskRow>()
+    risks.forEach((r) => {
+      const cur = byHs.get(r.hs)
+      if (!cur || r.score > cur.score) byHs.set(r.hs, r)
+    })
+    return monitoredItems
+      .filter((it) => it.hs_code)
+      .map((it) => {
+        const r = byHs.get(it.hs_code as string)
+        return {
+          hs: it.hs_code as string,
+          name: it.item_name?.trim() || `HS ${it.hs_code}`,
+          sgri: r?.score ?? null,
+          level: r?.level ?? null,
+          company: itemCompanies[it.hs_code as string],
+        }
+      })
+      .sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
+  }, [risks, monitoredItems, itemCompanies])
   const searchResults = useMemo<SearchResult[]>(() => {
     const normalizedTerm = searchTerm.trim().toLocaleLowerCase("ko")
     if (!normalizedTerm) return []
@@ -249,6 +272,24 @@ export default function Dashboard() {
       .then((rows) => setSupplierRecos(rows.slice(0, 3)))
       .catch(() => setSupplierRecos([]))
   }, [selectedItem])
+
+  // 품목별 1순위 추천 기업을 한 번에 모아 통합 위험도 카드에 표시.
+  useEffect(() => {
+    const items = monitoredItems.filter((i) => i.hs_code)
+    if (items.length === 0) { setItemCompanies({}); return }
+    let active = true
+    Promise.all(items.map((i) =>
+      api.getSupplierRecos(i.query_id).then((rows) => [i.hs_code as string, rows[0]] as const).catch(() => [i.hs_code as string, undefined] as const),
+    )).then((pairs) => {
+      if (!active) return
+      const map: Record<string, { name: string; fit: number; isAi: boolean }> = {}
+      pairs.forEach(([hs, top]) => {
+        if (hs && top) map[hs] = { name: top.company.name, fit: Math.round(Number(top.fit_score ?? 0)), isAi: (top.company.data_source ?? "").startsWith("ai:") }
+      })
+      setItemCompanies(map)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [monitoredItems])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -383,11 +424,30 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <section className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric icon={ShieldAlert} label="선택 품목 위험도" value={String(currentScore)} suffix="/ 100" change={`직전 대비 ${scoreChange >= 0 ? "+" : ""}${scoreChange}`} tone="rose" href={`/risks/${selectedItem?.hs_code ?? "283691"}`} />
-            <Metric icon={Box} label="모니터링 품목" value={String(monitoredItems.length)} suffix="개" change="내 등록 품목" tone="blue" href="/items" />
-            <Metric icon={AlertTriangle} label="활성 경보" value={String(alertCount)} suffix="건" change="실시간 집계" tone="amber" href="/alerts" />
-            <Metric icon={Globe2} label="대체 공급국" value={String(countryRecos.length)} suffix="개" change={selectedItem ? "추천 업데이트됨" : "품목 선택 시 표시"} tone="emerald" href={selectedItem?.query_id ? `/recommendations?query_id=${selectedItem.query_id}` : "/items"} />
+          <section className="mb-7">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <div><CardTitle className="text-base">품목별 공급망 위험도</CardTitle><CardDescription className="mt-1">국가(SGRI 위험도) · 기업(조달 적합도)을 품목별로 한눈에</CardDescription></div>
+                <Button asChild variant="ghost" size="sm" className="text-blue-600"><Link href="/items">전체 품목 <ArrowRight className="ml-1 h-3.5 w-3.5" /></Link></Button>
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
+                <div className="grid grid-cols-[1fr_7rem_10rem] gap-x-3 border-b border-slate-100 px-6 pb-2 text-xs font-medium text-slate-400">
+                  <span>품목</span><span className="text-right">국가 위험도</span><span className="text-right">추천 기업(적합도)</span>
+                </div>
+                {perItemRisk.slice(0, 6).map((row) => (
+                  <Link key={row.hs} href={`/risks/${row.hs}`} className="grid grid-cols-[1fr_7rem_10rem] items-center gap-x-3 border-b border-slate-50 px-6 py-3 transition-colors last:border-0 hover:bg-slate-50">
+                    <span className="truncate text-sm font-medium">{row.name}</span>
+                    <span className="flex items-center justify-end gap-1.5">
+                      {row.sgri != null ? <><span className="text-sm font-semibold text-slate-800">{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
+                    </span>
+                    <span className="flex items-center justify-end gap-1.5">
+                      {row.company ? <><span className="max-w-[5.5rem] truncate text-sm text-slate-600">{row.company.name}</span><span className="text-xs font-semibold text-emerald-600">{row.company.fit}</span>{row.company.isAi ? <Badge className="border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-700 hover:bg-amber-50">AI</Badge> : <Badge className="border-blue-100 bg-blue-50 px-1.5 py-0 text-[10px] text-blue-700 hover:bg-blue-50">실</Badge>}</> : <span className="text-xs text-slate-300">–</span>}
+                    </span>
+                  </Link>
+                ))}
+                {perItemRisk.length === 0 && <p className="py-8 text-center text-sm text-slate-400">등록된 품목이 없습니다. 품목을 등록하면 위험도가 표시됩니다.</p>}
+              </CardContent>
+            </Card>
           </section>
 
           <section className="grid gap-6 xl:grid-cols-3">
