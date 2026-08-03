@@ -128,9 +128,9 @@ export default function TrendsPage() {
                 : <p className="py-6 text-center text-xs text-slate-400">등록한 국가가 없습니다. 대체 공급국에서 등록하세요.</p>}
             </CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 기업 현황</CardTitle><CardDescription className="mt-1">내가 거래중·등록으로 지정한 기업</CardDescription></CardHeader>
+          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">관심 기업 현황</CardTitle><CardDescription className="mt-1">내가 거래중·관심으로 지정한 기업</CardDescription></CardHeader>
             <CardContent className="space-y-2">
-              {reg.companies.length > 0 ? reg.companies.map((c, i) => <div key={`${c.name}-${i}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"><span className="min-w-0 flex-1 truncate font-medium text-slate-700">{c.name}<span className="ml-1.5 text-xs text-slate-400">· {c.country} · {c.item}</span></span><Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "등록"}</Badge></div>)
+              {reg.companies.length > 0 ? reg.companies.map((c, i) => <div key={`${c.name}-${i}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"><span className="min-w-0 flex-1 truncate font-medium text-slate-700">{c.name}<span className="ml-1.5 text-xs text-slate-400">· {c.country} · {c.item}</span></span><Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "관심"}</Badge></div>)
                 : <p className="py-6 text-center text-xs text-slate-400">지정한 기업이 없습니다. 기업 추천에서 지정하세요.</p>}
             </CardContent>
           </Card>

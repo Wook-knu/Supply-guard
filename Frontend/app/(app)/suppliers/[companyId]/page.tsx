@@ -100,7 +100,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
             {queryId && (
               <span className="inline-flex overflow-hidden rounded-lg border border-slate-200">
                 {(() => { const seg = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-emerald-600 text-white", idle: "text-emerald-600 hover:bg-emerald-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
-                  return ([["trading", "거래중"], ["registered", "등록"], ["none", "해제"]] as const).map(([key, label], i) => (
+                  return ([["trading", "거래중"], ["registered", "관심"], ["none", "해제"]] as const).map(([key, label], i) => (
                     <button key={key} type="button" disabled={savingC} onClick={() => setStatus(key)} className={`px-3.5 py-2 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${curStatus === key ? seg[key].active : `bg-white ${seg[key].idle}`}`}>{label}</button>
                   )) })()}
               </span>

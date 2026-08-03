@@ -106,6 +106,7 @@ function RiskBadge({ level }: { level: "high" | "medium" | "low" }) {
 export default function Dashboard() {
   // 기간 선택과 표 펼치기는 서버 데이터와 무관한 화면 표시 상태입니다.
   const [period, setPeriod] = useState("최근 7일")
+  const [trendCountry, setTrendCountry] = useState("")   // 추이 차트: 선택 등록 국가(코드)
   const [showAllRisks, setShowAllRisks] = useState(false)
   const [riskHistory, setRiskHistory] = useState<RiskOut[]>([])
   const [queries, setQueries] = useState<QueryOut[]>([])
@@ -138,17 +139,35 @@ export default function Dashboard() {
   }, [queries])
   const monitoredHsCodes = useMemo(() => new Set(monitoredItems.map((item) => item.hs_code)), [monitoredItems])
   const selectedItem = monitoredItems.find((item) => item.hs_code === selectedHsCode)
-  // 선택 품목의 현재 거래국 ISO 코드(있으면). 추이 차트를 이 국가 기준으로 그린다.
+  // 선택 품목의 등록 국가 코드(관심+거래중). 추이 차트를 이 국가들 기준으로 그린다.
   const selectedOriginCodes = useMemo(() => (selectedItem?.origin_country ?? "")
     .split(",").map((s) => s.trim()).filter(Boolean)
     .map((n) => COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())?.code ?? n.toUpperCase()),
     [selectedItem])
+  const selectedTradingCodes = useMemo(() => (selectedItem?.trading_country ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean)
+    .map((n) => COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())?.code ?? n.toUpperCase()),
+    [selectedItem])
+  // 추이 차트에서 고를 수 있는 등록 국가 목록(거래중 먼저)
+  const trendCountryOptions = useMemo(() => {
+    const codes = [...new Set([...selectedTradingCodes, ...selectedOriginCodes])]
+    return codes.map((c) => ({ code: c, name: getCountryName(c) || c }))
+  }, [selectedOriginCodes, selectedTradingCodes])
+  // 품목이 바뀌면 추이 국가를 그 품목의 등록 국가(거래중 우선)로 초기화
+  useEffect(() => {
+    setTrendCountry((prev) => {
+      if (prev && trendCountryOptions.some((o) => o.code === prev)) return prev
+      return selectedTradingCodes[0] ?? selectedOriginCodes[0] ?? ""
+    })
+  }, [selectedHsCode, trendCountryOptions, selectedTradingCodes, selectedOriginCodes])
   const scoreTrend = useMemo(() => {
     const scoreByDate = new Map<string, number>()
     riskHistory.forEach((row) => {
       if (!selectedHsCode || row.hs_code !== selectedHsCode) return
-      // 거래국이 지정돼 있으면 그 국가만, 없으면 공급국 중 최고값.
-      if (selectedOriginCodes.length && !selectedOriginCodes.includes((row.country_code ?? "").toUpperCase())) return
+      const cc = (row.country_code ?? "").toUpperCase()
+      // 특정 등록 국가가 선택되면 그 국가만, 없으면 등록 국가들 중 최고값(등록 없으면 전체 최고).
+      if (trendCountry) { if (cc !== trendCountry) return }
+      else if (selectedOriginCodes.length && !selectedOriginCodes.includes(cc)) return
       const score = Number(row.sgri_score ?? 0)
       scoreByDate.set(row.as_of_date, Math.max(scoreByDate.get(row.as_of_date) ?? 0, score))
     })
@@ -159,7 +178,7 @@ export default function Dashboard() {
         name: new Date(`${date}T00:00:00`).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }),
         score: Math.round(score),
       }))
-  }, [periodDays, riskHistory, selectedHsCode, selectedOriginCodes])
+  }, [periodDays, riskHistory, selectedHsCode, selectedOriginCodes, trendCountry])
   const risks = useMemo<RiskRow[]>(() => latestRiskRows(riskHistory)
     .filter((row) => row.hs_code && monitoredHsCodes.has(row.hs_code))
     .map((row) => {
@@ -520,7 +539,7 @@ export default function Dashboard() {
             {/* 기업 적합도 */}
             <Card className="border-2 border-blue-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">거래중·등록 기업 · 클릭 시 상세</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">거래중·관심 기업 · 클릭 시 상세</CardDescription></div></div>
                 <div className="flex items-center gap-1.5">
                   <button type="button" onClick={() => setCompTradingOnly((v) => !v)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${compTradingOnly ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{compTradingOnly ? "거래중만" : "전체"}</button>
                   <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
@@ -531,9 +550,9 @@ export default function Dashboard() {
                   <Link key={`${c.hs}-${c.companyId}`} href={`/suppliers/${c.companyId}?query_id=${c.queryId}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(c.country)} · <span className={c.status === "trading" ? "font-medium text-blue-600" : "font-medium text-emerald-600"}>{c.status === "trading" ? "현재 거래 기업" : "등록 기업"}</span> · {c.itemName}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(c.country)} · <span className={c.status === "trading" ? "font-medium text-blue-600" : "font-medium text-emerald-600"}>{c.status === "trading" ? "현재 거래 기업" : "관심 기업"}</span> · {c.itemName}</p>
                     </div>
-                    <span className="text-2xl font-bold tracking-tight text-slate-800">{c.fit}</span>
+                    <span className="text-2xl font-bold tracking-tight" style={{ color: c.fit >= 66 ? "#059669" : c.fit >= 45 ? "#f59e0b" : "#e11d48" }}>{c.fit}</span>
                     {c.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
                   </Link>
                 ))}
@@ -561,8 +580,11 @@ export default function Dashboard() {
 
             <Card className="border-2 border-violet-200 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${selectedOriginCodes.length ? "등록 국가" : "공급국"} 기준 SGRI · ${period}` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
-                <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${trendCountry ? getCountryName(trendCountry) : selectedOriginCodes.length ? "등록 국가" : "공급국"} 기준 · ${period}` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
+                  {trendCountryOptions.length > 0 && <select aria-label="추이 국가 선택" value={trendCountry} onChange={(e) => setTrendCountry(e.target.value)} className="h-8 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{trendCountryOptions.map((o) => <option key={o.code} value={o.code}>{o.name}{selectedTradingCodes.includes(o.code) ? " (거래중)" : ""}</option>)}</select>}
+                </div>
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="mb-3 flex items-baseline gap-2"><span className="text-3xl font-semibold">{currentScore}</span><span className={`text-sm font-medium ${scoreChange > 0 ? "text-rose-600" : "text-emerald-600"}`}>{scoreChange >= 0 ? "+" : ""}{scoreChange} <TrendingUp className="inline h-3.5 w-3.5" /></span></div>

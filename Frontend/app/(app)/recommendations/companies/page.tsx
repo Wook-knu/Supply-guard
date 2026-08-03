@@ -126,11 +126,11 @@ export default function CompanyRecosPage() {
     return (
     <div role="button" tabIndex={0} onClick={() => router.push(`/suppliers/${s.id}${queryId ? `?query_id=${queryId}` : ""}`)}
       className={`flex cursor-pointer flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardRing}`} key={s.id}>
-      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{cur === "trading" ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : cur === "registered" ? <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600">등록 기업</Badge> : null}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
+      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{cur === "trading" ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : cur === "registered" ? <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600">관심 기업</Badge> : null}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
       <div className="mt-3 flex items-center gap-1.5"><p className="font-semibold leading-tight">{s.name}</p>{s.verified && <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />}</div>
       <p className="mt-0.5 text-xs text-slate-500">{getCountryName(s.countryCode) || s.countryCode}{s.type && s.type !== "공급사" ? ` · ${s.type}` : ""}</p>
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
-        <div className="flex justify-between"><span className="text-slate-400">적합도</span><span className="font-semibold text-emerald-600">{s.match}</span></div>
+        <div className="flex justify-between"><span className="text-slate-400">적합도</span><span className="font-semibold" style={{ color: s.match >= 66 ? "#059669" : s.match >= 45 ? "#f59e0b" : "#e11d48" }}>{s.match}</span></div>
         <div className="flex justify-between"><span className="text-slate-400">예상 단가</span><span className="font-medium">{s.unitPrice != null ? `$${s.unitPrice.toLocaleString()}` : "–"}</span></div>
         <div className="flex justify-between"><span className="text-slate-400">리드타임</span><span className="font-medium">{s.leadDays != null ? `${s.leadDays}일` : "–"}</span></div>
         <div className="flex justify-between"><span className="text-slate-400">정시납품</span><span className="font-medium">{s.otd != null ? `${s.otd}%` : "–"}</span></div>
@@ -138,7 +138,7 @@ export default function CompanyRecosPage() {
       <p className="mt-3 min-h-10 flex-1 text-xs leading-5 text-slate-500"><span className="font-medium text-slate-600">추천 이유 · </span>{s.note || "SGRI·조달 적합도 기반 추천"}</p>
       <div className="mt-3" onClick={(e) => e.stopPropagation()}>
         <span className="inline-flex w-full overflow-hidden rounded-lg border border-slate-200">
-          {([["trading", "거래중"], ["registered", "등록"], ["none", "해제"]] as const).map(([key, label], i) => (
+          {([["trading", "거래중"], ["registered", "관심"], ["none", "해제"]] as const).map(([key, label], i) => (
             <button key={key} type="button" disabled={savingCompany} onClick={() => setCompanyStatus(s.id, key)}
               className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${cur === key ? segStyles[key].active : `bg-white ${segStyles[key].idle}`}`}>{label}</button>
           ))}
