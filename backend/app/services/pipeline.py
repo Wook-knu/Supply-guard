@@ -86,18 +86,24 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
     #    - run(): 상대국별 연간 (C 집중도 HHI용)
     #    - run_world(): World 합계 월별 (S 수급 변동성용 → s_source_monthly 뷰가 읽음)
     from ingest import comtrade  # database/ingest/comtrade
+    try:
+        from config import COMTRADE_API_KEY
+        key_present = bool(COMTRADE_API_KEY)
+    except Exception:  # noqa: BLE001
+        key_present = False
     ingested = 0
+    ingest_error: str | None = None
     for yr in ("2019", "2020", "2021", "2022", "2023"):
         try:
             comtrade.run("410", yr, hs, "M")
             ingested += 1
-        except Exception:  # noqa: BLE001 - 일부 연도 실패해도 계속
-            pass
+        except Exception as exc:  # noqa: BLE001 - 일부 연도 실패해도 계속(원인은 기록)
+            ingest_error = ingest_error or f"{type(exc).__name__}: {exc}"[:300]
     try:
         # 무료 Comtrade preview는 기간 12개 이하만 허용 → 12개월 창 사용
         comtrade.run_world("410", comtrade.months("202401", "202412"), hs, "M")
-    except Exception:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
-        pass
+    except Exception as exc:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
+        ingest_error = ingest_error or f"world: {type(exc).__name__}: {exc}"[:300]
 
     # 2) 지표 계산(공식/SQL): C → 병합(P·L·C·S·V·E). S는 병합의 LATERAL에서 산출.
     raw = engine.raw_connection()
@@ -120,4 +126,7 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         "countries": weighting.get("countries", 0),
         "uses_llm": weighting.get("uses_llm"),
         "weights": weighting.get("weights"),
+        # 진단(라이브 수집 문제 파악용): 키 존재 여부 + 첫 수집 오류
+        "comtrade_key_present": key_present,
+        "ingest_error": ingest_error,
     }
