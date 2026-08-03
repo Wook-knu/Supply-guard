@@ -13,24 +13,30 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.db import engine
 
-# 운영 DB(Railway) 덤프 복원 시 누락될 수 있는 뷰를 시작 시점에 보장한다.
-# s_source_monthly: S지표(수급 불안정성) 계산이 바라보는 뷰 (comtrade_trade_flows 위에 얹음).
-_ENSURE_VIEWS_SQL = """
-CREATE OR REPLACE VIEW s_source_monthly AS
-SELECT hs_code, period AS period, trade_value_usd AS import_value
-FROM comtrade_trade_flows
-WHERE flow_code = 'M' AND partner_code IS NULL AND trade_value_usd > 0;
-"""
+# 운영 DB(Railway) 덤프 복원 시 누락될 수 있는 스키마 객체를 시작 시점에 보장한다(idempotent).
+_ENSURE_SQL = [
+    # S지표(수급 불안정성): comtrade World 합계행을 읽는 뷰
+    """CREATE OR REPLACE VIEW s_source_monthly AS
+       SELECT hs_code, period AS period, trade_value_usd AS import_value
+       FROM comtrade_trade_flows
+       WHERE flow_code = 'M' AND partner_code IS NULL AND trade_value_usd > 0;""",
+    # S지표: World 합계행(partner_code NULL) UPSERT용 부분 유니크 인덱스
+    #   run_world()가 ON CONFLICT (...) WHERE partner_code IS NULL 로 적재할 때 필요.
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_comtrade_world_null_partner
+       ON comtrade_trade_flows (period, reporter_code, flow_code, hs_code)
+       WHERE partner_code IS NULL;""",
+]
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """앱 시작 시 필수 뷰가 없으면 생성(idempotent). 실패해도 서버 기동은 막지 않는다."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(text(_ENSURE_VIEWS_SQL))
-    except Exception as exc:  # noqa: BLE001 — comtrade_trade_flows 미존재 등은 무시하고 기동
-        print(f"[startup] ensure views skipped: {exc}")
+    """앱 시작 시 필수 스키마 객체를 보장(idempotent). 실패해도 서버 기동은 막지 않는다."""
+    for stmt in _ENSURE_SQL:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(stmt))
+        except Exception as exc:  # noqa: BLE001 — 테이블 미존재 등은 무시하고 기동
+            print(f"[startup] ensure skipped: {exc}")
     yield
 
 
