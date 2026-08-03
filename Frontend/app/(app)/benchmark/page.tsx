@@ -66,7 +66,19 @@ export default function BenchmarkPage() {
         <div className="mt-6">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><BarChart3 className="h-4 w-4" /> 벤치마크</div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">내 품목은 평균 대비 얼마나 위험할까요?</h1>
-          <p className="mt-2 text-sm text-slate-500">SupplyGuard 전체 품목·국가 SGRI 데이터 안에서의 상대 위치입니다. (실제 데이터 기반 — 경쟁사 사례를 지어내지 않습니다)</p>
+          <p className="mt-2 text-sm text-slate-500">SupplyGuard 전체 품목·국가 SGRI 데이터 안에서의 상대 위치입니다.</p>
+        </div>
+
+        {/* 이 페이지가 무엇인지/무엇이 아닌지 명확화 */}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+            <p className="text-sm font-semibold text-emerald-800">✔ 이 페이지가 보여주는 것</p>
+            <p className="mt-1 text-xs leading-5 text-emerald-700">내 품목·국가의 <span className="font-medium">SGRI 위험도(6지표)</span>가 전체 데이터 평균 대비 높은지/낮은지, 후보국 중 위험 순위. 실제 SGRI 데이터 기반입니다.</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-700">✗ 아직 제공하지 않는 것</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">‘다른 중소기업이 이 가격에 거래했다’ 같은 <span className="font-medium">또래 실거래 단가</span>는 공개 데이터가 없어 지어내지 않습니다. 기업별 <span className="font-medium">예상 단가·리드타임</span> 비교는 <Link href="/recommendations" className="font-medium text-blue-600 hover:underline">대체 국가·기업 추천</Link>에서 확인하세요.</p>
+          </div>
         </div>
 
         {/* 조회 폼 */}
