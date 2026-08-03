@@ -5,10 +5,11 @@
 // 마지막 "등록" 후 기존 SGRI 분석 흐름(build-sgri)으로 이어진다.
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { api, type BuildItemSgriResult, type HsCodeOut, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Loader2, MapPin, Pencil, RefreshCw, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Check, CircleAlert, Loader2, MapPin, PackagePlus, Pencil, RefreshCw, ShieldAlert, Sparkles } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -46,6 +47,7 @@ const PRIORITIES = [
 
 // 퍼널 단계 정의
 const STEPS = ["name", "origin", "specs", "priority", "review"] as const
+const STEP_LABELS = ["품목", "조달 현황", "물량·단가", "모니터링", "확인"]
 type Step = (typeof STEPS)[number]
 
 export default function NewItemPage() {
@@ -203,30 +205,40 @@ export default function NewItemPage() {
     } finally { buildRequestInFlightRef.current = false }
   }
 
-  const progress = createdItem ? 100 : Math.round(((step + 1) / (STEPS.length + 1)) * 100)
-
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900">
-      {/* 상단: 뒤로 + 진행바 (토스 웹 스타일 — 얇게, 콘텐츠 폭에 정렬) */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-md items-center gap-3 px-5">
-          {createdItem ? (
-            <Link href="/items" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
-          ) : step === 0 ? (
-            <Link href="/dashboard" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
-          ) : (
-            <button onClick={goBack} aria-label="이전" className="text-slate-500 hover:text-slate-800"><ArrowLeft className="h-5 w-5" /></button>
-          )}
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-[#3182F6] transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
-          <span className="w-9 text-right text-xs font-medium text-slate-400">{createdItem ? "완료" : `${step + 1}/${STEPS.length}`}</span>
-        </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* 표준 상단 헤더 (다른 페이지와 동일) */}
+      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
       </header>
 
-      {/* 가운데: 한 화면 한 질문 — 세로 중앙 정렬로 화면을 채운다 */}
-      <main className="flex flex-1 items-center justify-center px-5 py-10">
-        <div className="w-full max-w-md">
+      <main className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <div className="mt-6">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><PackagePlus className="h-4 w-4" /> 공급망 등록</div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">모니터링할 품목을 등록하세요</h1>
+          <p className="mt-2 text-sm text-slate-500">단계별로 입력하면 AI가 공급망 위험도(SGRI)를 분석하고 대체 공급처를 추천합니다.</p>
+        </div>
+
+        {/* 가로 스테퍼 */}
+        {!createdItem && (
+          <div className="mt-8 flex items-center">
+            {STEP_LABELS.map((label, i) => (
+              <Fragment key={label}>
+                <div className="flex items-center gap-2">
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${i === step ? "bg-blue-600 text-white" : i < step ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-400"}`}>{i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <span className={`hidden text-sm sm:inline ${i === step ? "font-semibold text-slate-800" : "text-slate-400"}`}>{label}</span>
+                </div>
+                {i < STEP_LABELS.length - 1 && <div className="mx-2 h-px flex-1 bg-slate-200" />}
+              </Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* 단계 카드 */}
+        <Card className="mt-6 border-slate-200 shadow-sm">
+          <CardContent className="min-h-[300px] p-6 md:p-8">
         {createdItem ? (
           <CompletionView item={createdItem} status={buildStatus} progress={buildProgress} result={buildResult} error={buildError} onStart={startAnalysis} />
         ) : (
@@ -377,25 +389,27 @@ export default function NewItemPage() {
             {error && <p role="alert" className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
           </div>
           )}
-        </div>
-      </main>
+          </CardContent>
+        </Card>
 
-      {/* 하단: 큰 버튼 (토스 웹 스타일 — 화면 하단 고정, 콘텐츠 폭 정렬) */}
-      {!createdItem && (
-        <footer className="sticky bottom-0 z-20 bg-white/95 backdrop-blur">
-          <div className="mx-auto max-w-md px-5 py-5">
+        {/* 하단 네비 버튼 */}
+        {!createdItem && (
+          <div className="mt-6 flex items-center justify-between">
+            {step === 0 ? (
+              <Button asChild variant="outline" className="border-slate-200"><Link href="/dashboard">취소</Link></Button>
+            ) : (
+              <Button variant="outline" onClick={goBack} className="border-slate-200">이전</Button>
+            )}
             {current === "review" ? (
-              <Button onClick={submit} disabled={submitting} className="w-full rounded-2xl bg-[#3182F6] text-base font-semibold hover:bg-[#2b74e0]" style={{ height: 56 }}>
-                {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />등록 중...</> : "품목 등록하기"}
+              <Button onClick={submit} disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+                {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />등록 중...</> : "품목 등록하기"}
               </Button>
             ) : (
-              <Button onClick={goNext} className="w-full rounded-2xl bg-[#3182F6] text-base font-semibold hover:bg-[#2b74e0]" style={{ height: 56 }}>
-                다음
-              </Button>
+              <Button onClick={goNext} className="bg-blue-600 hover:bg-blue-700">다음 <ArrowRight className="ml-1.5 h-4 w-4" /></Button>
             )}
           </div>
-        </footer>
-      )}
+        )}
+      </main>
     </div>
   )
 }
