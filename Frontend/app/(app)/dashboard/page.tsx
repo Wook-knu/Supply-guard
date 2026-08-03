@@ -120,6 +120,7 @@ export default function Dashboard() {
   const [natlTradingOnly, setNatlTradingOnly] = useState(false)  // 국가: 거래중만/전체
   const [compTradingOnly, setCompTradingOnly] = useState(false)  // 기업: 거래중만/전체
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
+  const [boardSummary, setBoardSummary] = useState<{ title: string; counts: Record<string, number>; total: number } | null>(null)
   const [userName, setUserName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -312,6 +313,14 @@ export default function Dashboard() {
     api.getAlerts().then(setAlerts).catch(() => setAlerts([]))
     api.getReports().then((rows) => setLatestReport(rows[0] ?? null)).catch(() => setLatestReport(null))
     api.getMe().then((user) => setUserName(user.name || user.email.split("@")[0])).catch(() => setUserName(""))
+    // 검토 보드 요약(첫 보드의 상태별 카드 수)
+    api.getBoards().then(async (boards) => {
+      if (!boards.length) { setBoardSummary(null); return }
+      const detail = await api.getBoard(boards[0].board_id)
+      const counts: Record<string, number> = { candidate: 0, reviewing: 0, selected: 0, rejected: 0 }
+      detail.items.forEach((it) => { const s = it.status ?? "candidate"; if (s in counts) counts[s] += 1 })
+      setBoardSummary({ title: detail.title, counts, total: detail.items.length })
+    }).catch(() => setBoardSummary(null))
   }, [])
 
   // 선택 품목의 대체 공급국 추천을 실제 API에서 불러온다(하드코딩 목록 대체).
@@ -576,16 +585,29 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* 품목별 기업 추천 (국가 카드 오른쪽) */}
-            <Card className="border-2 border-blue-200 shadow-sm">
+            {/* 검토 보드 요약 (국가 카드 오른쪽) */}
+            <Card className="border-2 border-violet-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 기업 추천</CardTitle><CardDescription className="mt-1">공급사 · 품목별</CardDescription></div></div>
-                <select aria-label="기업추천 품목 선택" value={selectedHsCode} onChange={(e) => setSelectedHsCode(e.target.value)} disabled={monitoredItems.length === 0} className="h-8 max-w-28 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><ClipboardList className="h-4 w-4" /></span><div><CardTitle className="text-base">검토 보드</CardTitle><CardDescription className="mt-1">{boardSummary ? boardSummary.title : "조달 후보 검토 현황"}</CardDescription></div></div>
+                <Link href="/boards" className="text-xs font-medium text-blue-600 hover:underline">열기 →</Link>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {supplierRecos.slice(0, 3).map((r) => <Link key={r.company.company_id} href={`/suppliers/${r.company.company_id}${selectedItem?.query_id ? `?query_id=${selectedItem.query_id}` : ""}`} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3 transition-colors hover:bg-slate-50"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Building2 className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{r.company.name}</span><span className="shrink-0 text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(r.fit_score ?? 0))}</span></div><p className="mt-1 truncate text-xs text-slate-500">{getCountryName(r.company.country_code ?? "")}{(r.company.data_source ?? "").startsWith("ai:") ? " · AI 추정" : " · 실데이터"}</p></div></Link>)}
-                {supplierRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">추천 기업이 없습니다. 분석하면 표시됩니다.</p>}
-                <Link href={selectedItem?.query_id ? `/recommendations/companies?query_id=${selectedItem.query_id}` : "/recommendations/companies"} className="block pt-1 text-center text-xs font-medium text-blue-600 hover:underline">전체 보기 →</Link>
+              <CardContent>
+                {boardSummary && boardSummary.total > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {([["candidate", "후보", "bg-slate-100 text-slate-600"], ["reviewing", "검토중", "bg-amber-50 text-amber-700"], ["selected", "선정", "bg-emerald-50 text-emerald-700"], ["rejected", "제외", "bg-rose-50 text-rose-600"]] as const).map(([key, label, cls]) => (
+                        <div key={key} className={`flex items-center justify-between rounded-xl px-3.5 py-3 ${cls}`}><span className="text-sm font-medium">{label}</span><span className="text-xl font-bold">{boardSummary.counts[key] ?? 0}</span></div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-center text-xs text-slate-400">총 {boardSummary.total}건 · 카드를 끌어 상태를 옮기세요</p>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <ClipboardList className="h-8 w-8 text-slate-300" />
+                    <p className="text-sm text-slate-500">아직 검토 중인 후보가 없습니다.</p>
+                    <Button asChild size="sm" variant="outline" className="border-slate-200"><Link href="/boards">검토 보드 만들기</Link></Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
