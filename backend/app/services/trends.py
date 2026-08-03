@@ -30,11 +30,43 @@ _SYSTEM = (
 
 def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
     """차트용 집계: 품목별 최고 SGRI, 알림 유형/심각도 분포."""
-    items = [
-        {"name": i.get("item_name") or f"HS {i.get('hs_code')}", "hs": i.get("hs_code"),
-         "sgri": i.get("max_sgri"), "level": i.get("level")}
-        for i in ctx.get("monitored_items", []) if i.get("max_sgri") is not None
-    ]
+    # 품목별 SGRI = '등록 국가(거래중 우선)'의 SGRI. 최고 SGRI로 대체하지 않는다.
+    name_to_code = {r[1]: r[0] for r in db.execute(text("SELECT country_code, name_ko FROM countries")).all()}
+
+    def _to_code(raw: str) -> str | None:
+        n = raw.strip()
+        if not n:
+            return None
+        return name_to_code.get(n) or (n.upper() if len(n) == 2 else None)
+
+    items = []
+    if user_id:
+        qrows = db.execute(text(
+            "SELECT item_name, hs_code, origin_country, trading_country "
+            "FROM user_queries WHERE user_id = :u ORDER BY query_id DESC"
+        ), {"u": user_id}).mappings().all()
+        seen: set[str] = set()
+        for q in qrows:
+            hs = q["hs_code"]
+            if not hs or hs in seen:
+                continue
+            trading = [c for c in (_to_code(x) for x in (q["trading_country"] or "").split(",")) if c]
+            origin = [c for c in (_to_code(x) for x in (q["origin_country"] or "").split(",")) if c]
+            pref = trading + [c for c in origin if c not in trading]
+            sgri = None
+            for c in pref:
+                v = db.execute(text(
+                    "SELECT sgri_score FROM country_risk_scores WHERE hs_code = :h AND country_code = :c "
+                    "ORDER BY as_of_date DESC LIMIT 1"
+                ), {"h": hs, "c": c}).scalar()
+                if v is not None:
+                    sgri = round(float(v))
+                    break
+            if sgri is None:  # 등록 국가 SGRI가 없으면 제외(최고 SGRI로 대체 안 함)
+                continue
+            seen.add(hs)
+            lvl = "높음" if sgri >= 50 else "중간" if sgri >= 25 else "낮음"
+            items.append({"name": q["item_name"] or f"HS {hs}", "hs": hs, "sgri": sgri, "level": lvl})
     # 알림 유형/심각도 분포 (사용자 전체 알림에서)
     types: Counter = Counter()
     sev: Counter = Counter()

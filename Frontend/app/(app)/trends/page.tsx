@@ -138,7 +138,7 @@ export default function TrendsPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           {/* 품목별 SGRI */}
-          <Card className="border-slate-200 shadow-sm lg:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-base">품목별 공급망 위험도(SGRI)</CardTitle><CardDescription className="mt-1">등록 품목의 최고 SGRI · 높을수록 위험</CardDescription></CardHeader>
+          <Card className="border-slate-200 shadow-sm lg:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-base">품목별 공급망 위험도(SGRI)</CardTitle><CardDescription className="mt-1">등록 국가(거래중 우선) 기준 · 높을수록 위험</CardDescription></CardHeader>
             <CardContent>
               {chartData.length > 0 ? <div className="h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{ top: 8, left: -20, right: 8, bottom: 0 }}><CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} /><Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0" }} /><Bar dataKey="sgri" name="SGRI" radius={[6, 6, 0, 0]}>{chartData.map((d, i) => <Cell key={i} fill={riskColor(d.sgri)} />)}</Bar></BarChart></ResponsiveContainer></div>
                 : <div className="grid h-64 place-items-center text-sm text-slate-400">등록된 품목이 없습니다.</div>}
