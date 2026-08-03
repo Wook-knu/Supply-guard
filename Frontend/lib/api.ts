@@ -223,6 +223,10 @@ export type SubscriptionState = {
   features: Record<string, boolean>
 }
 
+// AI 챗봇 (backend/app/api/v1/chat.py)
+export type ChatMessage = { role: "user" | "assistant"; content: string }
+export type ChatResponse = { answer: string; followups: string[]; source: string }
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("Content-Type")) {
@@ -329,5 +333,11 @@ export const api = {
     http<Omit<SubscriptionState, "plans"> & { ok: boolean }>("/subscription", {
       method: "POST",
       body: JSON.stringify({ plan }),
+    }),
+  // AI 챗봇 — 사용자 공급망 데이터 기반 질의응답
+  chat: (message: string, opts?: { query_id?: number; history?: ChatMessage[] }) =>
+    http<ChatResponse>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, query_id: opts?.query_id, history: opts?.history }),
     }),
 }

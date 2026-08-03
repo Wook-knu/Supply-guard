@@ -7,6 +7,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { ChevronsLeft, ChevronsRight, CircleAlert, CreditCard, FileText, Globe2, Home, LayoutGrid, Settings, ShieldAlert, Sparkles } from "lucide-react"
+import ChatWidget from "@/components/chat-widget"
 
 const NAV = [
   { href: "/dashboard", label: "대시보드", icon: Home },
@@ -80,6 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
+      <ChatWidget />
     </div>
   )
 }
