@@ -102,7 +102,6 @@ export default function LoginPage() {
         <p className="text-sm font-medium text-blue-50">AI 기반 공급망 리스크 관리</p>
         <h1 className="mt-4 max-w-md text-4xl font-bold leading-snug tracking-tight drop-shadow-sm">불확실한 공급망을<br />선제적으로 관리하세요.</h1>
         <p className="mt-5 max-w-md leading-7 text-blue-50/90 drop-shadow-sm">품목별 위험 신호부터 대체 공급국·대응 보고서까지, 하나의 흐름으로.</p>
-        <p className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">🌐 지구본을 드래그해 돌려 보세요</p>
       </div>
       <p className="pointer-events-none relative z-10 text-xs text-blue-100/70">© 2026 SupplyGuard</p>
     </section>
