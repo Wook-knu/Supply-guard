@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { api, type ReportOut, type ReportSection } from "@/lib/api"
 import { ArrowLeft, Check, Download, FileText, Save, ShieldAlert } from "lucide-react"
@@ -20,6 +20,7 @@ function normalizeSections(sections: ReportOut["sections"]): ReportSection[] {
 export default function ReportDetailPage() {
   const params = useParams<{ reportId: string }>()
   const reportId = Number(params.reportId)
+  const wantEdit = useSearchParams().get("edit") === "1"  // 직접 작성 진입 시 바로 편집모드
   const [report, setReport] = useState<ReportOut | null>(null)
   const [title, setTitle] = useState("")
   const [summary, setSummary] = useState("")
@@ -36,8 +37,9 @@ export default function ReportDetailPage() {
       setTitle(data.title ?? "")
       setSummary(data.summary ?? "")
       setSections(normalizeSections(data.sections))
+      if (wantEdit) setEditing(true)
     }).catch((err) => setError(err instanceof Error ? err.message : "보고서를 불러오지 못했습니다."))
-  }, [reportId])
+  }, [reportId, wantEdit])
 
   async function saveReport() {
     if (!report) return

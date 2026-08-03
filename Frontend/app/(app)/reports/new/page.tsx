@@ -3,9 +3,10 @@
 // AI 보고서 생성·목록 API와 비동기 분석 작업을 연결한 화면입니다.
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { api, type ReportOut } from "@/lib/api"
-import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Bot, Check, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, Globe2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,9 +24,11 @@ const reportSections = [
 ]
 
 export default function NewReportPage() {
+  const router = useRouter()
   const [sections, setSections] = useState(reportSections.map((section) => section.id))
   const [title, setTitle] = useState("공급망 리스크 대응 보고서")
   const [loading, setLoading] = useState(false)
+  const [creatingBlank, setCreatingBlank] = useState(false)
   const [aiReport, setAiReport] = useState<ReportOut | null>(null)
   const [recentReports, setRecentReports] = useState<ReportOut[]>([])
   const [error, setError] = useState("")
@@ -59,6 +62,18 @@ export default function NewReportPage() {
   }, [])
 
   function toggleSection(id: string) { setSections((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
+
+  // 빈 보고서를 만들고 편집기로 이동 — 사용자가 처음부터 직접 작성.
+  async function startBlankReport() {
+    setCreatingBlank(true); setError("")
+    try {
+      const report = await api.createReport({ title: "새 보고서 (직접 작성)" })
+      router.push(`/reports/${report.report_id}?edit=1`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "빈 보고서 생성에 실패했습니다.")
+      setCreatingBlank(false)
+    }
+  }
 
   async function handleGenerate() {
     // URL의 query_id, 없으면 사용자의 최근 등록 품목으로 AI 분석을 실행한다.
@@ -98,7 +113,9 @@ export default function NewReportPage() {
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
-    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href="/recommendations" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 추천 결과로 돌아가기</Link><div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><FileCheck2 className="h-4 w-4" /> AI 보고서 생성</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대응 보고서 초안 만들기</h1><p className="mt-2 text-sm text-slate-500">분석 결과를 바탕으로 사내 검토용 공급망 리스크 보고서를 생성합니다.</p></div><Badge className="w-fit border-violet-100 bg-violet-50 px-3 py-1.5 text-violet-700 hover:bg-violet-50">2 / 2 보고서 구성</Badge></div>
+    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href="/recommendations" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 추천 결과로 돌아가기</Link><div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><FileCheck2 className="h-4 w-4" /> AI 보고서 생성</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대응 보고서 만들기</h1><p className="mt-2 text-sm text-slate-500">AI가 분석 데이터로 초안을 써 주거나, 빈 보고서에 직접 작성할 수 있습니다.</p></div><Button onClick={startBlankReport} disabled={creatingBlank} variant="outline" className="w-fit border-slate-200">{creatingBlank ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PencilLine className="mr-2 h-4 w-4" />}빈 보고서로 직접 작성</Button></div>
+
+      <div className="mt-6 rounded-xl border border-violet-100 bg-violet-50/60 px-5 py-3.5 text-sm text-violet-800"><span className="font-semibold">AI 자동 생성</span> — 아래에서 대상 품목·목차를 고르면 SGRI·추천 데이터로 초안을 작성합니다. 직접 쓰고 싶다면 위 <span className="font-medium">‘빈 보고서로 직접 작성’</span>을 누르세요.</div>
 
       <div className="mt-7 grid gap-6 lg:grid-cols-3"><div className="space-y-6 lg:col-span-2"><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">보고서 기본 정보</CardTitle><CardDescription className="mt-1">생성된 보고서는 초안 상태로 저장되며, 검토 후 공유할 수 있습니다.</CardDescription></CardHeader><CardContent className="space-y-5 pt-6"><div><Label className="text-sm font-medium">보고서 제목</Label><Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2" /></div><div className="grid gap-5 md:grid-cols-2"><div><Label className="text-sm font-medium">분석 대상 품목</Label><div className="mt-2 flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium">{item.name || "품목 미선택"} {item.hs && <span className="ml-2 text-xs font-normal text-slate-400">HS {item.hs}</span>}</div></div><div><Label className="text-sm font-medium">보고서 유형</Label><div className="mt-2 flex h-10 items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm"><span>공급망 리스크 대응 보고서</span><ChevronDown className="h-4 w-4 text-slate-400" /></div></div></div><div><Label className="text-sm font-medium">추가 요청 사항 <span className="font-normal text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="강조하고 싶은 위험 요인, 사내 검토 관점 등을 입력하세요." /></div></CardContent></Card>
         <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">포함할 목차</CardTitle><CardDescription className="mt-1">필요한 항목을 선택하면 AI가 근거 데이터와 함께 초안을 작성합니다.</CardDescription></CardHeader><CardContent className="space-y-2">{reportSections.map((section, index) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-3 hover:border-slate-200 hover:bg-slate-50" key={section.id}><Checkbox checked={sections.includes(section.id)} onCheckedChange={() => toggleSection(section.id)} /><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-500">{index + 1}</div><div><p className="text-sm font-medium">{section.title}</p><p className="mt-0.5 text-xs text-slate-500">{section.description}</p></div></label>)}</CardContent></Card></div>
