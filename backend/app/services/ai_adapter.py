@@ -229,6 +229,20 @@ def run_ai_analysis(db: Session, query: UserQuery) -> dict:
     companies = db.execute(
         select(Company).where(Company.hs_codes.contains([query.hs_code]))
     ).scalars().all()
+    # 기업이 없으면 보고서의 '대체 공급/기업' 섹션이 비므로 AI로 후보 생성(추천 화면과 동일).
+    if not companies:
+        try:
+            from sqlalchemy import text as _text
+            from app.services.company_ai import generate_ai_companies
+            ccs = db.execute(_text(
+                "SELECT DISTINCT country_code FROM country_risk_scores WHERE hs_code = :h LIMIT 12"
+            ), {"h": query.hs_code}).scalars().all()
+            if generate_ai_companies(db, query.hs_code, query.item_name or "", list(ccs)):
+                companies = db.execute(
+                    select(Company).where(Company.hs_codes.contains([query.hs_code]))
+                ).scalars().all()
+        except Exception:  # noqa: BLE001 - AI 폴백 실패해도 보고서는 국가 기준으로 생성
+            pass
 
     request = query_to_request(query)
     candidates = companies_to_candidates(companies)
