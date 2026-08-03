@@ -28,6 +28,8 @@
     "next": "15.5.22",
     "react": "^19",
     "react-dom": "^19",
+    "react-is": "19.2.8",
+    "react-simple-maps": "3.0.0",
     "recharts": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7"
@@ -37,6 +39,7 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-simple-maps": "3.0.6",
     "autoprefixer": "^10.4.20",
     "eslint": "9.39.5",
     "eslint-config-next": "15.5.22",

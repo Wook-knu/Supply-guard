@@ -54,6 +54,15 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
+import dynamic from "next/dynamic"
+import type { RiskPoint } from "@/components/world-risk-map"
+
+// 지도는 브라우저 전용(SSR 비활성) — react-simple-maps
+const WorldRiskMap = dynamic(() => import("@/components/world-risk-map"), {
+  ssr: false,
+  loading: () => <div className="grid h-72 place-items-center text-sm text-slate-400">지도를 불러오는 중…</div>,
+})
+const mapRiskColor = (sgri: number | null) => (sgri == null ? "#94a3b8" : sgri >= 60 ? "#ef4444" : sgri >= 35 ? "#f59e0b" : "#10b981")
 
 type RiskRow = { item: string; hs: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
 type SearchResult = {
@@ -105,6 +114,7 @@ export default function Dashboard() {
   const [supplierRecos, setSupplierRecos] = useState<SupplierReco[]>([])
   // 품목별 1순위 추천 기업(hs_code → {이름·적합도·AI여부}) — 통합 위험도 카드용
   const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean }>>({})
+  const [selectedMapCountry, setSelectedMapCountry] = useState<string | null>(null)
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -173,6 +183,16 @@ export default function Dashboard() {
       })
       .sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
   }, [risks, monitoredItems, itemCompanies])
+  // 지도용: 선택 품목의 모든 공급국(국가별 최신 SGRI)
+  const mapPoints = useMemo<RiskPoint[]>(() => {
+    const latest = new Map<string, RiskOut>()
+    riskHistory.forEach((r) => {
+      if (!selectedHsCode || r.hs_code !== selectedHsCode) return
+      const cur = latest.get(r.country_code)
+      if (!cur || r.as_of_date > cur.as_of_date) latest.set(r.country_code, r)
+    })
+    return [...latest.values()].map((r) => ({ code: r.country_code, sgri: r.sgri_score != null ? Math.round(Number(r.sgri_score)) : null }))
+  }, [riskHistory, selectedHsCode])
   const searchResults = useMemo<SearchResult[]>(() => {
     const normalizedTerm = searchTerm.trim().toLocaleLowerCase("ko")
     if (!normalizedTerm) return []
@@ -269,8 +289,9 @@ export default function Dashboard() {
       .then((rows) => setCountryRecos(rows.slice(0, 3)))
       .catch(() => setCountryRecos([]))
     api.getSupplierRecos(selectedItem.query_id)
-      .then((rows) => setSupplierRecos(rows.slice(0, 3)))
+      .then((rows) => setSupplierRecos(rows))
       .catch(() => setSupplierRecos([]))
+    setSelectedMapCountry(null)
   }, [selectedItem])
 
   // 품목별 1순위 추천 기업을 한 번에 모아 통합 위험도 카드에 표시.
@@ -450,6 +471,38 @@ export default function Dashboard() {
             </Card>
           </section>
 
+          <section className="mb-7">
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                <div><CardTitle className="text-base">글로벌 공급망 지도</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · 공급국 위험도(SGRI) · 국가를 클릭하면 기업이 표시됩니다` : "품목을 선택하면 공급국이 표시됩니다"}</CardDescription></div>
+                <div className="hidden items-center gap-3 text-[11px] text-slate-400 sm:flex"><span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />안전</span><span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />주의</span><span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" />높음</span></div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2 lg:col-span-2">
+                    <WorldRiskMap points={mapPoints} selected={selectedMapCountry} onSelect={setSelectedMapCountry} />
+                  </div>
+                  <div>
+                    {selectedMapCountry ? (() => {
+                      const pt = mapPoints.find((p) => p.code === selectedMapCountry)
+                      const comps = supplierRecos.filter((s) => s.company.country_code === selectedMapCountry)
+                      return (
+                        <div>
+                          <div className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ background: mapRiskColor(pt?.sgri ?? null) }}>{selectedMapCountry}</span><div><p className="text-sm font-semibold">{getCountryName(selectedMapCountry)}</p><p className="text-xs text-slate-400">국가 SGRI {pt?.sgri ?? "–"}</p></div></div>
+                          <p className="mt-4 text-xs font-medium text-slate-500">이 국가 추천 기업</p>
+                          <div className="mt-2 space-y-2">
+                            {comps.length > 0 ? comps.slice(0, 4).map((s) => <div key={s.company.company_id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2"><span className="truncate text-sm">{s.company.name}</span><span className="flex shrink-0 items-center gap-1.5"><span className="text-xs font-semibold text-emerald-600">{Math.round(Number(s.fit_score ?? 0))}</span>{(s.company.data_source ?? "").startsWith("ai:") ? <Badge className="border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-700 hover:bg-amber-50">AI</Badge> : <Badge className="border-blue-100 bg-blue-50 px-1.5 py-0 text-[10px] text-blue-700 hover:bg-blue-50">실</Badge>}</span></div>) : <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-xs text-slate-400">이 국가의 추천 기업이 목록에 없어요.</p>}
+                          </div>
+                          <Button asChild size="sm" variant="outline" className="mt-3 w-full border-slate-200"><Link href={selectedItem?.query_id ? `/recommendations?query_id=${selectedItem.query_id}` : "/recommendations"}>전체 추천 보기</Link></Button>
+                        </div>
+                      )
+                    })() : <div className="grid h-full min-h-44 place-items-center rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-400"><div><Globe2 className="mx-auto h-6 w-6 text-slate-300" /><p className="mt-2 leading-6">지도에서 국가를 클릭하면<br />SGRI와 추천 기업이 표시됩니다</p></div></div>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
           <section className="grid gap-6 xl:grid-cols-3">
             <div className="space-y-6 xl:col-span-2">
               <Card className="border-slate-200 shadow-sm">
@@ -486,7 +539,7 @@ export default function Dashboard() {
 
               <Card id="alternatives" className="scroll-mt-20 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3"><div><CardTitle className="text-base">대체 공급국 추천</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} 기준` : "품목을 선택하면 표시됩니다"}</CardDescription></div><Button asChild variant="ghost" size="sm" className="text-blue-600"><Link href="/recommendations">전체 보기</Link></Button></CardHeader><CardContent className="space-y-3">{countryRecos.map((reco, index) => <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={reco.country_code}><div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">{reco.country_code}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between"><span className="text-sm font-medium">{getCountryName(reco.country_code)}</span><span className="text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(reco.fit_score ?? reco.sgri_score ?? 0))}</span></div><p className="mt-1 truncate text-xs text-slate-500">{reco.rationale ?? "SGRI 종합 평가 기반 추천"}</p></div>{index === 0 && <CheckCircle2 className="h-4 w-4 text-blue-600" />}</div>)}{countryRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">추천 데이터가 없습니다.</p>}</CardContent></Card>
 
-              <Card id="companies" className="scroll-mt-20 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3"><div><CardTitle className="text-base">추천 기업</CardTitle><CardDescription className="mt-1">{selectedItem ? "조달 적합도 기준 (기업 차원)" : "품목을 선택하면 표시됩니다"}</CardDescription></div><Button asChild variant="ghost" size="sm" className="text-blue-600"><Link href={selectedItem ? `/recommendations?query_id=${selectedItem.query_id}` : "/recommendations"}>전체 보기</Link></Button></CardHeader><CardContent className="space-y-3">{supplierRecos.map((s) => { const isAi = (s.company.data_source ?? "").startsWith("ai:"); return <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={s.company.company_id}><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{s.company.name}</span><span className="shrink-0 text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(s.fit_score ?? 0))}</span></div><div className="mt-1 flex items-center gap-1.5"><span className="text-xs text-slate-400">{getCountryName(s.company.country_code ?? "")}</span>{isAi ? <Badge className="border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 px-1.5 py-0 text-[10px] text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div></div></div> })}{supplierRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">{selectedItem ? "이 품목의 기업 추천이 아직 없어요. 분석하면 생성됩니다." : "품목을 선택하면 표시됩니다"}</p>}</CardContent></Card>
+              <Card id="companies" className="scroll-mt-20 border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3"><div><CardTitle className="text-base">추천 기업</CardTitle><CardDescription className="mt-1">{selectedItem ? "조달 적합도 기준 (기업 차원)" : "품목을 선택하면 표시됩니다"}</CardDescription></div><Button asChild variant="ghost" size="sm" className="text-blue-600"><Link href={selectedItem ? `/recommendations?query_id=${selectedItem.query_id}` : "/recommendations"}>전체 보기</Link></Button></CardHeader><CardContent className="space-y-3">{supplierRecos.slice(0, 3).map((s) => { const isAi = (s.company.data_source ?? "").startsWith("ai:"); return <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={s.company.company_id}><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{s.company.name}</span><span className="shrink-0 text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(s.fit_score ?? 0))}</span></div><div className="mt-1 flex items-center gap-1.5"><span className="text-xs text-slate-400">{getCountryName(s.company.country_code ?? "")}</span>{isAi ? <Badge className="border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 px-1.5 py-0 text-[10px] text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div></div></div> })}{supplierRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">{selectedItem ? "이 품목의 기업 추천이 아직 없어요. 분석하면 생성됩니다." : "품목을 선택하면 표시됩니다"}</p>}</CardContent></Card>
 
               <Card className="border-slate-200 shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">최근 위험 알림 및 정책 변화</CardDescription></div><Landmark className="h-4 w-4 text-slate-400" /></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => <div className="border-t border-slate-100 px-6 py-3.5" key={`${article.title}-${index}`}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}</p></div>)}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
             </div>
