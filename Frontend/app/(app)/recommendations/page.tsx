@@ -5,7 +5,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { api } from "@/lib/api"
+import { api, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { ArrowLeft, ArrowRight, Bell, Bot, Building2, Check, CheckCircle2, ChevronDown, CircleAlert, FileText, Loader2, MapPin, RefreshCw, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -32,16 +32,27 @@ export default function RecommendationsPage() {
   const [dataError, setDataError] = useState("")
   const [reloadKey, setReloadKey] = useState(0)
   const [queryId, setQueryId] = useState<number | null>(null)
+  const [items, setItems] = useState<QueryOut[]>([])
   const [itemName, setItemName] = useState("")
+
+  // 내 품목 목록 로드 + 기본 선택(URL query_id 있으면 그것, 없으면 첫 품목)
+  useEffect(() => {
+    api.getQueries().then((qs) => {
+      const withHs = qs.filter((q) => q.hs_code)
+      setItems(withHs)
+      const urlId = Number(new URLSearchParams(window.location.search).get("query_id"))
+      setQueryId(urlId || withHs[0]?.query_id || null)
+    }).catch(() => {})
+  }, [])
   const [originCodes, setOriginCodes] = useState<Set<string>>(new Set())  // 현재 거래국 코드 집합
   const selectedCountry = countries.find((country) => country.name === selected) ?? countries[0]
   const itemLabel = itemName || "선택 품목"
   const topCountry = countries[0]
 
-  // URL의 ?query_id= 로 품목·국가 추천·공급사 추천을 함께 불러온다.
+  // 선택된 품목(queryId)의 국가·기업 추천을 불러온다.
   useEffect(() => {
     let isActive = true
-    const id = Number(new URLSearchParams(window.location.search).get("query_id"))
+    const id = queryId
     setDataStatus("loading")
     setDataError("")
     setCountries([])
@@ -53,12 +64,10 @@ export default function RecommendationsPage() {
     setFeedbackError("")
 
     if (!id) {
-      setQueryId(null)
       setDataStatus("error")
-      setDataError("추천을 확인할 품목이 선택되지 않았습니다.")
+      setDataError(items.length > 0 ? "위에서 품목을 선택해 주세요." : "등록된 품목이 없습니다. 먼저 품목을 등록해 주세요.")
       return () => { isActive = false }
     }
-    setQueryId(id)
 
     Promise.all([api.getQuery(id), api.getCountryRecos(id), api.getSupplierRecos(id)])
       .then(([query, countryRows, supplierRows]) => {
@@ -113,7 +122,7 @@ export default function RecommendationsPage() {
       })
 
     return () => { isActive = false }
-  }, [reloadKey])
+  }, [queryId, reloadKey])
 
   function toggleComparison(country: string) {
     setCompared((current) => current.includes(country) ? current.filter((item) => item !== country) : [...current, country])
@@ -153,6 +162,20 @@ export default function RecommendationsPage() {
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
+      <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-blue-600"><Sparkles className="h-4 w-4" /> AI 추천 결과</div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">대체 국가·기업 추천</h1>
+        </div>
+        {items.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-400">품목</span>
+            <select value={queryId ?? ""} onChange={(e) => setQueryId(Number(e.target.value) || null)} className="h-10 max-w-60 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+              {items.map((it) => <option key={it.query_id} value={it.query_id}>{it.item_name ?? `HS ${it.hs_code}`}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
       {dataStatus === "loading" ? (
         <Card className="border-slate-200 shadow-sm"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /><p className="mt-4 text-sm font-medium text-slate-700">추천 데이터를 불러오는 중입니다.</p><p className="mt-1 text-xs text-slate-500">품목과 국가·공급사 추천을 확인하고 있습니다.</p></CardContent></Card>
       ) : dataStatus === "error" ? (
@@ -161,7 +184,7 @@ export default function RecommendationsPage() {
         <Card className="border-dashed border-slate-300 shadow-sm"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><Sparkles className="h-9 w-9 text-slate-400" /><p className="mt-4 font-semibold text-slate-800">추천 결과가 없습니다.</p><p className="mt-1 text-sm text-slate-500">품목 분석이 완료된 뒤 다시 확인해 주세요.</p><Button asChild className="mt-5 bg-blue-600 hover:bg-blue-700"><Link href="/items">품목 목록으로</Link></Button></CardContent></Card>
       ) : <>
       <Link href="/items/new" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 품목 정보 수정</Link>
-      <div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><Sparkles className="h-4 w-4" /> AI 추천 결과</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{itemLabel} 대체 공급처</h1><p className="mt-2 text-sm text-slate-500">조달 후보 <span className="font-medium text-blue-600">{countries.length}개국</span>을 SGRI 위험도 기준으로 비교했습니다.</p></div><Button asChild variant="outline" className="w-fit border-slate-200 bg-white"><Link href="/items/new"><SlidersHorizontal className="mr-2 h-4 w-4" />조건 수정</Link></Button></div>
+      <div className="mt-2 flex flex-col justify-between gap-3 md:flex-row md:items-end"><div><h2 className="text-lg font-semibold">{itemLabel}</h2><p className="mt-1 text-sm text-slate-500">조달 후보 <span className="font-medium text-blue-600">{countries.length}개국</span>을 SGRI 위험도 기준으로 비교했습니다.</p></div><Button asChild variant="outline" className="w-fit border-slate-200 bg-white"><Link href="/items/new"><SlidersHorizontal className="mr-2 h-4 w-4" />조건 수정</Link></Button></div>
 
       <Card className="mt-7 border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 shadow-sm"><CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-5 w-5" /></div><div className="flex-1"><p className="font-semibold">AI 요약: {topCountry ? `${topCountry.name}를 1순위로 검토하세요` : "추천 결과를 확인하세요"}</p><p className="mt-1 text-sm leading-6 text-slate-600">{topCountry ? `${itemLabel} 대체 공급국 중 ${topCountry.name}의 종합 적합도가 ${topCountry.score}점으로 가장 높습니다 (SGRI 위험도 ${topCountry.sgri}점). ${topCountry.description || "리스크·가격·물류·ESG를 종합한 결과입니다."}` : "품목을 등록하면 SGRI 기반 대체 공급국을 추천합니다."}</p></div><Badge className="w-fit border-blue-100 bg-white px-3 py-1.5 text-blue-700 hover:bg-white">{countries.length}개국 비교</Badge></CardContent></Card>
 

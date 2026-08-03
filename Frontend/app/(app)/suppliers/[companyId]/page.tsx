@@ -63,12 +63,13 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
                 <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-semibold tracking-tight">{company.name}</h1>{company.status === "active" && <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50"><BadgeCheck className="mr-1 h-3.5 w-3.5" />공개 정보 확인</Badge>}</div>
                 <p className="mt-2 text-sm text-slate-500">{getCountryName(company.country_code ?? "")}{company.name_en ? ` · ${company.name_en}` : ""}{company.company_type ? ` · ${company.company_type}` : ""}</p>
                 <div className="mt-3 flex flex-wrap gap-2">{(company.certifications ?? []).map((c) => <Badge key={c} className="border-slate-100 bg-slate-50 text-slate-600 hover:bg-slate-50">{c}</Badge>)}{(company.certifications ?? []).length === 0 && <span className="text-xs text-slate-400">등록된 인증 정보 없음</span>}</div>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{company.name_en || company.name}은(는) {getCountryName(company.country_code ?? "") || "해당 국가"} 소재 공급 기업입니다.{(company.hs_codes ?? []).length ? ` HS ${(company.hs_codes ?? []).slice(0, 3).join("·")} 품목을 취급하며,` : ""}{(company.certifications ?? []).length ? ` ${(company.certifications ?? []).join(", ")} 인증을 보유하고 있습니다.` : " 조달 지표는 아래를 참고하세요."}</p>
               </div>
             </div>
             {fit !== null && <div className="rounded-xl bg-emerald-50 px-4 py-3 text-right"><p className="text-2xl font-semibold text-emerald-600">{fit}</p><p className="text-xs text-emerald-700">조달 적합도</p></div>}
           </div>
           <div className="mt-7 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
-            {company.website && <Button asChild variant="ghost" className="text-slate-600"><a href={company.website} target="_blank" rel="noreferrer">공개 출처 보기 <ExternalLink className="ml-2 h-4 w-4" /></a></Button>}
+            {company.website && <Button asChild variant="outline" className="border-slate-200"><a href={company.website} target="_blank" rel="noreferrer"><Globe2 className="mr-2 h-4 w-4" />기업 홈페이지 <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a></Button>}
             <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>검토 보고서에 추가 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
           </div>
         </section>
