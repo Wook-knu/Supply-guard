@@ -358,38 +358,7 @@ export default function Dashboard() {
       </header>
 
       <div className="flex">
-        <aside className="hidden min-h-[calc(100vh-4rem)] w-60 shrink-0 border-r border-slate-200 bg-white lg:block">
-          <div className="p-4">
-            <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">메뉴</p>
-            <nav className="space-y-1">
-              <a className="flex items-center gap-3 rounded-md bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700" href="#overview">
-                <Home className="h-4 w-4" /> 대시보드
-              </a>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/items">
-                <Box className="h-4 w-4" /> 품목 관리
-              </Link>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/risks/283691">
-                <CircleAlert className="h-4 w-4" /> 리스크 분석
-              </Link>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/recommendations">
-                <Globe2 className="h-4 w-4" /> 대체 공급처
-              </Link>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/reports/new">
-                <FileText className="h-4 w-4" /> AI 보고서
-              </Link>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50" href="/settings">
-                <Settings className="h-4 w-4" /> 설정
-              </Link>
-            </nav>
-          </div>
-          <div className="mx-4 mt-5 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 p-4">
-            <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm"><Sparkles className="h-4 w-4" /></div>
-            <p className="text-sm font-semibold">AI 리스크 브리핑</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">오늘의 공급망 변화를 2분 안에 확인하세요.</p>
-            <Button variant="link" className="mt-2 h-auto p-0 text-xs font-semibold text-blue-700">브리핑 열기 <ArrowRight className="ml-1 h-3 w-3" /></Button>
-          </div>
-        </aside>
-
+        {/* 좌측 사이드바는 공통 레이아웃(app/(app)/layout.tsx)이 제공 */}
         <main id="overview" className="min-w-0 flex-1 p-5 md:p-8">
           <section className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
