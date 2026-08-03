@@ -57,6 +57,7 @@ export type Company = {
   annual_capacity: string | null
   capacity_unit: string | null
   status: string | null
+  data_source: string | null   // null/실데이터 vs 'ai:gemini'(AI 추정)
 }
 
 export type SupplierReco = {

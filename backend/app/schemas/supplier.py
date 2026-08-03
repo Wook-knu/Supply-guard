@@ -18,6 +18,7 @@ class CompanyOut(BaseModel):
     annual_capacity: Decimal | None = None
     capacity_unit: str | None = None
     status: str | None = None
+    data_source: str | None = None   # None/실데이터 vs 'ai:gemini'(AI 추정)
     # 비교·설명용 조달 지표
     unit_price: Decimal | None = None
     lead_time_days: int | None = None
