@@ -497,8 +497,8 @@ export default function Dashboard() {
                 {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).map((row) => (
                   <Link key={`${row.hs}-${row.countryCode}`} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{row.name}</p>
-                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.status === "trading" ? "font-medium text-blue-600" : row.status === "registered" ? "font-medium text-emerald-600" : ""}>{row.status === "trading" ? "현재 거래국" : row.status === "registered" ? "등록 국가" : "최고 위험국"}</span></p>}
+                      <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-800">{row.countryCode ? getCountryName(row.countryCode) : "국가 미등록"}<span className={`text-[11px] font-medium ${row.status === "trading" ? "text-blue-600" : row.status === "registered" ? "text-emerald-600" : "text-slate-400"}`}>{row.status === "trading" ? "· 현재 거래국" : row.status === "registered" ? "· 등록 국가" : "· 최고 위험국"}</span></p>
+                      <p className="mt-0.5 truncate text-xs text-slate-400">{row.name}</p>
                     </div>
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
                   </Link>
