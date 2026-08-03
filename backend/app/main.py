@@ -46,6 +46,8 @@ _ENSURE_SQL = [
     """ALTER TABLE user_queries ALTER COLUMN origin_country TYPE VARCHAR(200);""",
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_country VARCHAR(200);""",
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_company_id BIGINT;""",
+    """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS registered_company_ids TEXT;""",
+    """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_company_ids TEXT;""",
     # 알림에 관련 뉴스/출처 링크 저장(구글뉴스 검색 URL 등).
     """ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_url TEXT;""",
 ]

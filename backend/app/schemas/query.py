@@ -20,7 +20,9 @@ class QueryCreate(BaseModel):
     importer_code: str | None = Field(default=None, examples=["KR"])
     origin_country: str | None = Field(default=None, examples=["칠레,중국"])  # 등록한 관련 공급국(콤마구분)
     trading_country: str | None = Field(default=None, examples=["칠레"])  # 그중 '현재 거래 중'인 국가(부분집합)
-    trading_company_id: int | None = Field(default=None)  # 현재 거래 중인 기업(있으면)
+    trading_company_id: int | None = Field(default=None)  # (구) 단일 거래 기업
+    registered_company_ids: str | None = Field(default=None)  # 등록한 기업 id(콤마구분)
+    trading_company_ids: str | None = Field(default=None)     # 그중 거래중 기업 id(콤마구분)
 
 
 class QueryUpdate(BaseModel):
@@ -28,6 +30,8 @@ class QueryUpdate(BaseModel):
     origin_country: str | None = None
     trading_country: str | None = None
     trading_company_id: int | None = None
+    registered_company_ids: str | None = None
+    trading_company_ids: str | None = None
 
 
 class QueryOut(QueryCreate):

@@ -8,7 +8,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
-import { ArrowLeft, ArrowRight, Bell, Building2, Check, CheckCircle2, CircleAlert, Loader2, MapPin, ShieldAlert, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Building2, CheckCircle2, CircleAlert, Loader2, MapPin, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,8 +38,9 @@ export default function CompanyRecosPage() {
   const [itemName, setItemName] = useState("")
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
-  const [tradingCompanyId, setTradingCompanyId] = useState<number | null>(null)
-  const [savingTrading, setSavingTrading] = useState(false)
+  const [registeredIds, setRegisteredIds] = useState<Set<number>>(new Set())  // 등록한 기업(관심+거래중)
+  const [tradingIds, setTradingIds] = useState<Set<number>>(new Set())        // 그중 거래중 기업
+  const [savingCompany, setSavingCompany] = useState(false)
   const [focusCode, setFocusCode] = useState<string>("")   // 국가 필터(코드), ""=전체
   const [aiLoading, setAiLoading] = useState<string | null>(null)  // AI 추천 중인 국가 코드
   const [aiMsg, setAiMsg] = useState("")
@@ -60,21 +61,30 @@ export default function CompanyRecosPage() {
     Promise.all([api.getQuery(queryId), api.getSupplierRecos(queryId)])
       .then(([query, rows]) => {
         setItemName(query.item_name?.trim() || (query.hs_code ? `HS ${query.hs_code}` : "품목"))
-        setTradingCompanyId(query.trading_company_id ?? null)
+        const toIds = (raw: string | null | undefined) => new Set((raw ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
+        // 구 단일 필드도 함께 반영(하위호환)
+        const reg = toIds(query.registered_company_ids)
+        const tr = toIds(query.trading_company_ids)
+        if (query.trading_company_id) { reg.add(query.trading_company_id); tr.add(query.trading_company_id) }
+        setRegisteredIds(reg); setTradingIds(tr)
         setSuppliers(mapRows(rows))
         setStatus("ready")
       })
       .catch(() => setStatus("error"))
   }, [queryId, items.length])
 
-  async function setTradingCompany(companyId: number) {
-    if (!queryId || savingTrading) return
-    const next = tradingCompanyId === companyId ? null : companyId
-    const prev = tradingCompanyId
-    setTradingCompanyId(next); setSavingTrading(true)
-    try { await api.updateQuery(queryId, { trading_company_id: next }) }
-    catch { setTradingCompanyId(prev) }
-    finally { setSavingTrading(false) }
+  // 기업 상태 지정: 거래중 / 등록(관심) / 해제 → 서버 저장
+  async function setCompanyStatus(id: number, next: "trading" | "registered" | "none") {
+    if (!queryId || savingCompany) return
+    const reg = new Set(registeredIds), tr = new Set(tradingIds)
+    if (next === "none") { reg.delete(id); tr.delete(id) }
+    else if (next === "registered") { reg.add(id); tr.delete(id) }
+    else { reg.add(id); tr.add(id) }
+    const prevR = registeredIds, prevT = tradingIds
+    setRegisteredIds(reg); setTradingIds(tr); setSavingCompany(true)
+    try { await api.updateQuery(queryId, { registered_company_ids: [...reg].join(","), trading_company_ids: [...tr].join(","), trading_company_id: null }) }
+    catch { setRegisteredIds(prevR); setTradingIds(prevT) }
+    finally { setSavingCompany(false) }
   }
 
   // 지정 국가에 대해 AI가 기업 후보를 생성해 추천에 추가
@@ -82,11 +92,16 @@ export default function CompanyRecosPage() {
     if (!queryId || aiLoading) return
     setAiLoading(code); setAiMsg("")
     try {
+      const before = suppliers.length
       const rows = await api.generateAiSuppliers(queryId, code)
       setSuppliers(mapRows(rows))
-      setAiMsg(`${getCountryName(code) || code}의 AI 추천 기업을 불러왔습니다. (단가·리드타임 등은 AI 추정치)`)
-    } catch {
-      setAiMsg("AI 기업 추천에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+      setFocusCode("")  // 새 기업이 어느 국가에 들어갔는지 볼 수 있게 전체 보기로
+      const added = rows.length - before
+      setAiMsg(`AI가 기업 ${added > 0 ? `${added}곳을 ` : ""}추천했습니다. ${getCountryName(code) || code}에 실제 기업이 없으면 주요 공급국 기업을 대신 제안합니다. (단가·리드타임 등은 AI 추정치)`)
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : ""
+      const m = raw.match(/"detail":"([^"]+)"/)
+      setAiMsg(m ? m[1] : "AI 기업 추천에 실패했습니다. GEMINI 키 설정 또는 잠시 후 다시 시도해 주세요.")
     } finally { setAiLoading(null) }
   }
 
@@ -102,9 +117,13 @@ export default function CompanyRecosPage() {
   const focusEmpty = Boolean(focusCode && (groups.find(([c]) => c === focusCode)?.[1].length ?? 0) === 0)
   const backHref = queryId ? `/recommendations?query_id=${queryId}` : "/recommendations"
 
-  const CompanyCard = (s: SupplierRow) => (
-    <div className={`flex flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tradingCompanyId === s.id ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 hover:border-blue-200"}`} key={s.id}>
-      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{tradingCompanyId === s.id && <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge>}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
+  const CompanyCard = (s: SupplierRow) => {
+    const cur = tradingIds.has(s.id) ? "trading" : registeredIds.has(s.id) ? "registered" : "none"
+    const cardRing = cur === "trading" ? "border-blue-500 ring-1 ring-blue-500" : cur === "registered" ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-200 hover:border-blue-200"
+    const segStyles = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-amber-500 text-white", idle: "text-amber-600 hover:bg-amber-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
+    return (
+    <div className={`flex flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardRing}`} key={s.id}>
+      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{cur === "trading" ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : cur === "registered" ? <Badge className="border-0 bg-amber-500 text-white hover:bg-amber-500">등록 기업</Badge> : null}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
       <div className="mt-3 flex items-center gap-1.5"><p className="font-semibold leading-tight">{s.name}</p>{s.verified && <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />}</div>
       <p className="mt-0.5 text-xs text-slate-500">{getCountryName(s.countryCode) || s.countryCode}{s.type && s.type !== "공급사" ? ` · ${s.type}` : ""}</p>
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
@@ -114,12 +133,18 @@ export default function CompanyRecosPage() {
         <div className="flex justify-between"><span className="text-slate-400">정시납품</span><span className="font-medium">{s.otd != null ? `${s.otd}%` : "–"}</span></div>
       </div>
       <p className="mt-3 min-h-10 flex-1 text-xs leading-5 text-slate-500"><span className="font-medium text-slate-600">추천 이유 · </span>{s.note || "SGRI·조달 적합도 기반 추천"}</p>
-      <div className="mt-3 flex gap-2">
-        <Button asChild variant="outline" size="sm" className="flex-1 border-slate-200"><Link href={`/suppliers/${s.id}${queryId ? `?query_id=${queryId}` : ""}`}>상세</Link></Button>
-        <Button type="button" size="sm" onClick={() => void setTradingCompany(s.id)} disabled={savingTrading} className={`flex-1 ${tradingCompanyId === s.id ? "bg-blue-600 hover:bg-blue-700" : "bg-white text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50"}`}>{tradingCompanyId === s.id ? <><Check className="mr-1 h-3.5 w-3.5" />거래 기업</> : "거래 기업 지정"}</Button>
+      <div className="mt-3 flex items-center gap-2">
+        <Button asChild variant="outline" size="sm" className="shrink-0 border-slate-200"><Link href={`/suppliers/${s.id}${queryId ? `?query_id=${queryId}` : ""}`}>상세</Link></Button>
+        <span className="inline-flex flex-1 overflow-hidden rounded-lg border border-slate-200">
+          {([["trading", "거래중"], ["registered", "등록"], ["none", "해제"]] as const).map(([key, label], i) => (
+            <button key={key} type="button" disabled={savingCompany} onClick={() => setCompanyStatus(s.id, key)}
+              className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${cur === key ? segStyles[key].active : `bg-white ${segStyles[key].idle}`}`}>{label}</button>
+          ))}
+        </span>
       </div>
     </div>
-  )
+    )
+  }
 
   const AiButton = ({ code, has }: { code: string; has: boolean }) => (
     <Button type="button" size="sm" variant="outline" disabled={aiLoading !== null} onClick={() => runAi(code)}

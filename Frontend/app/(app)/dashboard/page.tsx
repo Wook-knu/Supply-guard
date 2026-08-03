@@ -113,8 +113,8 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<AlertOut[]>([])
   const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [supplierRecos, setSupplierRecos] = useState<SupplierReco[]>([])
-  // 품목별 1순위 추천 기업(hs_code → {이름·적합도·AI여부}) — 통합 위험도 카드용
-  const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; status: "trading" | "registered" | "candidate" }>>({})
+  // 등록/거래중으로 지정한 기업 목록(품목 가로질러 평탄화) — 기업 적합도 카드용
+  const [regCompanies, setRegCompanies] = useState<{ companyId: number; name: string; fit: number; isAi: boolean; country: string; status: "trading" | "registered"; hs: string; queryId: number; itemName: string }[]>([])
   const [natlDesc, setNatlDesc] = useState(true)   // 국가 위험도 정렬(높은순/낮은순)
   const [compDesc, setCompDesc] = useState(true)   // 기업 적합도 정렬
   const [natlTradingOnly, setNatlTradingOnly] = useState(false)  // 국가: 거래중만/전체
@@ -189,41 +189,29 @@ export default function Dashboard() {
       byHs.set(r.hs_code as string, arr)
     })
     const lvl = (s: number): "high" | "medium" | "low" => (s >= 50 ? "high" : s >= 25 ? "medium" : "low")
-    return monitoredItems
-      .filter((it) => it.hs_code)
-      .map((it) => {
-        const countries = byHs.get(it.hs_code as string) ?? []
-        const toCodes = (raw: string | undefined) => (raw ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
-          const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
-          return m?.code ?? n.toUpperCase()
-        })
-        const originCodes = toCodes(it.origin_country)
-        const tradingCodes = toCodes(it.trading_country)
-        let ref: { code: string; sgri: number } | undefined
-        // 등록 국가 중에서만 대표를 고른다(거래중 우선, 없으면 등록국). 최고SGRI 자동선택 안 함.
-        const tradingRows = countries.filter((c) => tradingCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
-        const originRows = countries.filter((c) => originCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
-        if (tradingRows.length) ref = tradingRows[0]
-        else if (originRows.length) ref = originRows[0]
-        // 등록 국가의 SGRI 행이 아직 없으면(분석 전) 등록국 코드만이라도 표시.
-        if (!ref && originCodes.length) ref = { code: originCodes[0], sgri: 0 }
-        if (!ref) ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]  // 구 데이터(국가 미등록) 안전망
-        const status: "trading" | "registered" | "fallback" =
-          ref && tradingCodes.includes(ref.code) ? "trading"
-          : ref && originCodes.includes(ref.code) ? "registered" : "fallback"
-        return {
-          hs: it.hs_code as string,
-          queryId: it.query_id,
-          name: it.item_name?.trim() || `HS ${it.hs_code}`,
-          sgri: ref?.sgri ?? null,
-          countryCode: ref?.code ?? null,
-          status,
-          level: ref ? lvl(ref.sgri) : null,
-          company: itemCompanies[it.hs_code as string],
-        }
+    const toCodes = (raw: string | undefined) => (raw ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
+      const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
+      return m?.code ?? n.toUpperCase()
+    })
+    type Row = { hs: string; queryId: number; name: string; sgri: number | null; countryCode: string | null; status: "trading" | "registered" | "fallback"; level: "high" | "medium" | "low" | null }
+    // 등록된 국가마다 한 행(거래중 + 관심 모두). 등록이 없으면 최고 위험국 하나(안전망).
+    return monitoredItems.filter((it) => it.hs_code).flatMap((it): Row[] => {
+      const countries = byHs.get(it.hs_code as string) ?? []
+      const name = it.item_name?.trim() || `HS ${it.hs_code}`
+      const originCodes = toCodes(it.origin_country)
+      const tradingCodes = toCodes(it.trading_country)
+      const regCodes = [...new Set([...originCodes, ...tradingCodes])]
+      const sgriOf = (code: string) => countries.find((c) => c.code === code)?.sgri
+      if (regCodes.length === 0) {
+        const ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]  // 구 데이터 안전망
+        return ref ? [{ hs: it.hs_code as string, queryId: it.query_id, name, sgri: ref.sgri, countryCode: ref.code, status: "fallback", level: lvl(ref.sgri) }] : []
+      }
+      return regCodes.map((code): Row => {
+        const s = sgriOf(code)
+        return { hs: it.hs_code as string, queryId: it.query_id, name, sgri: s ?? null, countryCode: code, status: tradingCodes.includes(code) ? "trading" : "registered", level: s != null ? lvl(s) : null }
       })
-      .sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
-  }, [riskHistory, monitoredItems, itemCompanies])
+    }).sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
+  }, [riskHistory, monitoredItems])
   // 미니맵용: 선택 품목의 공급국(국가별 최신 SGRI)
   const mapPoints = useMemo<RiskPoint[]>(() => {
     const latest = new Map<string, RiskOut>()
@@ -337,33 +325,28 @@ export default function Dashboard() {
       .catch(() => setSupplierRecos([]))
   }, [selectedItem])
 
-  // 품목별 1순위 추천 기업을 한 번에 모아 통합 위험도 카드에 표시.
+  // 사용자가 '거래중/등록'으로 지정한 기업만 모아 기업 적합도 카드에 표시.
   useEffect(() => {
     const items = monitoredItems.filter((i) => i.hs_code)
-    if (items.length === 0) { setItemCompanies({}); return }
+    if (items.length === 0) { setRegCompanies([]); return }
     let active = true
-    type Picked = { hs: string; top: SupplierReco | undefined; status: "trading" | "registered" | "candidate" }
+    const toIds = (raw: string | null | undefined) => new Set((raw ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
+    type Row = typeof regCompanies extends (infer T)[] ? T : never
     Promise.all(items.map((i) => {
-      const tradingCodes = (i.trading_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
-        const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
-        return m?.code ?? n.toUpperCase()
-      })
-      return api.getSupplierRecos(i.query_id).then((rows): Picked => {
-        // 1) 사용자가 지정한 '현재 거래 기업' 최우선
-        const tradingCompany = i.trading_company_id != null ? rows.find((r) => r.company.company_id === i.trading_company_id) : undefined
-        if (tradingCompany) return { hs: i.hs_code as string, top: tradingCompany, status: "trading" }
-        // 2) 거래중 국가의 기업이면 '등록'으로, 아니면 1순위 후보
-        const inTrading = tradingCodes.length ? rows.find((r) => tradingCodes.includes(r.company.country_code ?? "")) : undefined
-        return { hs: i.hs_code as string, top: inTrading ?? rows[0], status: inTrading ? "registered" : "candidate" }
-      }).catch((): Picked => ({ hs: i.hs_code as string, top: undefined, status: "candidate" }))
-    })).then((results) => {
-      if (!active) return
-      const map: Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; status: "trading" | "registered" | "candidate" }> = {}
-      results.forEach(({ hs, top, status }) => {
-        if (hs && top) map[hs] = { name: top.company.name, fit: Math.round(Number(top.fit_score ?? 0)), isAi: (top.company.data_source ?? "").startsWith("ai:"), companyId: top.company.company_id, country: top.company.country_code ?? "", status }
-      })
-      setItemCompanies(map)
-    }).catch(() => {})
+      const reg = toIds(i.registered_company_ids)
+      const tr = toIds(i.trading_company_ids)
+      if (i.trading_company_id) { reg.add(i.trading_company_id); tr.add(i.trading_company_id) }
+      if (reg.size === 0) return Promise.resolve<Row[]>([])
+      return api.getSupplierRecos(i.query_id).then((rows): Row[] => rows
+        .filter((r) => reg.has(r.company.company_id))
+        .map((r) => ({
+          companyId: r.company.company_id, name: r.company.name,
+          fit: Math.round(Number(r.fit_score ?? 0)), isAi: (r.company.data_source ?? "").startsWith("ai:"),
+          country: r.company.country_code ?? "", status: tr.has(r.company.company_id) ? "trading" : "registered",
+          hs: i.hs_code as string, queryId: i.query_id, itemName: i.item_name?.trim() || `HS ${i.hs_code}`,
+        }))
+      ).catch((): Row[] => [])
+    })).then((results) => { if (active) setRegCompanies(results.flat()) }).catch(() => {})
     return () => { active = false }
   }, [monitoredItems])
 
@@ -504,7 +487,7 @@ export default function Dashboard() {
             {/* 국가 위험도 */}
             <Card className="border-2 border-rose-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">등록 국가 기준 (거래중 우선)</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">등록 국가(거래중·관심)별 SGRI</CardDescription></div></div>
                 <div className="flex items-center gap-1.5">
                   <button type="button" onClick={() => setNatlTradingOnly((v) => !v)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${natlTradingOnly ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{natlTradingOnly ? "거래중만" : "전체"}</button>
                   <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
@@ -512,7 +495,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="px-0 pb-2">
                 {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).slice(0, 5).map((row) => (
-                  <Link key={row.hs} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
+                  <Link key={`${row.hs}-${row.countryCode}`} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.name}</p>
                       {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.status === "trading" ? "font-medium text-blue-500" : row.status === "registered" ? "font-medium text-slate-500" : ""}>{row.status === "trading" ? "현재 거래국" : row.status === "registered" ? "등록 국가" : "최고 위험국"}</span></p>}
@@ -528,25 +511,25 @@ export default function Dashboard() {
             {/* 기업 적합도 */}
             <Card className="border-2 border-blue-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">품목별 1순위 공급사 · 클릭 시 상세</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">거래중·등록 기업 · 클릭 시 상세</CardDescription></div></div>
                 <div className="flex items-center gap-1.5">
                   <button type="button" onClick={() => setCompTradingOnly((v) => !v)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${compTradingOnly ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{compTradingOnly ? "거래중만" : "전체"}</button>
                   <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
                 </div>
               </CardHeader>
               <CardContent className="px-0 pb-2">
-                {perItemRisk.filter((r) => r.company && (!compTradingOnly || r.company.status === "trading")).sort((a, b) => compDesc ? b.company!.fit - a.company!.fit : a.company!.fit - b.company!.fit).slice(0, 5).map((row) => (
-                  <Link key={row.hs} href={`/suppliers/${row.company!.companyId}${row.queryId != null ? `?query_id=${row.queryId}` : ""}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
+                {[...regCompanies].filter((c) => !compTradingOnly || c.status === "trading").sort((a, b) => compDesc ? b.fit - a.fit : a.fit - b.fit).slice(0, 5).map((c) => (
+                  <Link key={`${c.hs}-${c.companyId}`} href={`/suppliers/${c.companyId}?query_id=${c.queryId}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{row.company!.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.company!.country)}{row.company!.status === "trading" ? <span className="font-medium text-blue-500"> · 현재 거래 기업</span> : row.company!.status === "registered" ? <span className="font-medium text-slate-500"> · 등록 국가 기업</span> : <span> · 추천 후보</span>} · {row.name}</p>
+                      <p className="truncate text-sm font-medium">{c.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(c.country)} · <span className={c.status === "trading" ? "font-medium text-blue-500" : "font-medium text-amber-600"}>{c.status === "trading" ? "현재 거래 기업" : "등록 기업"}</span> · {c.itemName}</p>
                     </div>
-                    <span className="text-2xl font-bold tracking-tight text-slate-800">{row.company!.fit}</span>
-                    {row.company!.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
+                    <span className="text-2xl font-bold tracking-tight text-slate-800">{c.fit}</span>
+                    {c.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
                   </Link>
                 ))}
-                {perItemRisk.filter((r) => r.company).length === 0 ? <p className="px-6 py-8 text-center text-sm text-slate-400">분석된 품목이 없어요. 분석하면 기업이 표시됩니다.</p>
-                  : compTradingOnly && perItemRisk.every((r) => r.company?.status !== "trading") ? <p className="px-6 py-8 text-center text-sm text-slate-400">현재 거래 기업으로 지정한 곳이 없습니다. 추천 화면에서 지정할 수 있어요.</p> : null}
+                {regCompanies.length === 0 ? <p className="px-6 py-8 text-center text-sm text-slate-400">거래중·등록으로 지정한 기업이 없어요. 기업 추천에서 지정할 수 있어요.</p>
+                  : compTradingOnly && regCompanies.every((c) => c.status !== "trading") ? <p className="px-6 py-8 text-center text-sm text-slate-400">현재 거래 기업으로 지정한 곳이 없습니다.</p> : null}
               </CardContent>
             </Card>
           </section>
