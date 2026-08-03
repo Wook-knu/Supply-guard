@@ -34,8 +34,9 @@ export default function LoginGlobe() {
   const onMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
+    // 좌우(경도)·상하(위도) 모두 제한 없이 360도 자유 회전
     setRot(d.rot + (e.clientX - d.x) * 0.4)
-    setTilt(Math.max(-80, Math.min(80, d.tilt - (e.clientY - d.y) * 0.3)))
+    setTilt(d.tilt - (e.clientY - d.y) * 0.3)
   }
   const onUp = () => {
     drag.current = null
@@ -51,7 +52,7 @@ export default function LoginGlobe() {
         projection="geoOrthographic"
         projectionConfig={{ rotate: [-rot, -tilt, 0], scale: 300 }}
         width={760} height={760}
-        style={{ width: "min(125vh, 980px)", height: "auto", maxWidth: "160%" }}
+        style={{ width: "min(115%, 760px)", height: "auto" }}
       >
         <Sphere id="ocean" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.35)" strokeWidth={0.7} />
         <Graticule stroke="rgba(255,255,255,0.14)" strokeWidth={0.5} />
