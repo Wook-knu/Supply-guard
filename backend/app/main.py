@@ -40,6 +40,8 @@ _ENSURE_SQL = [
        WHERE partner_code IS NULL;""",
     # 현재 거래 중인 공급국 저장용 컬럼(선택 입력) — 현재국 vs 대체국 비교 표시에 사용.
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS origin_country VARCHAR(100);""",
+    # 프로필 사진을 data URL(base64)로도 저장할 수 있게 TEXT로 확장 (기존 VARCHAR(500) 초과 대비).
+    """ALTER TABLE users ALTER COLUMN picture_url TYPE TEXT;""",
 ]
 
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -110,3 +110,44 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 def read_me(current_user: User = Depends(get_current_user)):
     """Authorization: Bearer <토큰> 으로 현재 사용자를 반환."""
     return current_user
+
+
+class UpdateMeRequest(BaseModel):
+    """PATCH /auth/me — 프로필 편집(이름/사진). 보낸 필드만 반영."""
+    name: str | None = None
+    picture_url: str | None = None   # 외부 URL 또는 data:image/... base64 (클라에서 리사이즈)
+
+
+class ChangePasswordRequest(BaseModel):
+    """POST /auth/change-password. 기존 비번 있으면 current 필요."""
+    current_password: str | None = None
+    new_password: str = Field(min_length=8)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(payload: UpdateMeRequest, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
+    """담당자명·프로필 사진을 수정한다. 보낸 필드만 갱신."""
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        current_user.name = name or None
+    if "picture_url" in data:
+        pic = data["picture_url"]
+        if pic and len(pic) > 700_000:
+            raise HTTPException(status_code=413, detail="이미지가 너무 큽니다. 더 작은 사진을 사용해 주세요.")
+        current_user.picture_url = pic or None
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/change-password", status_code=204)
+def change_password(payload: ChangePasswordRequest, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    """비밀번호 변경. 기존 비번이 설정된 계정은 current_password 검증을 통과해야 한다."""
+    if current_user.password_hash:
+        if not payload.current_password or not verify_password(payload.current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()

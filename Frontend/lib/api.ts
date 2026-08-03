@@ -200,8 +200,10 @@ export type UserOut = {
   user_id: number
   email: string
   name: string | null
+  picture_url: string | null
   company_id: number | null
   role: string | null
+  plan: string | null
 }
 
 export type TokenResponse = {
@@ -328,6 +330,11 @@ export const api = {
     return response
   },
   getMe: () => http<UserOut>("/auth/me"),
+  // 프로필 편집(이름/사진) · 비밀번호 변경
+  updateMe: (body: { name?: string; picture_url?: string | null }) =>
+    http<UserOut>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
+  changePassword: (body: { current_password?: string; new_password: string }) =>
+    http<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
   // F-01 품목 입력
   createQuery: (body: QueryCreate) =>
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
