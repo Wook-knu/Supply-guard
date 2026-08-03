@@ -42,6 +42,9 @@ _ENSURE_SQL = [
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS origin_country VARCHAR(100);""",
     # 프로필 사진을 data URL(base64)로도 저장할 수 있게 TEXT로 확장 (기존 VARCHAR(500) 초과 대비).
     """ALTER TABLE users ALTER COLUMN picture_url TYPE TEXT;""",
+    # 등록 국가를 여러 개 담을 수 있게 확장 + '현재 거래 중' 부분집합 컬럼.
+    """ALTER TABLE user_queries ALTER COLUMN origin_country TYPE VARCHAR(200);""",
+    """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_country VARCHAR(200);""",
 ]
 
 

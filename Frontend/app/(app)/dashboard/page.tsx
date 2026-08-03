@@ -190,24 +190,31 @@ export default function Dashboard() {
       .filter((it) => it.hs_code)
       .map((it) => {
         const countries = byHs.get(it.hs_code as string) ?? []
-        const originCodes = (it.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
+        const toCodes = (raw: string | undefined) => (raw ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
           const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
           return m?.code ?? n.toUpperCase()
         })
+        const originCodes = toCodes(it.origin_country)
+        const tradingCodes = toCodes(it.trading_country)
         let ref: { code: string; sgri: number } | undefined
-        let isOrigin = false
-        if (originCodes.length) {
-          const oc = countries.filter((c) => originCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
-          if (oc.length) { ref = oc[0]; isOrigin = true }
-        }
-        if (!ref) ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]
+        // 등록 국가 중에서만 대표를 고른다(거래중 우선, 없으면 등록국). 최고SGRI 자동선택 안 함.
+        const tradingRows = countries.filter((c) => tradingCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
+        const originRows = countries.filter((c) => originCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
+        if (tradingRows.length) ref = tradingRows[0]
+        else if (originRows.length) ref = originRows[0]
+        // 등록 국가의 SGRI 행이 아직 없으면(분석 전) 등록국 코드만이라도 표시.
+        if (!ref && originCodes.length) ref = { code: originCodes[0], sgri: 0 }
+        if (!ref) ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]  // 구 데이터(국가 미등록) 안전망
+        const status: "trading" | "registered" | "fallback" =
+          ref && tradingCodes.includes(ref.code) ? "trading"
+          : ref && originCodes.includes(ref.code) ? "registered" : "fallback"
         return {
           hs: it.hs_code as string,
           queryId: it.query_id,
           name: it.item_name?.trim() || `HS ${it.hs_code}`,
           sgri: ref?.sgri ?? null,
           countryCode: ref?.code ?? null,
-          isOrigin,
+          status,
           level: ref ? lvl(ref.sgri) : null,
           company: itemCompanies[it.hs_code as string],
         }
@@ -487,7 +494,7 @@ export default function Dashboard() {
             {/* 국가 위험도 */}
             <Card className="border-2 border-rose-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">현재 거래국 기준 · 없으면 최고 위험국</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">등록 국가 기준 (거래중 우선)</CardDescription></div></div>
                 <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
               </CardHeader>
               <CardContent className="px-0 pb-2">
@@ -495,7 +502,7 @@ export default function Dashboard() {
                   <Link key={row.hs} href={`/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.name}</p>
-                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.isOrigin ? "font-medium text-blue-500" : ""}>{row.isOrigin ? "현재 거래국" : "최고 위험국"}</span></p>}
+                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.status === "trading" ? "font-medium text-blue-500" : row.status === "registered" ? "font-medium text-slate-500" : ""}>{row.status === "trading" ? "현재 거래국" : row.status === "registered" ? "등록 국가" : "최고 위험국"}</span></p>}
                     </div>
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
                   </Link>
@@ -544,7 +551,7 @@ export default function Dashboard() {
 
             <Card className="border-2 border-violet-200 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · 공급국 중 최고 SGRI · ${period}` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${selectedOriginCodes.length ? "등록 국가" : "공급국"} 기준 SGRI · ${period}` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
                 <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
               </CardHeader>
               <CardContent className="pt-4">

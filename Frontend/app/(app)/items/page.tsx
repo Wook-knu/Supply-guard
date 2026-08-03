@@ -28,13 +28,14 @@ import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 
 type PageStatus = "loading" | "ready" | "error"
 type RiskLevel = "high" | "medium" | "low"
-type RiskSummary = { score: number; level: RiskLevel; countryCode: string; isOrigin: boolean }
+type OriginStatus = "trading" | "registered" | "fallback"
+type RiskSummary = { score: number; level: RiskLevel; countryCode: string; status: OriginStatus }
 
-// 품목 등록 시 입력한 현재 거래국(콤마구분 국가명) → ISO 코드 목록.
-function originCodesOf(item: QueryOut): string[] {
-  return (item.origin_country ?? "")
+// 콤마구분 국가명/코드 → ISO 코드 목록.
+function toCodes(raw: string | undefined): string[] {
+  return (raw ?? "")
     .split(",").map((s) => s.trim()).filter(Boolean)
-    .map((name) => COUNTRY_OPTIONS.find((c) => c.name === name)?.code)
+    .map((n) => COUNTRY_OPTIONS.find((c) => c.name === n || c.code === n.toUpperCase())?.code)
     .filter((c): c is string => Boolean(c))
 }
 
@@ -56,25 +57,24 @@ function riskLevel(row: RiskOut, score: number): RiskLevel {
   return score >= 50 ? "high" : score >= 25 ? "medium" : "low"
 }
 
-// originCodes 가 있으면 그 거래국의 위험도를, 없으면 최고 SGRI 국가를 대표로 삼는다.
-function summarizeRisk(rows: RiskOut[], originCodes: string[] = []): RiskSummary | null {
+// 등록 국가(거래중 우선) 기준으로 대표 위험도를 고른다. 최고SGRI 자동선택은 안 함(구 데이터 안전망만).
+function summarizeRisk(rows: RiskOut[], originCodes: string[] = [], tradingCodes: string[] = []): RiskSummary | null {
   const latest = latestRiskRows(rows)
   const pickHighest = (pool: RiskOut[]) => pool.reduce<RiskOut | null>((current, row) => {
     if (!current) return row
     return Number(row.sgri_score ?? 0) > Number(current.sgri_score ?? 0) ? row : current
   }, null)
+  const inSet = (r: RiskOut, set: string[]) => set.includes((r.country_code ?? "").toUpperCase())
 
   let ref: RiskOut | null = null
-  let isOrigin = false
-  if (originCodes.length) {
-    ref = pickHighest(latest.filter((r) => originCodes.includes((r.country_code ?? "").toUpperCase())))
-    if (ref) isOrigin = true
-  }
-  if (!ref) ref = pickHighest(latest)
+  let status: OriginStatus = "fallback"
+  if (tradingCodes.length) { ref = pickHighest(latest.filter((r) => inSet(r, tradingCodes))); if (ref) status = "trading" }
+  if (!ref && originCodes.length) { ref = pickHighest(latest.filter((r) => inSet(r, originCodes))); if (ref) status = "registered" }
+  if (!ref) ref = pickHighest(latest)  // 구 데이터(국가 미등록) 안전망
 
   if (!ref) return null
   const score = Math.round(Number(ref.sgri_score ?? 0))
-  return { score, level: riskLevel(ref, score), countryCode: ref.country_code ?? "", isOrigin }
+  return { score, level: riskLevel(ref, score), countryCode: ref.country_code ?? "", status }
 }
 
 function formatCreatedAt(value: string | null) {
@@ -283,7 +283,7 @@ export default function ItemsPage() {
                   {sortedItems.map((item) => {
                     const hsCode = item.hs_code?.trim()
                     const rawRows = hsCode ? risksByHsCode[hsCode] : undefined
-                    const riskSummary = rawRows ? summarizeRisk(rawRows, originCodesOf(item)) : null
+                    const riskSummary = rawRows ? summarizeRisk(rawRows, toCodes(item.origin_country), toCodes(item.trading_country)) : null
                     const riskFailed = Boolean(hsCode && failedRiskHsCodes.has(hsCode))
                     const isDeleting = deletingId === item.query_id
                     const isConfirming = pendingDeleteId === item.query_id
@@ -298,7 +298,7 @@ export default function ItemsPage() {
                           {riskSummary?.countryCode ? (
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-slate-700">{getCountryName(riskSummary.countryCode) || riskSummary.countryCode}</span>
-                              <span className={`text-xs ${riskSummary.isOrigin ? "text-blue-600" : "text-slate-400"}`}>{riskSummary.isOrigin ? "현재 거래국" : "최고 위험국"}</span>
+                              <span className={`text-xs ${riskSummary.status === "trading" ? "text-blue-600" : riskSummary.status === "registered" ? "text-slate-500" : "text-slate-400"}`}>{riskSummary.status === "trading" ? "현재 거래국" : riskSummary.status === "registered" ? "등록 국가" : "최고 위험국"}</span>
                             </div>
                           ) : <span className="text-sm text-slate-400">—</span>}
                         </TableCell>
