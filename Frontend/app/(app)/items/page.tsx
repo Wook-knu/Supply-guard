@@ -16,7 +16,7 @@ import {
   Plus,
   RefreshCw,
   ShieldAlert,
-  Sparkles,
+  Globe2,
   Trash2,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -308,19 +308,19 @@ export default function ItemsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-slate-500">{formatCreatedAt(item.created_at)}</TableCell>
                         <TableCell className="pr-6">
-                          <div className="flex min-w-max items-center justify-end gap-1.5">
+                          <div className="flex min-w-max items-center justify-end gap-2">
                             {hsCode ? (
-                              <Button asChild variant="outline" size="sm" className="h-8 border-slate-200 bg-white text-xs">
-                                <Link href={`/risks/${hsCode}`}><BarChart3 className="mr-1 h-3.5 w-3.5" />리스크 상세</Link>
+                              <Button asChild size="sm" className="h-9 border border-rose-200 bg-rose-50 px-3 font-semibold text-rose-700 shadow-none hover:bg-rose-100">
+                                <Link href={`/risks/${hsCode}`}><BarChart3 className="mr-1.5 h-4 w-4" />리스크 분석</Link>
                               </Button>
                             ) : (
-                              <Button type="button" variant="outline" size="sm" disabled className="h-8 text-xs">리스크 상세</Button>
+                              <Button type="button" variant="outline" size="sm" disabled className="h-9 text-xs">리스크 분석</Button>
                             )}
-                            <Button asChild variant="outline" size="sm" className="h-8 border-slate-200 bg-white text-xs">
-                              <Link href={`/recommendations?query_id=${item.query_id}`}><Sparkles className="mr-1 h-3.5 w-3.5" />추천 보기</Link>
+                            <Button asChild size="sm" className="h-9 bg-blue-600 px-3 font-semibold text-white shadow-sm hover:bg-blue-700">
+                              <Link href={`/recommendations?query_id=${item.query_id}`}><Globe2 className="mr-1.5 h-4 w-4" />대체 공급국</Link>
                             </Button>
-                            <Button asChild variant="outline" size="sm" className="h-8 border-slate-200 bg-white text-xs">
-                              <Link href={`/reports/new?query_id=${item.query_id}`}><FileText className="mr-1 h-3.5 w-3.5" />보고서</Link>
+                            <Button asChild size="sm" className="h-9 border border-violet-200 bg-violet-50 px-3 font-semibold text-violet-700 shadow-none hover:bg-violet-100">
+                              <Link href={`/reports/new?query_id=${item.query_id}`}><FileText className="mr-1.5 h-4 w-4" />보고서</Link>
                             </Button>
                             {isConfirming ? (
                               <div className="flex items-center gap-1.5 rounded-md border border-rose-100 bg-rose-50 p-1">
@@ -331,8 +331,8 @@ export default function ItemsPage() {
                                 </Button>
                               </div>
                             ) : (
-                              <Button type="button" variant="ghost" size="sm" onClick={() => { setPendingDeleteId(item.query_id); setDeleteErrorId(null) }} className="h-8 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700">
-                                <Trash2 className="mr-1 h-3.5 w-3.5" />삭제
+                              <Button type="button" variant="ghost" size="icon" onClick={() => { setPendingDeleteId(item.query_id); setDeleteErrorId(null) }} className="h-9 w-9 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="삭제">
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
