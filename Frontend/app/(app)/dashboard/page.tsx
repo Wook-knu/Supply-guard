@@ -17,6 +17,7 @@ import {
   ChevronDown,
   CircleAlert,
   ClipboardList,
+  ExternalLink,
   FileText,
   Globe2,
   Home,
@@ -286,6 +287,9 @@ export default function Dashboard() {
     source: alert.alert_type ?? "SupplyGuard",
     time: alert.created_at ? new Date(alert.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "",
     level: severityLabel(alert.severity),
+    // 관련 뉴스 링크가 있으면 그곳으로, 없으면 해당 품목 리스크 상세로. (대체공급처로 보내지 않음)
+    href: alert.source_url ?? (alert.hs_code ? `/risks/${alert.hs_code}` : "/alerts"),
+    external: Boolean(alert.source_url),
   })), [alerts])
 
   // 검색과 품목 현황에 필요한 두 API를 함께 불러와 로딩·오류 상태를 구분한다.
@@ -594,7 +598,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-amber-200 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">최근 위험 알림 및 정책 변화</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => <div className="border-t border-slate-100 px-6 py-3.5" key={`${article.title}-${index}`}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}</p></div>)}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
+            <Card className="border-2 border-amber-200 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">클릭하면 관련 뉴스·리스크 상세로 이동</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => {
+              const inner = <><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium group-hover:text-blue-600">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="flex items-center gap-1 text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}{article.external && <ExternalLink className="h-3 w-3" />}</p></>
+              const cls = "group block border-t border-slate-100 px-6 py-3.5 transition-colors hover:bg-slate-50"
+              return article.external
+                ? <a className={cls} href={article.href} target="_blank" rel="noreferrer" key={`${article.title}-${index}`}>{inner}</a>
+                : <Link className={cls} href={article.href} key={`${article.title}-${index}`}>{inner}</Link>
+            })}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
           </section>
 
           <section id="reports" className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><ClipboardList className="h-4 w-4" /></div><div><p className="text-sm font-semibold">{latestReport?.title ?? "저장된 보고서가 없습니다"}</p><p className="text-xs text-slate-500">{latestReport ? `${latestReport.status ?? "draft"} · ${latestReport.created_at ? new Date(latestReport.created_at).toLocaleString("ko-KR") : "생성 시간 없음"}` : "분석 결과로 보고서를 생성해 보세요."}</p></div></div><Button asChild variant="outline" className="hidden border-slate-200 text-slate-700 sm:flex"><Link href={latestReport ? `/reports/${latestReport.report_id}` : "/reports/new"}>{latestReport ? "초안 열기" : "보고서 생성"} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>

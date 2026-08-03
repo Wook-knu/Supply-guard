@@ -176,6 +176,7 @@ export type AlertOut = {
   severity: string | null
   title: string | null
   message: string | null
+  source_url: string | null
   is_read: boolean | null
   created_at: string | null
 }

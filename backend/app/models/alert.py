@@ -21,5 +21,6 @@ class Alert(Base):
     severity: Mapped[str | None] = mapped_column(String(10))      # high/medium/low
     title: Mapped[str | None] = mapped_column(String(255))
     message: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(Text)   # 관련 뉴스/출처 링크(없으면 품목 리스크 상세로)
     is_read: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
