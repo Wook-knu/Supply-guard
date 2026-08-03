@@ -84,28 +84,34 @@ export default function LoginGlobe() {
           }
         </Geographies>
 
-        {/* 공급망 경로선 (허브·상대국 모두 전면일 때만) */}
+        {/* 공급망 경로선 (허브·상대국 모두 전면일 때만) — 밑에 굵은 발광선 + 위에 흐르는 점선 */}
         {NODES.map((to, i) => (hubVisible && visible(to, cLng, cLat)) ? (
-          <Line key={`r-${i}`} from={HUB} to={to} stroke="#fde68a" strokeWidth={1.1}
-            strokeLinecap="round" strokeDasharray="1 5" opacity={0.75} className="lg-route" />
+          <g key={`r-${i}`}>
+            <Line from={HUB} to={to} stroke="#fde68a" strokeWidth={3.4} strokeLinecap="round" opacity={0.28} />
+            <Line from={HUB} to={to} stroke="#fef08a" strokeWidth={1.8} strokeLinecap="round" strokeDasharray="0.5 4" opacity={1} className="lg-route" />
+          </g>
         ) : null)}
 
-        {/* 공급국 펄스 마커 */}
+        {/* 공급국 펄스 마커 (크고 밝게) */}
         {NODES.map((c, i) => visible(c, cLng, cLat) ? (
           <Marker key={`m-${i}`} coordinates={c}>
-            <circle r={2.6} fill="#fbbf24">
-              <animate attributeName="r" values="2.6;7;7" dur="2s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.5;0;0" dur="2s" repeatCount="indefinite" />
+            <circle r={3.5} fill="#fbbf24" opacity={0.9}>
+              <animate attributeName="r" values="3.5;11;11" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.6;0;0" dur="2s" repeatCount="indefinite" />
             </circle>
-            <circle r={2.6} fill="#fbbf24" stroke="#fff" strokeWidth={1} />
+            <circle r={3.6} fill="#f59e0b" stroke="#fff" strokeWidth={1.6} />
           </Marker>
         ) : null)}
 
-        {/* 한국 허브 핀 */}
+        {/* 한국 허브 핀 (크고 강조) */}
         {hubVisible && (
           <Marker coordinates={HUB}>
-            <circle r={4.2} fill="#2563eb" stroke="#fff" strokeWidth={1.6} />
-            <circle r={1.6} fill="#fff" />
+            <circle r={6.5} fill="#2563eb" opacity={0.35}>
+              <animate attributeName="r" values="6.5;14;14" dur="2.4s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.5;0;0" dur="2.4s" repeatCount="indefinite" />
+            </circle>
+            <circle r={6} fill="#2563eb" stroke="#fff" strokeWidth={2} />
+            <circle r={2.2} fill="#fff" />
           </Marker>
         )}
       </ComposableMap>
