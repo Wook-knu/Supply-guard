@@ -209,6 +209,19 @@ export type UserOut = {
   plan: string | null
 }
 
+export type TrendBrief = {
+  summary: string
+  highlights?: string[]
+  watch_items?: string[]
+  source: string
+  stats: {
+    items: { name: string; hs: string | null; sgri: number; level: string | null }[]
+    alert_by_type: Record<string, number>
+    alert_by_severity: { high: number; medium: number; low: number }
+    alert_total: number
+  }
+}
+
 export type TokenResponse = {
   access_token: string
   token_type: string
@@ -333,6 +346,8 @@ export const api = {
     return response
   },
   getMe: () => http<UserOut>("/auth/me"),
+  // 최신 동향 분석 (AI 요약 + 차트용 집계)
+  getTrendBrief: () => http<TrendBrief>("/trends/brief"),
   // 프로필 편집(이름/사진) · 비밀번호 변경
   updateMe: (body: { name?: string; picture_url?: string | null }) =>
     http<UserOut>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),

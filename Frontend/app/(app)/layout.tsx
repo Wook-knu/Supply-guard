@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { BarChart3, ChevronsLeft, ChevronsRight, CircleAlert, ClipboardList, CreditCard, FileText, GitCompareArrows, Globe2, Home, LayoutGrid, Map, Settings, ShieldAlert, Sparkles } from "lucide-react"
+import { BarChart3, ChevronsLeft, ChevronsRight, CircleAlert, ClipboardList, CreditCard, FileText, GitCompareArrows, Globe2, Home, LayoutGrid, Map, Settings, ShieldAlert, Sparkles, TrendingUp } from "lucide-react"
 import ChatWidget from "@/components/chat-widget"
 
 const NAV = [
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/compare", label: "비교하기", icon: GitCompareArrows },
   { href: "/benchmark", label: "벤치마크", icon: BarChart3 },
   { href: "/boards", label: "검토 보드", icon: ClipboardList },
+  { href: "/trends", label: "최신동향 분석", icon: TrendingUp },
   { href: "/reports/new", label: "AI 보고서", icon: FileText, match: "/reports" },
   { href: "/pricing", label: "요금제", icon: CreditCard },
   { href: "/settings", label: "설정", icon: Settings },

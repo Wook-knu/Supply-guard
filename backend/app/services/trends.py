@@ -1,0 +1,89 @@
+"""
+최신 동향 분석 — 사용자의 모니터링 품목·SGRI·최근 알림을 근거로
+Gemini가 '지금 공급망 동향'을 요약하고, 화면 차트용 집계치를 함께 반환한다.
+Gemini 미가용 시 데이터 기반 결정적 폴백.
+"""
+from collections import Counter
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.services.chatbot import gather_context
+
+_TREND_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "highlights": {"type": "array", "items": {"type": "string"}},
+        "watch_items": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["summary"],
+}
+
+_SYSTEM = (
+    "당신은 SupplyGuard의 공급망 동향 분석가입니다. 제공된 사용자 데이터(context)만 근거로 "
+    "'지금 이 사용자의 공급망 동향'을 한국어로 요약하세요. 데이터에 없는 사건은 지어내지 마세요. "
+    "SGRI는 0(안전)~100(위험)입니다. summary(3~5문장 개관), highlights(핵심 변화 3~4개, 각 한 문장), "
+    "watch_items(주의 깊게 볼 품목/국가 2~3개)를 반환하세요."
+)
+
+
+def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
+    """차트용 집계: 품목별 최고 SGRI, 알림 유형/심각도 분포."""
+    items = [
+        {"name": i.get("item_name") or f"HS {i.get('hs_code')}", "hs": i.get("hs_code"),
+         "sgri": i.get("max_sgri"), "level": i.get("level")}
+        for i in ctx.get("monitored_items", []) if i.get("max_sgri") is not None
+    ]
+    # 알림 유형/심각도 분포 (사용자 전체 알림에서)
+    types: Counter = Counter()
+    sev: Counter = Counter()
+    rows = db.execute(text(
+        "SELECT alert_type, severity FROM alerts WHERE user_id = :u"
+    ), {"u": user_id}).all() if user_id else []
+    for atype, s in rows:
+        types[atype or "기타"] += 1
+        sev[s or "low"] += 1
+    return {
+        "items": sorted(items, key=lambda x: x["sgri"], reverse=True),
+        "alert_by_type": dict(types),
+        "alert_by_severity": {k: sev.get(k, 0) for k in ("high", "medium", "low")},
+        "alert_total": sum(types.values()),
+    }
+
+
+def _gemini_brief(ctx: dict) -> dict | None:
+    try:
+        from supplyguard_sgri.gemini_json_client import GeminiInteractionsJsonClient
+        client = GeminiInteractionsJsonClient(timeout_seconds=30)
+        result, _ = client.generate(
+            {"context": ctx}, system_prompt=_SYSTEM, schema=_TREND_SCHEMA,
+            schema_name="supplyguard_trends", model="gemini-3.6-flash",
+            reasoning_effort="low", max_output_tokens=900,
+        )
+        return result
+    except Exception:  # noqa: BLE001 - 키없음/429 → 폴백
+        return None
+
+
+def _fallback(ctx: dict, stats: dict) -> dict:
+    items = stats["items"]
+    if not items:
+        return {"summary": "아직 등록된 품목이 없습니다. 품목을 등록하면 최신 공급망 동향을 요약해 드립니다.",
+                "highlights": [], "watch_items": [], "source": "fallback"}
+    hi = [i for i in items if (i["sgri"] or 0) >= 50]
+    top = items[0]
+    summary = (f"모니터링 중인 {len(items)}개 품목 중 {len(hi)}개가 고위험(SGRI 50+) 구간입니다. "
+               f"가장 위험도가 높은 품목은 {top['name']}(SGRI {top['sgri']:.0f})입니다. "
+               f"최근 알림은 총 {stats['alert_total']}건이 집계되었습니다.")
+    highlights = [f"{i['name']} · SGRI {i['sgri']:.0f} ({i['level']})" for i in items[:4]]
+    return {"summary": summary, "highlights": highlights,
+            "watch_items": [i["name"] for i in hi[:3]], "source": "fallback"}
+
+
+def build_trend_brief(db: Session, user_id: int | None) -> dict:
+    ctx = gather_context(db, user_id, None)
+    stats = _stats(db, ctx, user_id)
+    ai = _gemini_brief(ctx)
+    brief = {**ai, "source": "gemini"} if ai else _fallback(ctx, stats)
+    return {**brief, "stats": stats}
