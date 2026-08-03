@@ -391,8 +391,8 @@ export const api = {
   getCompany: (companyId: number) =>
     http<CompanyDetail>(`/companies/${companyId}`),
   // F-09 AI 심층분석 시작 — 202 + job_id 반환(비동기)
-  analyzeQuery: (queryId: number) =>
-    http<AnalyzeJob>(`/queries/${queryId}/analyze`, { method: "POST" }),
+  analyzeQuery: (queryId: number, country?: string) =>
+    http<AnalyzeJob>(`/queries/${queryId}/analyze${country ? `?country=${encodeURIComponent(country)}` : ""}`, { method: "POST" }),
   // 분석 작업 상태 폴링
   getAnalyzeJob: (jobId: string) =>
     http<AnalyzeJob>(`/queries/analyze/jobs/${jobId}`),

@@ -6,7 +6,7 @@
 """
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/queries", tags=["queries"])
 _ANALYZE_JOBS: dict[str, dict] = {}
 
 
-def _run_analyze_job(job_id: str, query_id: int) -> None:
+def _run_analyze_job(job_id: str, query_id: int, country: str | None = None) -> None:
     """백그라운드에서 실행되는 AI 분석. 자체 DB 세션을 연다(요청 세션은 이미 닫힘)."""
     db = SessionLocal()
     try:
@@ -33,7 +33,7 @@ def _run_analyze_job(job_id: str, query_id: int) -> None:
         if query is None:
             _ANALYZE_JOBS[job_id] = {"status": "error", "error": "query not found"}
             return
-        result = run_ai_analysis(db, query)
+        result = run_ai_analysis(db, query, focus_country=country)
         _ANALYZE_JOBS[job_id] = {"status": "done", "result": result}
     except Exception as exc:  # noqa: BLE001 - 작업 실패를 상태로 노출
         _ANALYZE_JOBS[job_id] = {"status": "error", "error": str(exc)}
@@ -99,11 +99,12 @@ def list_queries(
 def analyze_query(
     query_id: int,
     background: BackgroundTasks,
+    country: str | None = Query(default=None, description="보고서 포커스 국가(ISO2, 선택)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """AI_Model 심층 분석을 백그라운드로 시작하고 즉시 job_id를 반환(202).
-    진행 상황은 GET /queries/analyze/jobs/{job_id} 로 폴링한다. (본인 질의만)"""
+    country가 오면 그 국가를 보고서 포커스로 반영한다. (본인 질의만)"""
     query = db.get(UserQuery, query_id)
     if query is None or query.user_id != current_user.user_id:
         raise HTTPException(status_code=404, detail="query not found")
@@ -111,7 +112,8 @@ def analyze_query(
     require_feature(current_user, "ai_reports")  # AI 보고서는 Pro 이상
     job_id = uuid.uuid4().hex
     _ANALYZE_JOBS[job_id] = {"status": "pending"}
-    background.add_task(_run_analyze_job, job_id, query_id)
+    cc = (country or "").strip().upper()[:2] or None
+    background.add_task(_run_analyze_job, job_id, query_id, cc)
     return {"job_id": job_id, "status": "pending"}
 
 

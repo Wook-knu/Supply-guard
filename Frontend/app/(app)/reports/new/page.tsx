@@ -8,6 +8,7 @@ import BackLink from "@/components/back-link"
 import { useRouter } from "next/navigation"
 import { Fragment, useEffect, useState } from "react"
 import { api, type QueryOut, type ReportOut } from "@/lib/api"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { ArrowRight, Bell, Check, CheckCircle2, Download, FileCheck2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -27,8 +28,8 @@ const REPORT_TYPES = [
   { id: "exec", title: "경영진 요약", desc: "핵심 리스크와 결정 사항 요약", emoji: "📋" },
   { id: "sourcing", title: "대체 공급 검토", desc: "대체 국가·기업 후보 비교 중심", emoji: "🌍" },
 ]
-const STEPS = ["item", "type", "sections", "notes", "review"] as const
-const STEP_LABELS = ["대상 품목", "유형", "목차", "추가 요청", "확인"]
+const STEPS = ["item", "country", "type", "sections", "notes", "review"] as const
+const STEP_LABELS = ["대상 품목", "대상 국가", "유형", "목차", "추가 요청", "확인"]
 type Step = (typeof STEPS)[number]
 
 export default function NewReportPage() {
@@ -37,6 +38,8 @@ export default function NewReportPage() {
   const [items, setItems] = useState<QueryOut[]>([])
   const [qid, setQid] = useState<number | null>(null)
   const [typeId, setTypeId] = useState("risk")
+  const [reportCountry, setReportCountry] = useState("")   // 보고서 포커스 국가(코드), ""=전체
+  const [countryOpts, setCountryOpts] = useState<{ code: string; name: string; sgri: number }[]>([])
   const [sections, setSections] = useState(REPORT_SECTIONS.map((s) => s.id))
   const [notes, setNotes] = useState("")
 
@@ -58,6 +61,20 @@ export default function NewReportPage() {
 
   const current: Step = STEPS[step]
   const selectedItem = items.find((i) => i.query_id === qid)
+
+  // 선택 품목의 후보 국가 로드 + 대상 국가 기본값(거래중 → 관심 → 1순위)
+  useEffect(() => {
+    if (!qid || !selectedItem) return
+    const toCode = (n: string) => COUNTRY_OPTIONS.find((o) => o.name === n.trim() || o.code === n.trim().toUpperCase())?.code
+    const trading = (selectedItem.trading_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(toCode).filter(Boolean) as string[]
+    const origin = (selectedItem.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(toCode).filter(Boolean) as string[]
+    api.getCountryRecos(qid).then((rows) => {
+      const opts = rows.map((r) => ({ code: r.country_code, name: getCountryName(r.country_code), sgri: Math.round(Number(r.sgri_score ?? 0)) }))
+      setCountryOpts(opts)
+      setReportCountry((prev) => (prev && opts.some((o) => o.code === prev)) ? prev : (trading[0] ?? origin[0] ?? opts[0]?.code ?? ""))
+    }).catch(() => { setCountryOpts([]); setReportCountry(trading[0] ?? origin[0] ?? "") })
+  }, [qid, selectedItem])
+
   const selectedType = REPORT_TYPES.find((t) => t.id === typeId) ?? REPORT_TYPES[0]
   const itemLabel = selectedItem ? (selectedItem.item_name?.trim() || `HS ${selectedItem.hs_code}`) : "품목 미선택"
   const reportTitle = `${selectedItem ? itemLabel + " " : ""}${selectedType.title} 보고서`
@@ -93,7 +110,7 @@ export default function NewReportPage() {
         setRecentReports((cur) => [report, ...cur.filter((r) => r.report_id !== report.report_id)])
         return
       }
-      const { job_id } = await api.analyzeQuery(qid)
+      const { job_id } = await api.analyzeQuery(qid, reportCountry || undefined)
       let job = await api.getAnalyzeJob(job_id)
       for (let tries = 0; job.status === "pending" && tries < 40; tries++) {
         await sleep(1500)
@@ -170,6 +187,22 @@ export default function NewReportPage() {
                   </StepHead>
                 )}
 
+                {/* 1-2. 대상 국가 */}
+                {current === "country" && (
+                  <StepHead icon="🌍" title="어느 국가를 중심으로 쓸까요?" subtitle="선택 국가의 SGRI·후보 기업을 중심으로 보고서를 작성합니다.">
+                    {countryOpts.length > 0 ? (
+                      <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                        <button type="button" onClick={() => setReportCountry("")} className={`flex items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${reportCountry === "" ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-blue-300"}`}><span className="text-sm font-medium">전체 후보국 기준</span>{reportCountry === "" && <Check className="h-4 w-4 text-blue-600" />}</button>
+                        {countryOpts.map((c) => (
+                          <button key={c.code} type="button" onClick={() => setReportCountry(c.code)} className={`flex items-center justify-between rounded-2xl border p-3.5 text-left transition-all ${reportCountry === c.code ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-blue-300"}`}>
+                            <span className="text-sm font-medium">{c.name} <span className="ml-1 text-xs text-slate-400">SGRI {c.sgri}</span></span>{reportCountry === c.code && <Check className="h-4 w-4 text-blue-600" />}
+                          </button>
+                        ))}
+                      </div>
+                    ) : <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">이 품목의 후보 국가가 없습니다. ‘전체’ 기준으로 작성됩니다.</p>}
+                  </StepHead>
+                )}
+
                 {/* 2. 유형 */}
                 {current === "type" && (
                   <StepHead icon="🗂️" title="어떤 유형의 보고서인가요?" subtitle="유형에 따라 강조점과 제목이 달라집니다.">
@@ -213,6 +246,7 @@ export default function NewReportPage() {
                   <StepHead icon="✨" title="이대로 생성할까요?" subtitle="AI가 초안을 작성합니다. 생성 후 자유롭게 수정·PDF 저장할 수 있어요.">
                     <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
                       <ReviewRow label="대상 품목" value={itemLabel} />
+                      <ReviewRow label="대상 국가" value={reportCountry ? getCountryName(reportCountry) : "전체 후보국"} />
                       <ReviewRow label="보고서 유형" value={selectedType.title} />
                       <ReviewRow label="제목" value={reportTitle} />
                       <ReviewRow label="포함 목차" value={`${sections.length}개 · ${REPORT_SECTIONS.filter((s) => sections.includes(s.id)).map((s) => s.title).join(", ")}`} />
