@@ -9,7 +9,7 @@ import { useEffect, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { ArrowLeft, ArrowRight, Bot, CircleAlert, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { api, type TrendBrief } from "@/lib/api"
-import { getCountryName } from "@/lib/countries"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +19,7 @@ function riskColor(sgri: number): string {
 }
 const SEV = { high: { label: "고위험", color: "#e11d48" }, medium: { label: "주의", color: "#f59e0b" }, low: { label: "안정", color: "#10b981" } }
 
-type RegCountry = { name: string; item: string; status: "trading" | "registered" }
+type RegCountry = { name: string; code: string; item: string; status: "trading" | "registered"; sgri: number | null }
 type RegCompany = { name: string; country: string; item: string; status: "trading" | "registered" }
 
 export default function TrendsPage() {
@@ -31,15 +31,27 @@ export default function TrendsPage() {
     api.getTrendBrief().then((b) => { setBrief(b); setStatus("ready") }).catch(() => setStatus("error"))
   }, [])
 
-  // 등록한 국가·기업 현황 (내 품목에서 지정한 것)
+  // 등록한 국가·기업 현황 (내 품목에서 지정한 것) — 등록 국가별 SGRI 포함
   useEffect(() => {
     api.getQueries().then(async (qs) => {
       const items = qs.filter((q) => q.hs_code)
+      // 품목(hs)별 국가코드→최신 SGRI 맵
+      const hsList = [...new Set(items.map((q) => q.hs_code as string))]
+      const riskByHs = new Map<string, Map<string, number>>()
+      await Promise.all(hsList.map((hs) => api.getRisks(hs).then((rows) => {
+        const latest = new Map<string, { d: string; s: number }>()
+        rows.forEach((r) => { const cur = latest.get(r.country_code); const s = r.sgri_score != null ? Math.round(Number(r.sgri_score)) : 0; if (!cur || r.as_of_date > cur.d) latest.set(r.country_code, { d: r.as_of_date, s }) })
+        riskByHs.set(hs, new Map([...latest].map(([c, v]) => [c, v.s])))
+      }).catch(() => {})))
+      const nameToCode = (name: string) => COUNTRY_OPTIONS.find((o) => o.name === name || o.code === name.toUpperCase())?.code ?? name.toUpperCase()
       const countries: RegCountry[] = []
       items.forEach((q) => {
         const trading = new Set((q.trading_country ?? "").split(",").map((s) => s.trim()).filter(Boolean))
-        ;(q.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).forEach((name) =>
-          countries.push({ name, item: q.item_name?.trim() || `HS ${q.hs_code}`, status: trading.has(name) ? "trading" : "registered" }))
+        const sgriMap = riskByHs.get(q.hs_code as string)
+        ;(q.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).forEach((name) => {
+          const code = nameToCode(name)
+          countries.push({ name, code, item: q.item_name?.trim() || `HS ${q.hs_code}`, status: trading.has(name) ? "trading" : "registered", sgri: sgriMap?.get(code) ?? null })
+        })
       })
       const compLists = await Promise.all(items.map((q) => {
         const rset = new Set((q.registered_company_ids ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
@@ -104,9 +116,15 @@ export default function TrendsPage() {
 
         {/* 등록 국가·기업 현황 */}
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 국가 현황</CardTitle><CardDescription className="mt-1">내가 거래중·관심으로 등록한 국가</CardDescription></CardHeader>
+          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 국가 SGRI</CardTitle><CardDescription className="mt-1">내가 거래중·관심으로 등록한 국가의 SGRI 위험도</CardDescription></CardHeader>
             <CardContent className="space-y-2">
-              {reg.countries.length > 0 ? reg.countries.map((c, i) => <div key={`${c.name}-${c.item}-${i}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"><span className="font-medium text-slate-700">{c.name}<span className="ml-1.5 text-xs text-slate-400">· {c.item}</span></span><Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "관심"}</Badge></div>)
+              {reg.countries.length > 0 ? reg.countries.map((c, i) => <div key={`${c.name}-${c.item}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate"><span className="font-medium text-slate-700">{c.name}</span><span className="ml-1.5 text-xs text-slate-400">· {c.item}</span></span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {c.sgri != null ? <span className="text-base font-bold" style={{ color: riskColor(c.sgri) }}>{c.sgri}</span> : <span className="text-xs text-slate-300">미분석</span>}
+                  <Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "관심"}</Badge>
+                </span>
+              </div>)
                 : <p className="py-6 text-center text-xs text-slate-400">등록한 국가가 없습니다. 대체 공급국에서 등록하세요.</p>}
             </CardContent>
           </Card>
