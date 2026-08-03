@@ -93,6 +93,16 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         key_present = False
     ingested = 0
     ingest_error: str | None = None
+    # 신규 HS는 hs_codes 참조 테이블에 먼저 등록해야 comtrade_trade_flows FK(hs_code)를 통과한다.
+    _level = len(hs) if len(hs) in (2, 4, 6, 10) else 6
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO hs_codes (hs_code, hs_level) VALUES (:h, :lv) "
+                "ON CONFLICT (hs_code) DO NOTHING"
+            ), {"h": hs, "lv": _level})
+    except Exception as exc:  # noqa: BLE001 - 등록 실패해도 수집은 시도(원인 기록)
+        ingest_error = f"hs_codes register: {type(exc).__name__}: {exc}"[:300]
     for yr in ("2019", "2020", "2021", "2022", "2023"):
         try:
             comtrade.run("410", yr, hs, "M")
