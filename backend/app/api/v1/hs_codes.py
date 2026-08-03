@@ -28,11 +28,18 @@ def search_hs_codes(
     q = q.strip()
     if not q:
         return []
+    nospace = q.replace(" ", "")
     like = f"%{q}%"
+    nolike = f"%{nospace}%"  # 띄어쓰기 무시 매칭 ("리튬탄산염" ↔ "탄산 리튬")
     rows = db.execute(text(
         "SELECT hs_code, name_ko, name_en FROM hs_codes "
-        "WHERE hs_code LIKE :pre OR name_ko ILIKE :like OR name_en ILIKE :like "
-        "ORDER BY (hs_code LIKE :pre) DESC, length(hs_code), hs_code "
+        "WHERE hs_code LIKE :pre "
+        "   OR name_ko ILIKE :like OR name_en ILIKE :like "
+        "   OR REPLACE(name_ko, ' ', '') ILIKE :nolike "
+        "   OR REPLACE(name_en, ' ', '') ILIKE :nolike "
+        "ORDER BY (hs_code LIKE :pre) DESC, "
+        "         (name_ko ILIKE :like OR name_en ILIKE :like) DESC, "
+        "         length(hs_code), hs_code "
         "LIMIT :lim"
-    ), {"pre": f"{q}%", "like": like, "lim": limit}).mappings().all()
+    ), {"pre": f"{nospace}%", "like": like, "nolike": nolike, "lim": limit}).mappings().all()
     return [dict(r) for r in rows]
