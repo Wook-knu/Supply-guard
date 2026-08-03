@@ -116,6 +116,8 @@ export default function Dashboard() {
   const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; status: "trading" | "registered" | "candidate" }>>({})
   const [natlDesc, setNatlDesc] = useState(true)   // 국가 위험도 정렬(높은순/낮은순)
   const [compDesc, setCompDesc] = useState(true)   // 기업 적합도 정렬
+  const [natlTradingOnly, setNatlTradingOnly] = useState(false)  // 국가: 거래중만/전체
+  const [compTradingOnly, setCompTradingOnly] = useState(false)  // 기업: 거래중만/전체
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
   const [userName, setUserName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -499,10 +501,13 @@ export default function Dashboard() {
             <Card className="border-2 border-rose-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">등록 국가 기준 (거래중 우선)</CardDescription></div></div>
-                <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setNatlTradingOnly((v) => !v)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${natlTradingOnly ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{natlTradingOnly ? "거래중만" : "전체"}</button>
+                  <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
+                </div>
               </CardHeader>
               <CardContent className="px-0 pb-2">
-                {[...perItemRisk].sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).slice(0, 5).map((row) => (
+                {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).slice(0, 5).map((row) => (
                   <Link key={row.hs} href={`/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.name}</p>
@@ -511,7 +516,8 @@ export default function Dashboard() {
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
                   </Link>
                 ))}
-                {perItemRisk.length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">등록된 품목이 없습니다.</p>}
+                {perItemRisk.length === 0 ? <p className="px-6 py-8 text-center text-sm text-slate-400">등록된 품목이 없습니다.</p>
+                  : natlTradingOnly && perItemRisk.every((r) => r.status !== "trading") ? <p className="px-6 py-8 text-center text-sm text-slate-400">현재 거래 중으로 표시한 국가가 없습니다.</p> : null}
               </CardContent>
             </Card>
 
@@ -519,10 +525,13 @@ export default function Dashboard() {
             <Card className="border-2 border-blue-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">품목별 1순위 공급사 · 클릭 시 상세</CardDescription></div></div>
-                <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setCompTradingOnly((v) => !v)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${compTradingOnly ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{compTradingOnly ? "거래중만" : "전체"}</button>
+                  <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
+                </div>
               </CardHeader>
               <CardContent className="px-0 pb-2">
-                {perItemRisk.filter((r) => r.company).sort((a, b) => compDesc ? b.company!.fit - a.company!.fit : a.company!.fit - b.company!.fit).slice(0, 5).map((row) => (
+                {perItemRisk.filter((r) => r.company && (!compTradingOnly || r.company.status === "trading")).sort((a, b) => compDesc ? b.company!.fit - a.company!.fit : a.company!.fit - b.company!.fit).slice(0, 5).map((row) => (
                   <Link key={row.hs} href={`/suppliers/${row.company!.companyId}${row.queryId != null ? `?query_id=${row.queryId}` : ""}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.company!.name}</p>
@@ -532,7 +541,8 @@ export default function Dashboard() {
                     {row.company!.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
                   </Link>
                 ))}
-                {perItemRisk.filter((r) => r.company).length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">분석된 품목이 없어요. 분석하면 기업이 표시됩니다.</p>}
+                {perItemRisk.filter((r) => r.company).length === 0 ? <p className="px-6 py-8 text-center text-sm text-slate-400">분석된 품목이 없어요. 분석하면 기업이 표시됩니다.</p>
+                  : compTradingOnly && perItemRisk.every((r) => r.company?.status !== "trading") ? <p className="px-6 py-8 text-center text-sm text-slate-400">현재 거래 기업으로 지정한 곳이 없습니다. 추천 화면에서 지정할 수 있어요.</p> : null}
               </CardContent>
             </Card>
           </section>
