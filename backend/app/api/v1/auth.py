@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.security import create_access_token, get_current_user
+from app.core.security import create_access_token, get_current_user, hash_password, verify_password
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserOut
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -68,12 +68,36 @@ def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
     return _issue(db, user)
 
 
+@router.post("/register", response_model=TokenResponse, status_code=201)
+def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    """이메일+비밀번호 회원가입. 이미 가입된 이메일이면 409."""
+    existing = db.execute(select(User).where(User.email == payload.email)).scalars().first()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다. 로그인해 주세요.")
+    user = User(email=payload.email, name=payload.name, role="member",
+                password_hash=hash_password(payload.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return _issue(db, user)
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    """이메일 스텁 로그인 (데모용). 운영에선 ALLOW_STUB_LOGIN=False 로 비활성화 권장."""
-    if not settings.ALLOW_STUB_LOGIN:
-        raise HTTPException(status_code=403, detail="이메일 로그인이 비활성화되어 있습니다. 구글 로그인을 사용하세요.")
+    """로그인. password가 오면 비밀번호 검증, 없으면 이메일 스텁(데모)."""
     user = db.execute(select(User).where(User.email == payload.email)).scalars().first()
+
+    # 비밀번호 로그인
+    if payload.password:
+        if user is None or not verify_password(payload.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+        return _issue(db, user)
+
+    # 비밀번호 없는 요청 = 스텁 로그인(데모). 비번 있는 계정엔 비번 요구.
+    if not settings.ALLOW_STUB_LOGIN:
+        raise HTTPException(status_code=403, detail="비밀번호를 입력해 주세요.")
+    if user is not None and user.password_hash:
+        raise HTTPException(status_code=400, detail="이 계정은 비밀번호가 필요합니다.")
     if user is None:
         user = User(email=payload.email, name=payload.name, role="member")
         db.add(user)

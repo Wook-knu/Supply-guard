@@ -14,6 +14,7 @@ class User(Base):
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     google_sub: Mapped[str | None] = mapped_column(String(50))
+    password_hash: Mapped[str | None] = mapped_column(String(255))   # bcrypt (이메일가입). 구글유저는 NULL
     email: Mapped[str] = mapped_column(String(255))
     name: Mapped[str | None] = mapped_column(String(100))
     picture_url: Mapped[str | None] = mapped_column(String(500))

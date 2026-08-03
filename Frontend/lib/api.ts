@@ -174,6 +174,19 @@ export type AlertOut = {
 export type LoginRequest = {
   email: string
   name?: string
+  password?: string
+}
+
+export type RegisterRequest = {
+  email: string
+  password: string
+  name?: string
+}
+
+export type HsCodeOut = {
+  hs_code: string
+  name_ko: string | null
+  name_en: string | null
 }
 
 export type UserOut = {
@@ -224,6 +237,18 @@ export const api = {
     return response
   },
   // 구글 로그인 — GIS credential(ID 토큰)을 검증받고 우리 JWT 저장
+  // 이메일+비밀번호 회원가입 → 토큰 저장
+  register: async (body: RegisterRequest) => {
+    const response = await http<TokenResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+    window.localStorage.setItem(ACCESS_TOKEN_KEY, response.access_token)
+    return response
+  },
+  // HS 코드 자동완성 검색
+  searchHsCodes: (q: string) =>
+    http<HsCodeOut[]>(`/hs-codes?q=${encodeURIComponent(q)}`),
   googleLogin: async (idToken: string) => {
     const response = await http<TokenResponse>("/auth/google", {
       method: "POST",

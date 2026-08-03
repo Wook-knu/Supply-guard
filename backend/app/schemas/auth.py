@@ -5,9 +5,17 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    """POST /auth/login 요청 (stub: 이메일만으로 로그인/가입)."""
+    """POST /auth/login 요청. password 있으면 비번검증, 없으면 stub(데모)."""
     email: EmailStr = Field(examples=["jswook@kookmin.ac.kr"])
     name: str | None = Field(default=None, examples=["승요"])
+    password: str | None = Field(default=None)
+
+
+class RegisterRequest(BaseModel):
+    """POST /auth/register 요청 (이메일+비밀번호 회원가입)."""
+    email: EmailStr = Field(examples=["user@company.co.kr"])
+    password: str = Field(min_length=8, examples=["비밀번호8자이상"])
+    name: str | None = Field(default=None, examples=["홍길동"])
 
 
 class UserOut(BaseModel):

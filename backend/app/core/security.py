@@ -7,6 +7,7 @@
 """
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -16,6 +17,22 @@ from app.core.db import get_db
 from app.models.user import User
 
 _ALGO = "HS256"
+
+
+# ── 비밀번호 해싱 (bcrypt) ──
+def hash_password(password: str) -> str:
+    """평문 비밀번호 → bcrypt 해시."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str | None) -> bool:
+    """평문 ↔ 해시 검증. 해시 없으면(구글유저 등) False."""
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def create_access_token(user_id: int) -> str:
