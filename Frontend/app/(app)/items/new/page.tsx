@@ -227,7 +227,7 @@ export default function NewItemPage() {
             {STEP_LABELS.map((label, i) => (
               <Fragment key={label}>
                 <div className="flex items-center gap-2">
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${i === step ? "bg-blue-600 text-white" : i < step ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-400"}`}>{i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300 ${i === step ? "scale-110 bg-blue-600 text-white shadow-sm shadow-blue-500/30" : i < step ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-400"}`}>{i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
                   <span className={`hidden text-sm sm:inline ${i === step ? "font-semibold text-slate-800" : "text-slate-400"}`}>{label}</span>
                 </div>
                 {i < STEP_LABELS.length - 1 && <div className="mx-2 h-px flex-1 bg-slate-200" />}
@@ -242,7 +242,7 @@ export default function NewItemPage() {
         {createdItem ? (
           <CompletionView item={createdItem} status={buildStatus} progress={buildProgress} result={buildResult} error={buildError} onStart={startAnalysis} />
         ) : (
-          <div key={step} className="flex flex-1 flex-col animate-in fade-in slide-in-from-right-4 duration-300">
+          <div key={step} className="flex flex-1 flex-col animate-in fade-in slide-in-from-bottom-3 duration-500 ease-out">
             {/* ── 품목명 ── */}
             {current === "name" && (
               <Step icon="📦" title="어떤 품목을 모니터링할까요?" subtitle="품목명을 입력하면 HS 코드를 자동으로 추천해 드려요.">
@@ -363,7 +363,7 @@ export default function NewItemPage() {
                 <div className="space-y-3">
                   {PRIORITIES.map((p) => (
                     <button type="button" key={p.id} onClick={() => updateField("priority", p.id)}
-                      className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all ${form.priority === p.id ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}>
+                      className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all duration-200 active:scale-[0.99] ${form.priority === p.id ? "border-blue-500 bg-blue-50/70 shadow-sm ring-1 ring-blue-500" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"}`}>
                       <span className="text-2xl">{p.emoji}</span>
                       <div className="flex-1"><p className="font-semibold">{p.title}</p><p className="text-sm text-slate-500">{p.desc}</p></div>
                       {form.priority === p.id && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600"><Check className="h-4 w-4 text-white" /></span>}
@@ -401,11 +401,11 @@ export default function NewItemPage() {
               <Button variant="outline" onClick={goBack} className="border-slate-200">이전</Button>
             )}
             {current === "review" ? (
-              <Button onClick={submit} disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={submit} disabled={submitting} className="bg-blue-600 shadow-sm shadow-blue-500/20 hover:bg-blue-700 hover:shadow-md hover:shadow-blue-500/30">
                 {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />등록 중...</> : "품목 등록하기"}
               </Button>
             ) : (
-              <Button onClick={goNext} className="bg-blue-600 hover:bg-blue-700">다음 <ArrowRight className="ml-1.5 h-4 w-4" /></Button>
+              <Button onClick={goNext} className="bg-blue-600 shadow-sm shadow-blue-500/20 hover:bg-blue-700 hover:shadow-md hover:shadow-blue-500/30">다음 <ArrowRight className="ml-1.5 h-4 w-4" /></Button>
             )}
           </div>
         )}
@@ -429,7 +429,7 @@ function Step({ icon, title, subtitle, children }: { icon: string; title: string
 function ChoiceCard({ active, onClick, emoji, title, desc }: { active: boolean; onClick: () => void; emoji: string; title: string; desc: string }) {
   return (
     <button type="button" onClick={onClick}
-      className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all ${active ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}>
+      className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all duration-200 active:scale-[0.98] ${active ? "border-blue-500 bg-blue-50/70 shadow-sm ring-1 ring-blue-500" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"}`}>
       <span className="text-2xl">{emoji}</span>
       <div><p className="font-semibold">{title}</p><p className="text-xs text-slate-500">{desc}</p></div>
     </button>
@@ -438,7 +438,7 @@ function ChoiceCard({ active, onClick, emoji, title, desc }: { active: boolean; 
 
 function ReviewRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
   return (
-    <button type="button" onClick={onEdit} className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-slate-50">
+    <button type="button" onClick={onEdit} className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-slate-50">
       <span className="text-sm text-slate-400">{label}</span>
       <span className="flex items-center gap-2 text-sm font-medium text-slate-800"><span className="max-w-[15rem] truncate">{value}</span><Pencil className="h-3.5 w-3.5 shrink-0 text-slate-300" /></span>
     </button>
