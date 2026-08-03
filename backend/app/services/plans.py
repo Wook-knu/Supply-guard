@@ -20,6 +20,18 @@ from fastapi import HTTPException
 #   api_access       외부 API 제공
 
 PLANS: dict[str, dict] = {
+    "free": {
+        "label": "Free",
+        "price_krw": 0,
+        "target": "개인·초기 창업자 체험용",
+        "max_items": 1,
+        "features": {
+            "monitoring": True, "country_risk": True, "price_alerts": False,
+            "recommendations": False, "ai_reports": False, "reweight": False,
+            "api_access": False,
+        },
+        "highlights": ["핵심 품목 1개 체험", "특정국 의존도·SGRI 조회", "기본 리스크 요약"],
+    },
     "basic": {
         "label": "Basic",
         "price_krw": 300_000,

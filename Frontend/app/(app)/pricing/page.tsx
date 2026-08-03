@@ -92,7 +92,7 @@ export default function PricingPage() {
             </div>
 
             {/* 요금제 카드 */}
-            <div className="mt-8 grid items-start gap-6 lg:grid-cols-3">
+            <div className="mt-8 grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {state.plans.map((plan) => {
                 const isCurrent = plan.key === state.current_plan
                 const isPro = plan.key === "pro"
@@ -108,6 +108,8 @@ export default function PricingPage() {
                       <div className="mt-4 flex items-end gap-1">
                         {plan.custom_quote ? (
                           <span className="text-2xl font-bold tracking-tight">별도 견적</span>
+                        ) : plan.price_krw === 0 ? (
+                          <span className="text-3xl font-bold tracking-tight">무료</span>
                         ) : (
                           <><span className="text-3xl font-bold tracking-tight">{PRICE_LABEL(plan.price_krw)}</span><span className="pb-1 text-sm text-slate-400">/ 월</span></>
                         )}
