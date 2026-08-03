@@ -130,6 +130,17 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
     from app.services.weighting_ai import apply_gemini_sgri
     weighting = apply_gemini_sgri(db, hs)
 
+    # 4) 이 HS로 등록된 질의들의 국가·기업 추천을 재생성 (방금 계산한 SGRI 반영).
+    #    등록 시점엔 위험데이터가 없어 추천이 비어 있을 수 있으므로 build 후 확실히 채운다.
+    try:
+        from sqlalchemy import select
+        from app.models.query import UserQuery
+        from app.services.recommend import generate_recommendations
+        for q in db.execute(select(UserQuery).where(UserQuery.hs_code == hs)).scalars():
+            generate_recommendations(db, q)
+    except Exception as exc:  # noqa: BLE001 - 추천 재생성 실패는 SGRI 결과를 막지 않는다
+        ingest_error = ingest_error or f"reco regen: {type(exc).__name__}: {exc}"[:200]
+
     return {
         "hs_code": hs,
         "comtrade_years_ingested": ingested,

@@ -18,6 +18,7 @@ class QueryCreate(BaseModel):
     target_price: Decimal | None = Field(default=None, examples=[19])
     lead_time_days: int | None = Field(default=None, examples=[60])
     importer_code: str | None = Field(default=None, examples=["KR"])
+    origin_country: str | None = Field(default=None, examples=["CL,CN"])  # 현재 거래 중인 공급국(선택)
 
 
 class QueryOut(QueryCreate):

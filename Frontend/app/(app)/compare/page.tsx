@@ -6,8 +6,8 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type RiskOut } from "@/lib/api"
-import { getCountryName } from "@/lib/countries"
-import { ArrowLeft, Bell, GitCompareArrows, Loader2, ShieldAlert, Trophy } from "lucide-react"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
+import { ArrowLeft, Bell, GitCompareArrows, Loader2, MapPin, ShieldAlert, Trophy } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -69,7 +69,25 @@ export default function ComparePage() {
     return [...latest.values()].sort((a, b) => Number(a.sgri_score ?? 999) - Number(b.sgri_score ?? 999))
   }, [rows])
 
-  const itemName = useMemo(() => items.find((i) => i.hs_code === hs)?.item_name, [items, hs])
+  const selectedItem = useMemo(() => items.find((i) => i.hs_code === hs), [items, hs])
+  const itemName = selectedItem?.item_name
+
+  // 현재 거래 중인 공급국(등록 시 입력, 콤마구분 국가명) → 국가코드 집합으로 변환
+  const originCodes = useMemo(() => {
+    if (!selectedItem?.origin_country) return new Set<string>()
+    const codes = selectedItem.origin_country.split(",").map((s) => {
+      const t = s.trim()
+      const m = COUNTRY_OPTIONS.find((o) => o.name === t || o.code === t.toUpperCase())
+      return m?.code ?? t.toUpperCase()
+    })
+    return new Set(codes)
+  }, [selectedItem])
+
+  // 현재 거래국의 SGRI (대체국과 비교 기준선)
+  const originSgri = useMemo(() => {
+    const vals = countries.filter((c) => originCodes.has(c.country_code)).map((c) => Number(c.sgri_score ?? NaN)).filter((n) => !Number.isNaN(n))
+    return vals.length ? Math.min(...vals) : null
+  }, [countries, originCodes])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -115,27 +133,36 @@ export default function ComparePage() {
                 </tr>
               </thead>
               <tbody>
-                {countries.map((c, idx) => (
-                  <tr key={c.country_code} className={`border-b border-slate-50 last:border-0 ${idx === 0 ? "bg-emerald-50/30" : ""}`}>
+                {countries.map((c, idx) => {
+                  const isOrigin = originCodes.has(c.country_code)
+                  const sgriVal = num(c.sgri_score)
+                  // 현재국 대비 SGRI 차이(대체국이 얼마나 더 안전/위험한지). 음수 = 더 안전.
+                  const vsOrigin = !isOrigin && originSgri != null && sgriVal != null ? sgriVal - Math.round(originSgri) : null
+                  return (
+                  <tr key={c.country_code} className={`border-b border-slate-50 last:border-0 ${isOrigin ? "bg-blue-50/50" : idx === 0 ? "bg-emerald-50/30" : ""}`}>
                     <td className="px-4 py-3 font-medium text-slate-800">
-                      <span className="inline-flex items-center gap-1.5">{idx === 0 && <Trophy className="h-3.5 w-3.5 text-emerald-500" />}{getCountryName(c.country_code)}<span className="text-xs font-normal text-slate-400">{c.country_code}</span></span>
+                      <span className="inline-flex flex-wrap items-center gap-1.5">{idx === 0 && !isOrigin && <Trophy className="h-3.5 w-3.5 text-emerald-500" />}{getCountryName(c.country_code)}<span className="text-xs font-normal text-slate-400">{c.country_code}</span>{isOrigin && <Badge className="border-0 bg-blue-600 px-1.5 py-0 text-[10px] text-white hover:bg-blue-600"><MapPin className="mr-0.5 h-2.5 w-2.5" />현재 거래국</Badge>}</span>
                     </td>
                     {INDICATORS.map((ind) => {
                       const v = num(c[ind.key] as string | null)
                       return <td key={ind.code} className="px-1.5 py-1.5 text-center"><span className={`inline-block min-w-9 rounded-md px-2 py-1 ${cellCls(v)}`}>{v ?? "–"}</span></td>
                     })}
-                    <td className="px-4 py-3 text-center text-base font-bold text-slate-800">{num(c.sgri_score) ?? "–"}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-base font-bold text-slate-800">{sgriVal ?? "–"}</span>
+                      {vsOrigin != null && vsOrigin !== 0 && <span className={`ml-1.5 text-xs font-semibold ${vsOrigin < 0 ? "text-emerald-600" : "text-rose-500"}`}>{vsOrigin < 0 ? `▼${-vsOrigin}` : `▲${vsOrigin}`}</span>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant="outline" className={c.level === "높음" ? "border-rose-200 bg-rose-50 text-rose-600" : c.level === "중간" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>{c.level}</Badge>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400">
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-100" /> 안전(&lt;35)</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-100" /> 주의(35~60)</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-rose-100" /> 위험(≥60)</span>
+              {originSgri != null && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-blue-500" /> 현재 거래국 · <span className="text-emerald-600">▼더 안전</span>/<span className="text-rose-500">▲더 위험</span></span>}
               <span className="ml-auto"><Trophy className="mr-1 inline h-3 w-3 text-emerald-500" />최저 위험 후보 {itemName ?? ""}</span>
             </div>
           </div>

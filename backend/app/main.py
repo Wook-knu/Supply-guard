@@ -25,6 +25,8 @@ _ENSURE_SQL = [
     """CREATE UNIQUE INDEX IF NOT EXISTS uq_comtrade_world_null_partner
        ON comtrade_trade_flows (period, reporter_code, flow_code, hs_code)
        WHERE partner_code IS NULL;""",
+    # 현재 거래 중인 공급국 저장용 컬럼(선택 입력) — 현재국 vs 대체국 비교 표시에 사용.
+    """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS origin_country VARCHAR(100);""",
 ]
 
 

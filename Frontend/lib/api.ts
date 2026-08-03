@@ -15,6 +15,7 @@ export type QueryCreate = {
   target_price?: number
   lead_time_days?: number
   importer_code?: string
+  origin_country?: string   // 현재 거래 중인 공급국(콤마구분, 선택)
 }
 
 export type QueryOut = QueryCreate & {

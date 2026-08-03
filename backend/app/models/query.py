@@ -23,4 +23,5 @@ class UserQuery(Base):
     target_price: Mapped[float | None] = mapped_column(Numeric(18, 2))
     lead_time_days: Mapped[int | None] = mapped_column(Integer)
     importer_code: Mapped[str | None] = mapped_column(String(2))
+    origin_country: Mapped[str | None] = mapped_column(String(100))  # 현재 거래 중인 공급국(콤마구분, 선택)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
