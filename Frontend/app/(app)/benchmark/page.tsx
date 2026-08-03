@@ -8,7 +8,7 @@ import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
-import { ArrowLeft, Bell, BarChart3, Loader2, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowLeft, Bell, BarChart3, ExternalLink, Loader2, Newspaper, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,8 @@ export default function BenchmarkPage() {
   const [error, setError] = useState("")
   const [cases, setCases] = useState<import("@/lib/api").PeerCase[] | null>(null)
   const [casesLoading, setCasesLoading] = useState(false)
+  const [news, setNews] = useState<import("@/lib/api").RealArticle[] | null>(null)
+  const [newsLoading, setNewsLoading] = useState(false)
 
   const loadCases = () => {
     const clean = hs.replace(/[^0-9]/g, "")
@@ -38,6 +40,16 @@ export default function BenchmarkPage() {
       .then((r) => setCases(r.cases ?? []))
       .catch(() => setCases([]))
       .finally(() => setCasesLoading(false))
+  }
+
+  const loadNews = () => {
+    const clean = hs.replace(/[^0-9]/g, "")
+    if (!clean || newsLoading) return
+    setNewsLoading(true)
+    api.getRealNews(clean)
+      .then((r) => setNews(r.articles ?? []))
+      .catch(() => setNews([]))
+      .finally(() => setNewsLoading(false))
   }
 
   useEffect(() => {
@@ -119,6 +131,28 @@ export default function BenchmarkPage() {
             </div>
           )}
           {cases && cases.length === 0 && <p className="mt-4 text-center text-sm text-slate-400">사례를 생성하지 못했습니다. (GEMINI 키 설정 또는 잠시 후 재시도)</p>}
+        </div>
+
+        {/* 실제 뉴스·사례 (GDELT, 출처 있음) */}
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+            <div>
+              <div className="flex items-center gap-2"><Newspaper className="h-4 w-4 text-blue-600" /><p className="text-base font-semibold">이 품목 실제 뉴스·사례</p><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">실제 · 출처 있음</Badge></div>
+              <p className="mt-1 text-sm text-slate-500">GDELT 글로벌 뉴스에서 이 품목 공급망 관련 <span className="font-medium text-slate-600">실제 기사</span>를 최신순으로 가져옵니다. (지어내지 않음)</p>
+            </div>
+            <Button onClick={loadNews} disabled={newsLoading} variant="outline" className="w-fit border-slate-200">{newsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Newspaper className="mr-2 h-4 w-4" />}{news ? "새로고침" : "실제 뉴스 보기"}</Button>
+          </div>
+          {news && news.length > 0 && (
+            <div className="mt-4 divide-y divide-slate-100">
+              {news.map((a, i) => (
+                <a key={i} href={a.url} target="_blank" rel="noreferrer" className="group flex items-start justify-between gap-3 py-3 transition-colors hover:bg-slate-50">
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-800 group-hover:text-blue-600">{a.title}</p><p className="mt-0.5 text-xs text-slate-400">{a.domain}{a.date ? ` · ${a.date}` : ""}</p></div>
+                  <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 group-hover:text-blue-500" />
+                </a>
+              ))}
+            </div>
+          )}
+          {news && news.length === 0 && <p className="mt-4 text-center text-sm text-slate-400">관련 실제 뉴스를 찾지 못했습니다. 품목명이 영문으로 매칭되지 않았을 수 있어요.</p>}
         </div>
 
         {/* 조회 폼 */}
