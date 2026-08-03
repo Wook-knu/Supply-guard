@@ -4,6 +4,7 @@
 // 실데이터: GET /risks?hs_code=… (국가별 6지표 S·C·V·L·P·E + 종합 SGRI)
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, Bell, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -12,7 +13,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { api, type RiskOut } from "@/lib/api"
-import { getCountryName } from "@/lib/countries"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
+
+// 콤마 국가명/코드 → ISO 코드 집합
+function toCodeSet(raw: string | null | undefined): Set<string> {
+  const s = new Set<string>()
+  ;(raw ?? "").split(",").forEach((x) => {
+    const t = x.trim(); if (!t) return
+    const m = COUNTRY_OPTIONS.find((o) => o.name === t || o.code === t.toUpperCase())
+    s.add(m?.code ?? t.toUpperCase())
+  })
+  return s
+}
 
 // HS 코드 → 품목명 (알려진 품목만; 없으면 코드 표기)
 const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
@@ -34,22 +46,28 @@ const LEVEL_LABEL = { high: "고위험", medium: "주의", low: "안정" }
 
 export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: string }> }) {
   const { hsCode } = use(params)
+  const paramCountry = useSearchParams().get("country")
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loaded, setLoaded] = useState(false)
   const [queryId, setQueryId] = useState<number | null>(null)
   const [queryName, setQueryName] = useState<string | null>(null)
+  const [originCodes, setOriginCodes] = useState<Set<string>>(new Set())     // 등록 국가
+  const [tradingCodes, setTradingCodes] = useState<Set<string>>(new Set())   // 거래중 국가
+  const [focusCode, setFocusCode] = useState<string | null>(paramCountry)    // 순위에서 클릭해 바꿀 수 있음
 
   useEffect(() => {
     api.getRisks(hsCode)
       .then((data) => setRows(data))
       .catch(() => setRows([]))
       .finally(() => setLoaded(true))
-    // 이 HS로 등록된 내 품목을 찾아 query_id를 확보(추천·보고서 링크에 사용)
+    // 이 HS로 등록된 내 품목을 찾아 query_id·등록국가 확보
     api.getQueries()
       .then((qs) => {
         const q = qs.find((row) => (row.hs_code ?? "") === hsCode)
         setQueryId(q?.query_id ?? null)
         setQueryName(q?.item_name?.trim() || null)
+        setOriginCodes(toCodeSet(q?.origin_country))
+        setTradingCodes(toCodeSet(q?.trading_country))
       })
       .catch(() => {})
   }, [hsCode])
@@ -58,10 +76,22 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   const recoHref = queryId != null ? `/recommendations?query_id=${queryId}` : "/recommendations"
   const reportHref = queryId != null ? `/reports/new?query_id=${queryId}` : "/reports/new"
   const itemName = queryName ?? HS_NAME[hsCode] ?? `HS ${hsCode}`
-  // 국가를 SGRI 높은 순으로 정렬, 최고 위험국을 대표로 사용
+  // 국가를 SGRI 높은 순으로 정렬
   const ranked = useMemo(() => [...rows].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [rows])
   const worst = ranked[0]
-  const topScore = worst ? num(worst.sgri_score) : 0
+  // 대표 국가: (순위 클릭) → 거래중 → 관심(등록) → (안전망)최고 위험국. 최고SGRI 자동선택 안 함.
+  const ref = useMemo(() => {
+    if (focusCode) { const f = rows.find((r) => r.country_code === focusCode); if (f) return f }
+    const t = ranked.find((r) => tradingCodes.has(r.country_code)); if (t) return t
+    const o = ranked.find((r) => originCodes.has(r.country_code)); if (o) return o
+    return worst
+  }, [rows, ranked, focusCode, tradingCodes, originCodes, worst])
+  const refStatus: "trading" | "registered" | "focus" | "fallback" =
+    ref && tradingCodes.has(ref.country_code) ? "trading"
+    : ref && originCodes.has(ref.country_code) ? "registered"
+    : focusCode && ref?.country_code === focusCode ? "focus" : "fallback"
+  const refStatusLabel = { trading: "현재 거래국", registered: "등록 국가", focus: "선택 국가", fallback: "최고 위험국" }[refStatus]
+  const topScore = ref ? num(ref.sgri_score) : 0
   const topLevel = levelOf(topScore)
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -75,7 +105,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
         <div>
           <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${toneOf(topScore)}`}><span className={`h-2 w-2 rounded-full ${topLevel === "high" ? "bg-rose-500" : topLevel === "medium" ? "bg-amber-500" : "bg-emerald-500"}`} /> {LEVEL_LABEL[topLevel]} 모니터링</div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{itemName} 리스크 분석</h1>
-          <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{worst ? ` · 최고 위험국 ${getCountryName(worst.country_code)}` : ""}</p>
+          <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{ref ? ` · ${refStatusLabel} ${getCountryName(ref.country_code)}` : ""}</p>
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" className="border-slate-200 bg-white"><Link href={recoHref}><Globe2 className="mr-2 h-4 w-4" />대체 공급국·기업 추천</Link></Button>
@@ -89,17 +119,17 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
         <section className="mt-7 grid gap-5 lg:grid-cols-4">
           <Card className={`shadow-sm ${topLevel === "high" ? "border-rose-100 bg-gradient-to-br from-rose-50 to-white" : topLevel === "medium" ? "border-amber-100 bg-gradient-to-br from-amber-50 to-white" : "border-emerald-100 bg-gradient-to-br from-emerald-50 to-white"}`}>
             <CardContent className="p-5">
-              <div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-600">최고 SGRI ({worst ? getCountryName(worst.country_code) : "-"})</span><CircleAlert className={`h-5 w-5 ${toneOf(topScore)}`} /></div>
+              <div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-600">{refStatusLabel} SGRI ({ref ? getCountryName(ref.country_code) : "-"})</span><CircleAlert className={`h-5 w-5 ${toneOf(topScore)}`} /></div>
               <div className="mt-5 flex items-end gap-2"><span className={`text-5xl font-semibold tracking-tight ${toneOf(topScore)}`}>{topScore}</span><span className="mb-1 text-sm text-slate-400">/ 100</span></div>
               <div className="mt-4"><Badge className={`border ${topLevel === "high" ? "border-rose-100 bg-rose-100 text-rose-700 hover:bg-rose-100" : topLevel === "medium" ? "border-amber-100 bg-amber-100 text-amber-700 hover:bg-amber-100" : "border-emerald-100 bg-emerald-100 text-emerald-700 hover:bg-emerald-100"}`}>{LEVEL_LABEL[topLevel]}</Badge></div>
               <p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">{topLevel === "high" ? "즉시 대체 공급처 검토가 권장되는 수준입니다." : topLevel === "medium" ? "주기적 모니터링과 대체 후보 확보를 권장합니다." : "현재 안정 범위이나 변동을 지켜보세요."}</p>
             </CardContent>
           </Card>
           <Card className="border-slate-200 shadow-sm lg:col-span-3">
-            <CardHeader className="pb-2"><CardTitle className="text-base">SGRI 구성 항목 — {worst ? getCountryName(worst.country_code) : ""}</CardTitle><CardDescription className="mt-1">6개 지표(공식 산출)의 최고 위험국 점수입니다.</CardDescription></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">SGRI 구성 항목 — {ref ? getCountryName(ref.country_code) : ""}</CardTitle><CardDescription className="mt-1">6개 지표(공식 산출)의 {refStatusLabel} 점수입니다.</CardDescription></CardHeader>
             <CardContent className="grid gap-x-8 gap-y-5 pt-3 sm:grid-cols-2">
               {INDICATORS.map((ind) => {
-                const v = worst ? num(worst[ind.key] as string | null) : 0
+                const v = ref ? num(ref[ind.key] as string | null) : 0
                 return <div key={ind.key}>
                   <div className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">{ind.label}</p><p className="mt-0.5 text-xs text-slate-500">{ind.note}</p></div><span className={`text-sm font-semibold ${toneOf(v)}`}>{v}</span></div>
                   <Progress value={v} className="mt-2 h-2" />
@@ -111,15 +141,15 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <Card className="border-slate-200 shadow-sm xl:col-span-2">
-            <CardHeader className="pb-3"><CardTitle className="text-base">공급국 위험 순위</CardTitle><CardDescription className="mt-1">SGRI가 높은(위험한) 순서입니다.</CardDescription></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-base">공급국 위험 순위</CardTitle><CardDescription className="mt-1">SGRI가 높은(위험한) 순서 · 국가를 누르면 위 상세가 그 국가로 바뀝니다.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
-              {ranked.map((r, i) => { const s = num(r.sgri_score); const lv = levelOf(s); return <div key={r.country_code} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
+              {ranked.map((r, i) => { const s = num(r.sgri_score); const lv = levelOf(s); const isRef = ref?.country_code === r.country_code; const isReg = tradingCodes.has(r.country_code) || originCodes.has(r.country_code); return <button type="button" key={r.country_code} onClick={() => setFocusCode(r.country_code)} className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${isRef ? "border-blue-300 bg-blue-50/60 ring-1 ring-blue-200" : "border-slate-100 hover:bg-slate-50"}`}>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">{i + 1}</span>
                 <span className="w-10 shrink-0 text-[11px] font-bold text-slate-500">{r.country_code}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{getCountryName(r.country_code)}</span>
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-medium">{getCountryName(r.country_code)}{tradingCodes.has(r.country_code) ? <Badge className="border-0 bg-blue-600 px-1.5 py-0 text-[10px] text-white hover:bg-blue-600">거래중</Badge> : originCodes.has(r.country_code) ? <Badge className="border-slate-200 bg-slate-100 px-1.5 py-0 text-[10px] text-slate-600 hover:bg-slate-100">관심</Badge> : null}</span>
                 <Badge className={`border text-[10px] ${lv === "high" ? "border-rose-100 bg-rose-50 text-rose-600" : lv === "medium" ? "border-amber-100 bg-amber-50 text-amber-600" : "border-emerald-100 bg-emerald-50 text-emerald-600"} hover:bg-inherit`}>{LEVEL_LABEL[lv]}</Badge>
                 <span className={`w-8 text-right text-sm font-semibold ${toneOf(s)}`}>{s}</span>
-              </div> })}
+              </button> })}
             </CardContent>
           </Card>
           <aside className="space-y-6">
