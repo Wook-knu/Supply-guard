@@ -416,7 +416,7 @@ export default function Dashboard() {
 
             <div className="space-y-6">
               <Card className="border-blue-100 bg-gradient-to-br from-blue-50/80 to-cyan-50/50 shadow-sm">
-                <CardHeader className="pb-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="text-base">AI 리스크 브리핑</CardTitle></div><Badge className="border-blue-100 bg-white text-blue-600 hover:bg-white">오늘</Badge></div></CardHeader>
+                <CardHeader className="pb-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="text-base">AI 리스크 브리핑</CardTitle></div><Badge className="border-blue-100 bg-white text-blue-600 hover:bg-white">오늘</Badge></div></CardHeader>
                 <CardContent><p className="text-sm leading-6 text-slate-600">{alerts[0]?.message ?? alerts[0]?.title ?? "새로운 리스크 브리핑 데이터가 없습니다."}</p><div className="mt-4 flex gap-2"><Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700"><Link href="/alerts">대응 전략 보기</Link></Button><Button asChild size="sm" variant="outline" className="border-blue-200 bg-white text-blue-700"><Link href="/reports/new">보고서 생성</Link></Button></div></CardContent>
               </Card>
 
@@ -440,5 +440,5 @@ function Metric({ icon: Icon, label, value, suffix, change, tone }: { icon: type
     amber: "bg-amber-50 text-amber-600",
     emerald: "bg-emerald-50 text-emerald-600",
   }
-  return <Card className="border-slate-200 shadow-sm"><CardContent className="p-5"><div className="mb-5 flex items-center justify-between"><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors[tone]}`}><Icon className="h-4 w-4" /></div><span className="text-xs font-medium text-slate-400">{change}</span></div><div><span className="text-2xl font-semibold tracking-tight">{value}</span><span className="ml-1 text-sm text-slate-400">{suffix}</span></div><p className="mt-1 text-sm text-slate-500">{label}</p></CardContent></Card>
+  return <Card className="border-slate-200 shadow-sm hover:shadow-md"><CardContent className="p-5"><div className="mb-5 flex items-center justify-between"><div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${colors[tone]}`}><Icon className="h-5 w-5" /></div><span className="text-xs font-medium text-slate-400">{change}</span></div><div><span className="text-3xl font-bold tracking-tight">{value}</span><span className="ml-1 text-sm text-slate-400">{suffix}</span></div><p className="mt-1 text-sm text-slate-500">{label}</p></CardContent></Card>
 }
