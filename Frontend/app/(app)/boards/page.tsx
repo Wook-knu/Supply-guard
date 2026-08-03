@@ -4,9 +4,9 @@
 // 백엔드: /boards (backend/app/api/v1/boards.py). 상태: 후보 → 검토중 → 선정 / 제외.
 
 import Link from "next/link"
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { api, type Board, type BoardCard, type BoardDetail } from "@/lib/api"
-import { ArrowLeft, Bell, Building2, ClipboardList, Globe2, Loader2, Plus, ShieldAlert, StickyNote, Trash2, X } from "lucide-react"
+import { ArrowLeft, Bell, Building2, ClipboardList, Globe2, Loader2, Mic, MicOff, Plus, Save, ShieldAlert, StickyNote, Trash2, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ export default function BoardsPage() {
   const [creating, setCreating] = useState(false)
   const [newBoardTitle, setNewBoardTitle] = useState("")
   const [dragId, setDragId] = useState<number | null>(null)
+  const [openCard, setOpenCard] = useState<BoardCard | null>(null)  // 상세 편집 모달
   const [error, setError] = useState("")
 
   const loadBoards = () => {
@@ -88,8 +89,14 @@ export default function BoardsPage() {
   const deleteCard = async (card: BoardCard) => {
     if (!active) return
     setActive({ ...active, items: active.items.filter((i) => i.item_id !== card.item_id) })
+    setOpenCard((c) => (c?.item_id === card.item_id ? null : c))
     try { await api.deleteBoardCard(active.board_id, card.item_id) }
     catch { selectBoard(active.board_id) }
+  }
+
+  // 상세 모달에서 저장한 카드 내용을 보드 상태에 반영.
+  const applyCardUpdate = (updated: BoardCard) => {
+    setActive((prev) => (prev ? { ...prev, items: prev.items.map((i) => (i.item_id === updated.item_id ? updated : i)) } : prev))
   }
 
   return (
@@ -105,7 +112,7 @@ export default function BoardsPage() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><ClipboardList className="h-4 w-4" /> 검토 보드</div>
             <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">조달 후보를 정리하고 검토하세요</h1>
-            <p className="mt-2 text-sm text-slate-500">추천받은 국가·기업을 카드로 담아 후보 → 검토중 → 선정/제외로 관리합니다. 카드를 끌어다 옮길 수 있어요.</p>
+            <p className="mt-2 text-sm text-slate-500">카드를 끌어다 상태를 옮기고, 카드를 클릭하면 상세 편집·AI 음성 메모를 쓸 수 있어요.</p>
           </div>
         </div>
 
@@ -147,13 +154,14 @@ export default function BoardsPage() {
                       const Icon = meta.icon
                       return (
                         <div key={card.item_id} draggable onDragStart={() => setDragId(card.item_id)} onDragEnd={() => setDragId(null)}
-                          className="group cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow active:cursor-grabbing">
+                          onClick={() => setOpenCard(card)}
+                          className="group cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:border-blue-200 hover:shadow active:cursor-grabbing">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-1.5"><span className={`flex h-5 w-5 items-center justify-center rounded ${meta.cls}`}><Icon className="h-3 w-3" /></span><span className="text-[11px] font-medium text-slate-400">{meta.label}{card.ref_code ? ` · ${card.ref_code}` : ""}</span></div>
-                            <button onClick={() => deleteCard(card)} aria-label="카드 삭제" className="text-slate-300 opacity-0 transition-opacity hover:text-rose-500 group-hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); deleteCard(card) }} aria-label="카드 삭제" className="text-slate-300 opacity-0 transition-opacity hover:text-rose-500 group-hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
                           </div>
                           <p className="mt-1.5 text-sm font-medium leading-snug text-slate-800">{card.title}</p>
-                          {card.memo && <p className="mt-1 text-xs leading-relaxed text-slate-500">{card.memo}</p>}
+                          {card.memo && <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-500">{card.memo}</p>}
                         </div>
                       )
                     })}
@@ -165,6 +173,105 @@ export default function BoardsPage() {
           </div>
         )}
       </main>
+
+      {openCard && active && (
+        <CardDetailModal card={openCard} boardId={active.board_id} columns={COLUMNS}
+          onClose={() => setOpenCard(null)} onSaved={(u) => { applyCardUpdate(u); setOpenCard(u) }} onDelete={() => deleteCard(openCard)} />
+      )}
+    </div>
+  )
+}
+
+// 브라우저 음성 인식 최소 타입 (Web Speech API)
+type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null }
+
+function CardDetailModal({ card, boardId, columns, onClose, onSaved, onDelete }: {
+  card: BoardCard; boardId: number; columns: { key: string; label: string }[]
+  onClose: () => void; onSaved: (u: BoardCard) => void; onDelete: () => void
+}) {
+  const [title, setTitle] = useState(card.title)
+  const [memo, setMemo] = useState(card.memo ?? "")
+  const [status, setStatus] = useState(card.status ?? "candidate")
+  const [saving, setSaving] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const recRef = useRef<SpeechRec | null>(null)
+
+  const meta = KIND_META[card.kind] ?? KIND_META.note
+
+  const speechSupported = typeof window !== "undefined" &&
+    Boolean((window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition
+      || (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition)
+
+  const toggleRecord = () => {
+    if (recording) { recRef.current?.stop(); return }
+    const Ctor = (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
+      || (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition
+    if (!Ctor) return
+    const rec = new Ctor()
+    rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = false
+    rec.onresult = (e) => {
+      let text = ""
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript
+      setMemo((prev) => (prev ? prev + " " : "") + text)
+    }
+    rec.onend = () => setRecording(false)
+    rec.onerror = () => setRecording(false)
+    recRef.current = rec
+    rec.start()
+    setRecording(true)
+  }
+
+  useEffect(() => () => { try { recRef.current?.stop() } catch { /* noop */ } }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const updated = await api.updateBoardCard(boardId, card.item_id, { title: title.trim() || card.title, memo, status })
+      onSaved(updated)
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 1500)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-400"><span className={`flex h-6 w-6 items-center justify-center rounded ${meta.cls}`}><meta.icon className="h-3.5 w-3.5" /></span>{meta.label}{card.ref_code ? ` · ${card.ref_code}` : ""}</div>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="닫기"><X className="h-5 w-5" /></button>
+        </div>
+
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-3 border-0 px-0 text-lg font-semibold shadow-none focus-visible:ring-0" placeholder="카드 제목" />
+
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500">메모</span>
+            {speechSupported && (
+              <button type="button" onClick={toggleRecord} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${recording ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                {recording ? <><MicOff className="h-3.5 w-3.5" />녹음 중지</> : <><Mic className="h-3.5 w-3.5" />AI 음성 메모</>}
+              </button>
+            )}
+          </div>
+          <Textarea value={memo} onChange={(e) => setMemo(e.target.value)} className="min-h-36 resize-y leading-6" placeholder={speechSupported ? "직접 입력하거나 'AI 음성 메모'로 말하면 받아써 줍니다." : "메모를 입력하세요."} />
+          {recording && <p className="mt-1 flex items-center gap-1.5 text-xs text-rose-500"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" /> 듣고 있어요… 말한 내용이 메모에 추가됩니다.</p>}
+        </div>
+
+        <div className="mt-4">
+          <span className="mb-1.5 block text-xs font-medium text-slate-500">상태</span>
+          <div className="flex flex-wrap gap-1.5">
+            {columns.map((c) => <button key={c.key} type="button" onClick={() => setStatus(c.key)} className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${status === c.key ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{c.label}</button>)}
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between">
+          <Button type="button" variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={onDelete}><Trash2 className="mr-1.5 h-4 w-4" />삭제</Button>
+          <div className="flex items-center gap-2">
+            {saved && <span className="text-xs font-medium text-emerald-600">저장됨</span>}
+            <Button type="button" onClick={save} disabled={saving} className="bg-blue-600 hover:bg-blue-700">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}저장</Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
