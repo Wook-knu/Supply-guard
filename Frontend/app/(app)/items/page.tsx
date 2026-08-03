@@ -24,10 +24,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api, type QueryOut, type RiskOut } from "@/lib/api"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 
 type PageStatus = "loading" | "ready" | "error"
 type RiskLevel = "high" | "medium" | "low"
-type RiskSummary = { score: number; level: RiskLevel }
+type RiskSummary = { score: number; level: RiskLevel; countryCode: string; isOrigin: boolean }
+
+// 품목 등록 시 입력한 현재 거래국(콤마구분 국가명) → ISO 코드 목록.
+function originCodesOf(item: QueryOut): string[] {
+  return (item.origin_country ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean)
+    .map((name) => COUNTRY_OPTIONS.find((c) => c.name === name)?.code)
+    .filter((c): c is string => Boolean(c))
+}
 
 function latestRiskRows(rows: RiskOut[]) {
   const latest = new Map<string, RiskOut>()
@@ -47,15 +56,25 @@ function riskLevel(row: RiskOut, score: number): RiskLevel {
   return score >= 50 ? "high" : score >= 25 ? "medium" : "low"
 }
 
-function summarizeRisk(rows: RiskOut[]): RiskSummary | null {
-  const highest = latestRiskRows(rows).reduce<RiskOut | null>((current, row) => {
+// originCodes 가 있으면 그 거래국의 위험도를, 없으면 최고 SGRI 국가를 대표로 삼는다.
+function summarizeRisk(rows: RiskOut[], originCodes: string[] = []): RiskSummary | null {
+  const latest = latestRiskRows(rows)
+  const pickHighest = (pool: RiskOut[]) => pool.reduce<RiskOut | null>((current, row) => {
     if (!current) return row
     return Number(row.sgri_score ?? 0) > Number(current.sgri_score ?? 0) ? row : current
   }, null)
 
-  if (!highest) return null
-  const score = Math.round(Number(highest.sgri_score ?? 0))
-  return { score, level: riskLevel(highest, score) }
+  let ref: RiskOut | null = null
+  let isOrigin = false
+  if (originCodes.length) {
+    ref = pickHighest(latest.filter((r) => originCodes.includes((r.country_code ?? "").toUpperCase())))
+    if (ref) isOrigin = true
+  }
+  if (!ref) ref = pickHighest(latest)
+
+  if (!ref) return null
+  const score = Math.round(Number(ref.sgri_score ?? 0))
+  return { score, level: riskLevel(ref, score), countryCode: ref.country_code ?? "", isOrigin }
 }
 
 function formatCreatedAt(value: string | null) {
@@ -86,7 +105,7 @@ function RiskBadge({ summary }: { summary: RiskSummary }) {
 
 export default function ItemsPage() {
   const [items, setItems] = useState<QueryOut[]>([])
-  const [riskByHsCode, setRiskByHsCode] = useState<Record<string, RiskSummary | null>>({})
+  const [risksByHsCode, setRisksByHsCode] = useState<Record<string, RiskOut[]>>({})
   const [failedRiskHsCodes, setFailedRiskHsCodes] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState<PageStatus>("loading")
   const [reloadKey, setReloadKey] = useState(0)
@@ -107,23 +126,23 @@ export default function ItemsPage() {
         const results = await Promise.allSettled(hsCodes.map((hsCode) => api.getRisks(hsCode)))
         if (!isActive) return
 
-        const summaries: Record<string, RiskSummary | null> = {}
+        const raw: Record<string, RiskOut[]> = {}
         const failedCodes = new Set<string>()
         results.forEach((result, index) => {
           const hsCode = hsCodes[index]
-          if (result.status === "fulfilled") summaries[hsCode] = summarizeRisk(result.value)
+          if (result.status === "fulfilled") raw[hsCode] = result.value
           else failedCodes.add(hsCode)
         })
 
         setItems(queryRows)
-        setRiskByHsCode(summaries)
+        setRisksByHsCode(raw)
         setFailedRiskHsCodes(failedCodes)
         setStatus("ready")
       })
       .catch(() => {
         if (!isActive) return
         setItems([])
-        setRiskByHsCode({})
+        setRisksByHsCode({})
         setFailedRiskHsCodes(new Set())
         setStatus("error")
       })
@@ -234,7 +253,7 @@ export default function ItemsPage() {
               <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                 <div>
                   <CardTitle className="text-base">모니터링 품목</CardTitle>
-                  <CardDescription className="mt-1">총 {sortedItems.length}개 품목 · 국가별 최신 위험도 중 최고 SGRI</CardDescription>
+                  <CardDescription className="mt-1">총 {sortedItems.length}개 품목 · 등록한 거래국 기준 SGRI(미지정 시 최고 위험국)</CardDescription>
                 </div>
                 {failedRiskHsCodes.size > 0 && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setReloadKey((current) => current + 1)} className="w-fit border-amber-200 text-amber-700">
@@ -254,7 +273,8 @@ export default function ItemsPage() {
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableHead className="min-w-48 pl-6">품목</TableHead>
                     <TableHead className="min-w-32">HS 코드</TableHead>
-                    <TableHead className="min-w-48">최고 SGRI</TableHead>
+                    <TableHead className="min-w-40">국가</TableHead>
+                    <TableHead className="min-w-48">SGRI</TableHead>
                     <TableHead className="min-w-36">등록일</TableHead>
                     <TableHead className="min-w-[31rem] pr-6 text-right">관리</TableHead>
                   </TableRow>
@@ -262,7 +282,8 @@ export default function ItemsPage() {
                 <TableBody>
                   {sortedItems.map((item) => {
                     const hsCode = item.hs_code?.trim()
-                    const riskSummary = hsCode ? riskByHsCode[hsCode] : null
+                    const rawRows = hsCode ? risksByHsCode[hsCode] : undefined
+                    const riskSummary = rawRows ? summarizeRisk(rawRows, originCodesOf(item)) : null
                     const riskFailed = Boolean(hsCode && failedRiskHsCodes.has(hsCode))
                     const isDeleting = deletingId === item.query_id
                     const isConfirming = pendingDeleteId === item.query_id
@@ -273,6 +294,14 @@ export default function ItemsPage() {
                           <p className="font-medium text-slate-800">{item.item_name?.trim() || (hsCode ? `HS ${hsCode}` : "품목명 없음")}</p>
                         </TableCell>
                         <TableCell><span className="font-mono text-sm text-slate-600">{hsCode || "HS 코드 없음"}</span></TableCell>
+                        <TableCell>
+                          {riskSummary?.countryCode ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-700">{getCountryName(riskSummary.countryCode) || riskSummary.countryCode}</span>
+                              <span className={`text-xs ${riskSummary.isOrigin ? "text-blue-600" : "text-slate-400"}`}>{riskSummary.isOrigin ? "현재 거래국" : "최고 위험국"}</span>
+                            </div>
+                          ) : <span className="text-sm text-slate-400">—</span>}
+                        </TableCell>
                         <TableCell>
                           {riskFailed ? <span className="text-sm text-rose-600">불러오기 실패</span>
                             : riskSummary ? <RiskBadge summary={riskSummary} />

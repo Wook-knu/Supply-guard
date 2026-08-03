@@ -134,10 +134,17 @@ export default function Dashboard() {
   }, [queries])
   const monitoredHsCodes = useMemo(() => new Set(monitoredItems.map((item) => item.hs_code)), [monitoredItems])
   const selectedItem = monitoredItems.find((item) => item.hs_code === selectedHsCode)
+  // 선택 품목의 현재 거래국 ISO 코드(있으면). 추이 차트를 이 국가 기준으로 그린다.
+  const selectedOriginCodes = useMemo(() => (selectedItem?.origin_country ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean)
+    .map((n) => COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())?.code ?? n.toUpperCase()),
+    [selectedItem])
   const scoreTrend = useMemo(() => {
     const scoreByDate = new Map<string, number>()
     riskHistory.forEach((row) => {
       if (!selectedHsCode || row.hs_code !== selectedHsCode) return
+      // 거래국이 지정돼 있으면 그 국가만, 없으면 공급국 중 최고값.
+      if (selectedOriginCodes.length && !selectedOriginCodes.includes((row.country_code ?? "").toUpperCase())) return
       const score = Number(row.sgri_score ?? 0)
       scoreByDate.set(row.as_of_date, Math.max(scoreByDate.get(row.as_of_date) ?? 0, score))
     })
@@ -148,7 +155,7 @@ export default function Dashboard() {
         name: new Date(`${date}T00:00:00`).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }),
         score: Math.round(score),
       }))
-  }, [periodDays, riskHistory, selectedHsCode])
+  }, [periodDays, riskHistory, selectedHsCode, selectedOriginCodes])
   const risks = useMemo<RiskRow[]>(() => latestRiskRows(riskHistory)
     .filter((row) => row.hs_code && monitoredHsCodes.has(row.hs_code))
     .map((row) => {
