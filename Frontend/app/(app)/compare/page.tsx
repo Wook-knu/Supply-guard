@@ -4,7 +4,8 @@
 // 백엔드: GET /risks?hs_code= (country_risk_scores). 국가별 최신값으로 정렬.
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type RiskOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { ArrowLeft, Bell, GitCompareArrows, Loader2, MapPin, ShieldAlert, Trophy } from "lucide-react"
@@ -30,9 +31,17 @@ const cellCls = (v: number | null) => {
 }
 const num = (s: string | null) => (s == null ? null : Math.round(Number(s)))
 
-export default function ComparePage() {
+export default function ComparePageWrapper() {
+  return <Suspense fallback={<div className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+    <ComparePage />
+  </Suspense>
+}
+
+function ComparePage() {
+  const params = useSearchParams()
+  const urlHs = params.get("hs")?.replace(/\D/g, "") || ""
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState("283691")
+  const [hs, setHs] = useState(urlHs || "283691")
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -42,9 +51,11 @@ export default function ComparePage() {
       .then((qs) => {
         const withHs = qs.filter((r) => r.hs_code)
         setItems(withHs)
-        if (withHs[0]?.hs_code) setHs(withHs[0].hs_code)
+        // URL로 hs가 지정되면 그것을 유지, 아니면 첫 품목.
+        if (!urlHs && withHs[0]?.hs_code) setHs(withHs[0].hs_code)
       })
       .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const load = (hsCode: string) => {
@@ -89,9 +100,9 @@ export default function ComparePage() {
     return vals.length ? Math.min(...vals) : null
   }, [countries, originCodes])
 
-  // 두 국가 1:1 비교
-  const [codeA, setCodeA] = useState("")
-  const [codeB, setCodeB] = useState("")
+  // 두 국가 1:1 비교 (URL ?a=&b= 로 지정 가능 — 추천 페이지에서 넘어옴)
+  const [codeA, setCodeA] = useState(params.get("a") ?? "")
+  const [codeB, setCodeB] = useState(params.get("b") ?? "")
   useEffect(() => {
     if (!countries.length) return
     setCodeA((p) => (p && countries.some((c) => c.country_code === p) ? p : countries[0].country_code))
@@ -132,30 +143,33 @@ export default function ComparePage() {
         {error && <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
 
         {!loading && countries.length > 1 && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mt-6 rounded-2xl border-2 border-blue-200 bg-white p-5 shadow-sm">
             <p className="text-base font-semibold">두 국가 1:1 비교</p>
-            <p className="mt-1 text-sm text-slate-500">두 국가를 골라 지표별로 누가 더 낮은지(안전한지) 비교합니다. 낮을수록 좋습니다.</p>
+            <p className="mt-1 text-sm text-slate-500">지표별로 <span className="font-medium text-emerald-600">낮은 쪽(안전)은 초록</span>, <span className="font-medium text-rose-600">높은 쪽(위험)은 빨강</span>으로 표시합니다.</p>
             <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <select value={codeA} onChange={(e) => setCodeA(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+              <select value={codeA} onChange={(e) => setCodeA(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
               <span className="text-sm font-medium text-slate-400">vs</span>
-              <select value={codeB} onChange={(e) => setCodeB(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+              <select value={codeB} onChange={(e) => setCodeB(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
             </div>
-            <div className="mt-4 divide-y divide-slate-100">
+            <div className="mt-4 space-y-1.5">
               {COMPARE_ROWS.map((ind) => {
                 const a = num(cA?.[ind.key] as string | null)
                 const b = num(cB?.[ind.key] as string | null)
-                const aLower = a != null && b != null && a < b
-                const bLower = a != null && b != null && b < a
+                const eq = a != null && b != null && a === b
+                const aWin = a != null && b != null && a < b   // a가 더 낮음(안전)
+                const diff = a != null && b != null ? Math.abs(a - b) : null
+                const cell = (win: boolean, lose: boolean) => eq ? "bg-slate-50 text-slate-500" : win ? "bg-emerald-50 text-emerald-700 font-bold ring-1 ring-emerald-200" : lose ? "bg-rose-50 text-rose-600 font-bold ring-1 ring-rose-200" : "bg-slate-50 text-slate-500"
+                const isSgri = ind.code === "SGRI"
                 return (
-                  <div key={ind.code} className="grid grid-cols-[1fr_7rem_1fr] items-center gap-2 py-2.5 text-sm">
-                    <div className={`text-right ${aLower ? "font-bold text-emerald-600" : "text-slate-700"}`}>{a ?? "–"}{aLower ? <span className="ml-1 text-xs">▼{(b as number) - (a as number)}</span> : ""}</div>
-                    <div className="text-center text-xs text-slate-500"><span className="font-bold text-slate-700">{ind.code}</span> {ind.label}</div>
-                    <div className={`text-left ${bLower ? "font-bold text-emerald-600" : "text-slate-700"}`}>{b ?? "–"}{bLower ? <span className="ml-1 text-xs">▼{(a as number) - (b as number)}</span> : ""}</div>
+                  <div key={ind.code} className={`grid grid-cols-[1fr_7rem_1fr] items-center gap-2 ${isSgri ? "mt-2 border-t border-slate-200 pt-3" : ""}`}>
+                    <div className={`flex items-center justify-end gap-1.5 rounded-lg px-3 py-2 ${cell(aWin && !eq, !aWin && !eq && a != null && b != null)}`}>{aWin && !eq && diff ? <span className="text-[11px]">▼{diff}</span> : (!aWin && !eq && a != null && b != null && diff ? <span className="text-[11px]">▲{diff}</span> : null)}<span className={isSgri ? "text-lg" : "text-base"}>{a ?? "–"}</span></div>
+                    <div className="text-center"><span className={`font-bold ${isSgri ? "text-sm text-slate-800" : "text-xs text-slate-600"}`}>{ind.code}</span><span className="block text-[11px] text-slate-400">{ind.label}</span></div>
+                    <div className={`flex items-center justify-start gap-1.5 rounded-lg px-3 py-2 ${cell(!aWin && !eq && a != null && b != null, aWin && !eq)}`}><span className={isSgri ? "text-lg" : "text-base"}>{b ?? "–"}</span>{!aWin && !eq && a != null && b != null && diff ? <span className="text-[11px]">▼{diff}</span> : (aWin && !eq && diff ? <span className="text-[11px]">▲{diff}</span> : null)}</div>
                   </div>
                 )
               })}
             </div>
-            <p className="mt-3 text-center text-xs text-slate-400"><span className="font-medium text-emerald-600">초록</span> = 더 낮음(안전) · ▼ 상대보다 낮은 값</p>
+            <p className="mt-3 text-center text-xs text-slate-400"><span className="font-medium text-emerald-600">초록 ▼</span> 더 낮음(안전) · <span className="font-medium text-rose-600">빨강 ▲</span> 더 높음(위험) · 숫자는 상대와의 차이</p>
           </div>
         )}
 

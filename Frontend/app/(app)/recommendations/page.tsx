@@ -4,10 +4,11 @@
 // 추천 점수와 사유, 공급사 목록은 백엔드 추천 API 결과만 사용합니다.
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { api, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
-import { ArrowLeft, ArrowRight, Bell, Bot, Building2, Check, CheckCircle2, ChevronDown, CircleAlert, FileText, Loader2, MapPin, RefreshCw, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Bot, Building2, Check, CircleAlert, FileText, GitCompareArrows, Loader2, MapPin, RefreshCw, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,8 +24,10 @@ const COLORS = ["bg-emerald-50 text-emerald-700", "bg-blue-50 text-blue-700", "b
 export default function RecommendationsPage() {
   const [countries, setCountries] = useState<CountryRow[]>([])
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([])
+  const router = useRouter()
   const [selected, setSelected] = useState("")
-  const [compared, setCompared] = useState<string[]>([])
+  const [compareMode, setCompareMode] = useState(false)      // 두 국가 비교 선택 모드
+  const [comparePicks, setComparePicks] = useState<string[]>([])  // 선택된 국가 코드(최대 2)
   const [feedback, setFeedback] = useState<"good" | "bad" | null>(null)
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "saving" | "success" | "error">("idle")
   const [feedbackError, setFeedbackError] = useState("")
@@ -34,8 +37,6 @@ export default function RecommendationsPage() {
   const [queryId, setQueryId] = useState<number | null>(null)
   const [items, setItems] = useState<QueryOut[]>([])
   const [itemName, setItemName] = useState("")
-  const [tradingCompanyId, setTradingCompanyId] = useState<number | null>(null)  // 현재 거래 기업
-  const [savingTrading, setSavingTrading] = useState(false)
 
   // 내 품목 목록 로드 + 기본 선택(URL query_id 있으면 그것, 없으면 첫 품목)
   useEffect(() => {
@@ -62,7 +63,8 @@ export default function RecommendationsPage() {
     setCountries([])
     setSuppliers([])
     setSelected("")
-    setCompared([])
+    setCompareMode(false)
+    setComparePicks([])
     setFeedback(null)
     setFeedbackStatus("idle")
     setFeedbackError("")
@@ -117,12 +119,10 @@ export default function RecommendationsPage() {
         }
         setOriginCodes(toSet(query.origin_country))
         setTradingCodes(toSet(query.trading_country))
-        setTradingCompanyId(query.trading_company_id ?? null)
         setItemName(query.item_name?.trim() || (query.hs_code ? `HS ${query.hs_code}` : "품목명 없음"))
         setCountries(mappedCountries)
         setSuppliers(mappedSuppliers)
         setSelected(mappedCountries[0]?.name ?? "")
-        setCompared(mappedCountries[0] ? [mappedCountries[0].name] : [])
         setDataStatus("ready")
       })
       .catch(() => {
@@ -134,8 +134,14 @@ export default function RecommendationsPage() {
     return () => { isActive = false }
   }, [queryId, reloadKey])
 
-  function toggleComparison(country: string) {
-    setCompared((current) => current.includes(country) ? current.filter((item) => item !== country) : [...current, country])
+  // 비교 대상 국가 선택(코드). 최대 2개 — 2개 찬 상태에서 새로 누르면 가장 오래된 것을 밀어낸다.
+  function togglePick(code: string) {
+    setComparePicks((cur) => cur.includes(code) ? cur.filter((c) => c !== code) : cur.length < 2 ? [...cur, code] : [cur[1], code])
+  }
+  const selectedHs = items.find((i) => i.query_id === queryId)?.hs_code ?? ""
+  function goCompare() {
+    if (comparePicks.length !== 2) return
+    router.push(`/compare?hs=${selectedHs}&a=${comparePicks[0]}&b=${comparePicks[1]}`)
   }
 
   // 국가를 등록안함/관심(등록)/거래중 상태로 지정하고 서버에 저장.
@@ -157,21 +163,6 @@ export default function RecommendationsPage() {
     } finally { setSavingCountry(false) }
   }
 
-  // 현재 거래 기업 지정/해제 (같은 기업 다시 누르면 해제)
-  async function setTradingCompany(companyId: number) {
-    if (!queryId || savingTrading) return
-    const next = tradingCompanyId === companyId ? null : companyId
-    setSavingTrading(true)
-    const prev = tradingCompanyId
-    setTradingCompanyId(next)  // 낙관적 업데이트
-    try {
-      await api.updateQuery(queryId, { trading_company_id: next })
-    } catch {
-      setTradingCompanyId(prev)  // 실패 시 롤백
-    } finally {
-      setSavingTrading(false)
-    }
-  }
 
   function selectCountry(country: string) {
     setSelected(country)
@@ -233,46 +224,30 @@ export default function RecommendationsPage() {
 
       <Card className="mt-7 border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 shadow-sm"><CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-5 w-5" /></div><div className="flex-1"><p className="font-semibold">AI 요약: {topCountry ? `${topCountry.name}를 1순위로 검토하세요` : "추천 결과를 확인하세요"}</p><p className="mt-1 text-sm leading-6 text-slate-600">{topCountry ? `${itemLabel} 대체 공급국 중 ${topCountry.name}의 종합 적합도가 ${topCountry.score}점으로 가장 높습니다 (SGRI 위험도 ${topCountry.sgri}점). ${topCountry.description || "리스크·가격·물류·ESG를 종합한 결과입니다."}` : "품목을 등록하면 SGRI 기반 대체 공급국을 추천합니다."}</p></div><Badge className="w-fit border-blue-100 bg-white px-3 py-1.5 text-blue-700 hover:bg-white">{countries.length}개국 비교</Badge></CardContent></Card>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3"><div className="space-y-4 xl:col-span-2"><div className="flex items-center justify-between"><div><h2 className="text-base font-semibold">추천 국가 비교</h2><p className="mt-1 text-sm text-slate-500">각 국가를 <span className="font-medium text-blue-600">거래중</span>·<span className="font-medium text-slate-600">관심</span>으로 등록하면 대시보드·내 품목 SGRI에 반영됩니다.</p></div><span className="text-xs text-slate-400">비교 선택 {compared.length}개</span></div>
-        {countries.map((country) => <button onClick={() => selectCountry(country.name)} key={country.name} className={`w-full rounded-xl border bg-white p-5 text-left shadow-sm transition-all duration-200 active:scale-[0.99] ${selected === country.name ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"}`}><div className="flex flex-wrap items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">{country.code}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{country.rank}위 {country.name}</span><Badge className={`${country.color} border-0 hover:${country.color}`}>{country.badge}</Badge>{tradingCodes.has(country.code) ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600"><MapPin className="mr-0.5 h-3 w-3" />현재 거래국</Badge> : originCodes.has(country.code) ? <Badge className="border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100">관심 등록</Badge> : null}
-                <span className="inline-flex overflow-hidden rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
-                  {(() => { const cur = tradingCodes.has(country.code) ? "trading" : originCodes.has(country.code) ? "registered" : "none"; return ([["trading", "거래중"], ["registered", "관심"], ["none", "해제"]] as const).map(([key, label], i) => (
-                    <button key={key} type="button" disabled={savingCountry} onClick={() => setCountryStatus(country.code, key)}
-                      className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${cur === key ? (key === "trading" ? "bg-blue-600 text-white" : key === "registered" ? "bg-slate-200 text-slate-700" : "bg-slate-100 text-slate-500") : "bg-white text-slate-500 hover:bg-slate-50"}`}>{label}</button>
-                  )) })()}
-                </span></div><p className="mt-1 text-sm text-slate-500">{country.description}</p><div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 md:grid-cols-4"><Score label="SGRI 위험도" value={country.sgri} /><Metric label="예상 단가" value={country.unitPrice != null ? `$${country.unitPrice}` : "-"} /><Metric label="관세" value={country.tariff != null ? `${country.tariff}%` : "-"} /><Metric label="예상 리드타임" value={country.leadDays != null ? `${country.leadDays}일` : "-"} /></div></div><div className="ml-auto flex flex-col items-end gap-3"><div className="text-right"><p className="text-2xl font-semibold text-blue-600">{country.score}</p><p className="text-xs text-slate-400">종합 적합도</p></div><span onClick={(event) => { event.stopPropagation(); toggleComparison(country.name) }} className={`flex cursor-pointer items-center gap-1 text-xs font-medium ${compared.includes(country.name) ? "text-blue-600" : "text-slate-400"}`}><span className={`flex h-4 w-4 items-center justify-center rounded border ${compared.includes(country.name) ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white"}`}>{compared.includes(country.name) && <Check className="h-3 w-3" />}</span> 비교</span></div></div></button>)}</div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3"><div className="space-y-4 xl:col-span-2"><div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-semibold">추천 국가 비교</h2><p className="mt-1 text-sm text-slate-500">{compareMode ? "비교할 국가 2곳을 카드에서 선택하세요." : <>각 국가를 <span className="font-medium text-blue-600">거래중</span>·<span className="font-medium text-amber-600">관심</span>으로 등록하면 대시보드·내 품목 SGRI에 반영됩니다.</>}</p></div>
+          <div className="flex items-center gap-2">
+            {compareMode && comparePicks.length === 2 && <Button size="sm" onClick={goCompare} className="bg-blue-600 hover:bg-blue-700">선택 2개국 비교 <ArrowRight className="ml-1.5 h-4 w-4" /></Button>}
+            <Button size="sm" variant={compareMode ? "default" : "outline"} onClick={() => { setCompareMode((m) => !m); setComparePicks([]) }} className={compareMode ? "bg-slate-700 hover:bg-slate-800" : "border-slate-200"}><GitCompareArrows className="mr-1.5 h-4 w-4" />{compareMode ? `비교 취소 (${comparePicks.length}/2)` : "국가 비교"}</Button>
+          </div>
+        </div>
+        {countries.map((country) => { const picked = comparePicks.includes(country.code); const pickIndex = comparePicks.indexOf(country.code); return <button onClick={() => compareMode ? togglePick(country.code) : selectCountry(country.name)} key={country.name} className={`w-full rounded-xl border bg-white p-5 text-left shadow-sm transition-all duration-200 active:scale-[0.99] ${compareMode ? (picked ? "border-blue-500 ring-2 ring-blue-400" : "border-slate-200 hover:border-blue-300") : selected === country.name ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"}`}><div className="flex flex-wrap items-start gap-4"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-bold ${compareMode && picked ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>{compareMode && picked ? pickIndex + 1 : country.code}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-base font-semibold">{country.rank}위 {country.name}</span><Badge className={`${country.color} border-0 hover:${country.color}`}>{country.badge}</Badge>{tradingCodes.has(country.code) ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600"><MapPin className="mr-0.5 h-3 w-3" />현재 거래국</Badge> : originCodes.has(country.code) ? <Badge className="border-0 bg-amber-500 text-white hover:bg-amber-500">관심 등록</Badge> : null}
+                {!compareMode && <span className="inline-flex overflow-hidden rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                  {(() => { const cur = tradingCodes.has(country.code) ? "trading" : originCodes.has(country.code) ? "registered" : "none"
+                    const styles = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-amber-500 text-white", idle: "text-amber-600 hover:bg-amber-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
+                    return ([["trading", "거래중"], ["registered", "관심"], ["none", "해제"]] as const).map(([key, label], i) => (
+                      <button key={key} type="button" disabled={savingCountry} onClick={() => setCountryStatus(country.code, key)}
+                        className={`px-3 py-1.5 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${cur === key ? styles[key].active : `bg-white ${styles[key].idle}`}`}>{label}</button>
+                    )) })()}
+                </span>}</div><p className="mt-1 text-sm text-slate-500">{country.description}</p><div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 md:grid-cols-4"><Score label="SGRI 위험도" value={country.sgri} /><Metric label="예상 단가" value={country.unitPrice != null ? `$${country.unitPrice}` : "-"} /><Metric label="관세" value={country.tariff != null ? `${country.tariff}%` : "-"} /><Metric label="예상 리드타임" value={country.leadDays != null ? `${country.leadDays}일` : "-"} /></div></div><div className="ml-auto flex flex-col items-end gap-3"><div className="text-right"><p className="text-2xl font-semibold text-blue-600">{country.score}</p><p className="text-xs text-slate-400">종합 적합도</p></div>{compareMode && <span className={`flex h-6 items-center gap-1 rounded-full px-2.5 text-xs font-semibold ${picked ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`}>{picked ? <><Check className="h-3.5 w-3.5" />비교 {pickIndex + 1}</> : "비교 선택"}</span>}</div></div></button> })}</div>
 
-        <aside className="space-y-6"><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">{selectedCountry.name} 추천 근거</CardTitle><CardDescription className="mt-1">{itemLabel} 조달 기준</CardDescription></CardHeader><CardContent className="space-y-4"><Reason icon={ShieldAlert} title="공급망 위험도" text={`SGRI 위험도가 ${selectedCountry.sgri}점입니다. (낮을수록 안전)`} /><Reason icon={Sparkles} title="종합 적합도" text={`조달 조건을 반영한 적합도는 ${selectedCountry.score}점입니다.`} /><Reason icon={FileText} title="추천 근거" text={selectedCountry.description || "추천 근거가 제공되지 않았습니다."} />{suppliers[0] ? <Button asChild className="mt-1 w-full bg-blue-600 hover:bg-blue-700"><Link href={`/suppliers/${suppliers[0].id}${queryId ? `?query_id=${queryId}` : ""}`}>기업 추천 보기 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : <Button type="button" disabled className="mt-1 w-full">추천 기업 없음</Button>}</CardContent></Card>
+        <aside className="space-y-6"><Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">{selectedCountry.name} 추천 근거</CardTitle><CardDescription className="mt-1">{itemLabel} 조달 기준</CardDescription></CardHeader><CardContent className="space-y-4"><Reason icon={ShieldAlert} title="공급망 위험도" text={`SGRI 위험도가 ${selectedCountry.sgri}점입니다. (낮을수록 안전)`} /><Reason icon={Sparkles} title="종합 적합도" text={`조달 조건을 반영한 적합도는 ${selectedCountry.score}점입니다.`} /><Reason icon={FileText} title="추천 근거" text={selectedCountry.description || "추천 근거가 제공되지 않았습니다."} />{suppliers.length > 0 ? <Button asChild className="mt-1 w-full bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/recommendations/companies?query_id=${queryId}` : "/recommendations/companies"}>기업 추천 보기 ({suppliers.length}) <ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : <Button type="button" disabled className="mt-1 w-full">추천 기업 없음</Button>}</CardContent></Card>
           <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">이 추천이 도움이 되었나요?</CardTitle></CardHeader><CardContent><p className="text-sm text-slate-500">선택한 국가 추천에 대한 피드백을 저장합니다.</p><div className="mt-4 flex gap-2"><Button onClick={() => void saveFeedback("good")} disabled={feedbackStatus === "saving" || !selectedCountry?.recoId} variant={feedback === "good" ? "default" : "outline"} className={feedback === "good" ? "bg-blue-600 hover:bg-blue-700" : "border-slate-200"}>{feedbackStatus === "saving" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}도움 됐어요</Button><Button onClick={() => void saveFeedback("bad")} disabled={feedbackStatus === "saving" || !selectedCountry?.recoId} variant="outline" className={feedback === "bad" ? "border-rose-200 bg-rose-50 text-rose-600" : "border-slate-200"}>도움이 안 됐어요</Button></div><div aria-live="polite">{feedbackStatus === "success" && <p className="mt-3 text-xs text-blue-600">피드백이 저장되었습니다. 감사합니다.</p>}{feedbackStatus === "error" && <p role="alert" className="mt-3 flex items-start gap-1.5 text-xs text-rose-600"><CircleAlert className="mt-px h-3.5 w-3.5 shrink-0" />{feedbackError}</p>}{feedbackStatus === "idle" && !selectedCountry?.recoId && <p className="mt-3 text-xs text-amber-600">실제 추천 결과를 불러온 뒤 피드백을 저장할 수 있습니다.</p>}</div></CardContent></Card></aside>
       </div>
 
-      <Card className="mt-7 border-slate-200 shadow-sm">
-        <CardHeader className="pb-4"><CardTitle className="text-base">추천 기업(공급사)</CardTitle><CardDescription className="mt-1">AI·실데이터 기반 조달 기업 후보 — 적합도·단가·리드타임·정시납품으로 비교하세요.</CardDescription></CardHeader>
-        <CardContent className={suppliers.length > 0 ? "grid gap-4 md:grid-cols-3" : ""}>
-          {suppliers.map((supplier, idx) => <div className={`flex flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tradingCompanyId === supplier.id ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 hover:border-blue-200"}`} key={supplier.id}>
-            <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{tradingCompanyId === supplier.id ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : idx === 0 ? <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">1순위 후보</Badge> : null}</div>{supplier.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
-            <div className="mt-3 flex items-center gap-1.5"><p className="font-semibold leading-tight">{supplier.name}</p>{supplier.verified && <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />}</div>
-            <p className="mt-0.5 text-xs text-slate-500">{supplier.country}{supplier.type && supplier.type !== "공급사" ? ` · ${supplier.type}` : ""}</p>
-            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
-              <div className="flex justify-between"><span className="text-slate-400">적합도</span><span className="font-semibold text-emerald-600">{supplier.match}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">예상 단가</span><span className="font-medium">{supplier.unitPrice != null ? `$${supplier.unitPrice.toLocaleString()}` : "–"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">리드타임</span><span className="font-medium">{supplier.leadDays != null ? `${supplier.leadDays}일` : "–"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">정시납품</span><span className="font-medium">{supplier.otd != null ? `${supplier.otd}%` : "–"}</span></div>
-            </div>
-            <p className="mt-3 min-h-10 flex-1 text-xs leading-5 text-slate-500"><span className="font-medium text-slate-600">추천 이유 · </span>{supplier.note || "SGRI·조달 적합도 기반 추천"}</p>
-            <div className="mt-3 flex gap-2">
-              <Button asChild variant="outline" size="sm" className="flex-1 border-slate-200"><Link href={`/suppliers/${supplier.id}${queryId ? `?query_id=${queryId}` : ""}`}>상세</Link></Button>
-              <Button type="button" size="sm" onClick={() => void setTradingCompany(supplier.id)} disabled={savingTrading}
-                className={`flex-1 ${tradingCompanyId === supplier.id ? "bg-blue-600 hover:bg-blue-700" : "bg-white text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50"}`}>
-                {tradingCompanyId === supplier.id ? <><Check className="mr-1 h-3.5 w-3.5" />거래 기업</> : "거래 기업 지정"}
-              </Button>
-            </div>
-          </div>)}
-          {suppliers.length === 0 && <p className="py-8 text-center text-sm text-slate-400">추천 기업이 아직 없어요. 품목 분석을 실행하면 생성됩니다.</p>}
-        </CardContent>
-      </Card>
-
-      <section className="mt-7 flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="h-4 w-4" /></div><div><p className="font-semibold">대체 공급망 대응 보고서</p><p className="mt-1 text-sm text-slate-500">선택한 국가와 기업 후보를 반영해 AI 초안을 생성합니다.</p></div></div><Button asChild className="w-fit bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>보고서 초안 만들기 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>
+      <section className="mt-7 grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Building2 className="h-4 w-4" /></div><div><p className="font-semibold">추천 기업 보기</p><p className="mt-1 text-sm text-slate-500">공급사 후보 비교·거래 기업 지정</p></div></div><Button asChild variant="outline" className="w-fit border-slate-200" disabled={suppliers.length === 0}><Link href={queryId ? `/recommendations/companies?query_id=${queryId}` : "/recommendations/companies"}>기업 추천 {suppliers.length > 0 ? `(${suppliers.length})` : ""} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
+        <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="h-4 w-4" /></div><div><p className="font-semibold">대응 보고서</p><p className="mt-1 text-sm text-slate-500">선택 국가·기업 반영 AI 초안</p></div></div><Button asChild className="w-fit bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>보고서 초안 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
+      </section>
       </>}
     </main>
   </div>
