@@ -367,6 +367,9 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
+  // 지정 국가에 대해 AI가 기업 후보를 생성해 추천에 추가 → 갱신된 추천 목록 반환
+  generateAiSuppliers: (queryId: number, countryCode: string) =>
+    http<SupplierReco[]>(`/queries/${queryId}/suppliers/ai`, { method: "POST", body: JSON.stringify({ country_code: countryCode }) }),
   sendFeedback: (body: FeedbackCreate) =>
     http<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
   // 공급사 상세 (기업 공개 정보)
