@@ -58,6 +58,11 @@ export type Company = {
   capacity_unit: string | null
   status: string | null
   data_source: string | null   // null/실데이터 vs 'ai:gemini'(AI 추정)
+  // 조달 비교 지표
+  unit_price: string | null
+  lead_time_days: number | null
+  on_time_delivery_rate: string | null
+  defect_rate_pct: string | null
 }
 
 export type SupplierReco = {

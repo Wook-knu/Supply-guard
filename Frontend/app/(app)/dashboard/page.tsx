@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { api, type AlertOut, type CountryReco, type QueryOut, type ReportOut, type RiskOut, type SupplierReco } from "@/lib/api"
-import { getCountryName } from "@/lib/countries"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import {
   AlertTriangle,
   ArrowRight,
@@ -163,28 +163,50 @@ export default function Dashboard() {
         level: row.level === "높음" ? "high" : row.level === "중간" ? "medium" : "low",
       }
     }), [monitoredHsCodes, monitoredItems, riskHistory])
-  // 품목별 요약: 국가 위험도(최고 SGRI) + 기업(1순위 적합도) — 통합 카드용, 위험 높은 순.
+  // 품목별 요약: 국가 위험도(현재 거래국 우선, 없으면 최고 SGRI) + 기업(1순위) — 위험 높은 순.
   const perItemRisk = useMemo(() => {
-    const byHs = new Map<string, RiskRow>()
-    risks.forEach((r) => {
-      const cur = byHs.get(r.hs)
-      if (!cur || r.score > cur.score) byHs.set(r.hs, r)
+    const latest = new Map<string, RiskOut>()   // (hs|country) 최신
+    riskHistory.forEach((r) => {
+      if (!r.hs_code) return
+      const key = `${r.hs_code}|${r.country_code}`
+      const cur = latest.get(key)
+      if (!cur || r.as_of_date > cur.as_of_date) latest.set(key, r)
     })
+    const byHs = new Map<string, { code: string; sgri: number }[]>()
+    latest.forEach((r) => {
+      const arr = byHs.get(r.hs_code as string) ?? []
+      arr.push({ code: r.country_code, sgri: r.sgri_score != null ? Math.round(Number(r.sgri_score)) : 0 })
+      byHs.set(r.hs_code as string, arr)
+    })
+    const lvl = (s: number): "high" | "medium" | "low" => (s >= 50 ? "high" : s >= 25 ? "medium" : "low")
     return monitoredItems
       .filter((it) => it.hs_code)
       .map((it) => {
-        const r = byHs.get(it.hs_code as string)
+        const countries = byHs.get(it.hs_code as string) ?? []
+        const originCodes = (it.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
+          const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
+          return m?.code ?? n.toUpperCase()
+        })
+        let ref: { code: string; sgri: number } | undefined
+        let isOrigin = false
+        if (originCodes.length) {
+          const oc = countries.filter((c) => originCodes.includes(c.code)).sort((a, b) => b.sgri - a.sgri)
+          if (oc.length) { ref = oc[0]; isOrigin = true }
+        }
+        if (!ref) ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]
         return {
           hs: it.hs_code as string,
           queryId: it.query_id,
           name: it.item_name?.trim() || `HS ${it.hs_code}`,
-          sgri: r?.score ?? null,
-          level: r?.level ?? null,
+          sgri: ref?.sgri ?? null,
+          countryCode: ref?.code ?? null,
+          isOrigin,
+          level: ref ? lvl(ref.sgri) : null,
           company: itemCompanies[it.hs_code as string],
         }
       })
       .sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
-  }, [risks, monitoredItems, itemCompanies])
+  }, [riskHistory, monitoredItems, itemCompanies])
   // 미니맵용: 선택 품목의 공급국(국가별 최신 SGRI)
   const mapPoints = useMemo<RiskPoint[]>(() => {
     const latest = new Map<string, RiskOut>()
@@ -450,13 +472,16 @@ export default function Dashboard() {
             {/* 국가 위험도 */}
             <Card className="border-2 border-rose-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">품목별 SGRI · 공급국 최고값</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">현재 거래국 기준 · 없으면 최고 위험국</CardDescription></div></div>
                 <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
               </CardHeader>
               <CardContent className="px-0 pb-2">
                 {[...perItemRisk].sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).slice(0, 5).map((row) => (
                   <Link key={row.hs} href={`/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
-                    <span className="flex-1 truncate text-sm font-medium">{row.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{row.name}</p>
+                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.isOrigin ? "font-medium text-blue-500" : ""}>{row.isOrigin ? "현재 거래국" : "최고 위험국"}</span></p>}
+                    </div>
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
                   </Link>
                 ))}
