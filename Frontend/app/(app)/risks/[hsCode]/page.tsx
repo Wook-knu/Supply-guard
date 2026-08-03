@@ -108,10 +108,6 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{itemName} 리스크 분석</h1>
           <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{ref ? ` · ${refStatusLabel} ${getCountryName(ref.country_code)}` : ""}</p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" className="border-slate-200 bg-white"><Link href={recoHref}><Globe2 className="mr-2 h-4 w-4" />대체 공급국·기업 추천</Link></Button>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href={reportHref}><FileText className="mr-2 h-4 w-4" />보고서 초안 생성</Link></Button>
-        </div>
       </div>
 
       {!loaded ? <p className="mt-16 text-center text-sm text-slate-400">불러오는 중…</p>
@@ -161,6 +157,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
                 <Action number="2" title="안전재고 확보 검토" note="납기 지연 가능성에 대비합니다." />
                 <Action number="3" title="리스크 보고서 공유" note="구매·생산 부서에 초안을 전달합니다." />
                 <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={recoHref}>대체 공급국 검토 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild variant="outline" className="w-full border-slate-200"><Link href={reportHref}><FileText className="mr-2 h-4 w-4" />보고서 초안 생성</Link></Button>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">

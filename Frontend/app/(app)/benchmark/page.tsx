@@ -30,6 +30,7 @@ export default function BenchmarkPage() {
   const [cases, setCases] = useState<import("@/lib/api").PeerCase[] | null>(null)
   const [casesLoading, setCasesLoading] = useState(false)
   const [news, setNews] = useState<import("@/lib/api").RealArticle[] | null>(null)
+  const [newsTerm, setNewsTerm] = useState("")
   const [newsLoading, setNewsLoading] = useState(false)
 
   const loadCases = () => {
@@ -47,8 +48,8 @@ export default function BenchmarkPage() {
     if (!clean || newsLoading) return
     setNewsLoading(true)
     api.getRealNews(clean)
-      .then((r) => setNews(r.articles ?? []))
-      .catch(() => setNews([]))
+      .then((r) => { setNews(r.articles ?? []); setNewsTerm(r.term ?? "") })
+      .catch(() => { setNews([]); setNewsTerm("") })
       .finally(() => setNewsLoading(false))
   }
 
@@ -94,16 +95,14 @@ export default function BenchmarkPage() {
           <p className="mt-2 text-sm text-slate-500">SupplyGuard 전체 품목·국가 SGRI 데이터 안에서의 상대 위치입니다.</p>
         </div>
 
-        {/* 이 페이지가 무엇인지/무엇이 아닌지 명확화 */}
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
-            <p className="text-sm font-semibold text-emerald-800">✔ 이 페이지가 보여주는 것</p>
-            <p className="mt-1 text-xs leading-5 text-emerald-700">내 품목·국가의 <span className="font-medium">SGRI 위험도(6지표)</span>가 전체 데이터 평균 대비 높은지/낮은지, 후보국 중 위험 순위. 실제 SGRI 데이터 기반입니다.</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-700">✗ 아직 제공하지 않는 것</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">‘다른 중소기업이 이 가격에 거래했다’ 같은 <span className="font-medium">또래 실거래 단가</span>는 공개 데이터가 없어 지어내지 않습니다. 기업별 <span className="font-medium">예상 단가·리드타임</span> 비교는 <Link href="/recommendations" className="font-medium text-blue-600 hover:underline">대체 공급국</Link>에서 확인하세요.</p>
-          </div>
+        {/* 이 페이지가 제공하는 것 */}
+        <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+          <p className="text-sm font-semibold text-emerald-800">✔ 이 페이지가 제공하는 것</p>
+          <ul className="mt-1.5 space-y-1 text-xs leading-5 text-emerald-700">
+            <li>· <span className="font-semibold">SGRI 상대 위치</span> — 내 품목·국가의 6지표가 전체 평균 대비 높은지/낮은지, 후보국 위험 순위 (실제 SGRI 데이터)</li>
+            <li>· <span className="font-semibold">AI 또래 중소기업 예시 사례</span> — 이 품목 조달 시 겪을 법한 상황·대응·결과 (AI 생성 예시)</li>
+            <li>· <span className="font-semibold">실제 뉴스·사례</span> — 이 품목 공급망 관련 실제 기사 (GDELT, 출처 링크)</li>
+          </ul>
         </div>
 
         {/* 또래 중소기업 예시 사례 (AI 생성) */}
@@ -138,7 +137,7 @@ export default function BenchmarkPage() {
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
             <div>
               <div className="flex items-center gap-2"><Newspaper className="h-4 w-4 text-blue-600" /><p className="text-base font-semibold">이 품목 실제 뉴스·사례</p><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">실제 · 출처 있음</Badge></div>
-              <p className="mt-1 text-sm text-slate-500">GDELT 글로벌 뉴스에서 이 품목 공급망 관련 <span className="font-medium text-slate-600">실제 기사</span>를 최신순으로 가져옵니다. (지어내지 않음)</p>
+              <p className="mt-1 text-sm text-slate-500">GDELT 글로벌 뉴스에서 이 품목의 <span className="font-medium text-slate-600">실제 기사</span>를 최신순으로 가져옵니다.{newsTerm ? <> 검색어: <span className="font-medium text-blue-600">‘{newsTerm}’</span></> : ""} (영문 뉴스 위주라 영문명으로 검색)</p>
             </div>
             <Button onClick={loadNews} disabled={newsLoading} variant="outline" className="w-fit border-slate-200">{newsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Newspaper className="mr-2 h-4 w-4" />}{news ? "새로고침" : "실제 뉴스 보기"}</Button>
           </div>
@@ -152,7 +151,7 @@ export default function BenchmarkPage() {
               ))}
             </div>
           )}
-          {news && news.length === 0 && <p className="mt-4 text-center text-sm text-slate-400">관련 실제 뉴스를 찾지 못했습니다. 품목명이 영문으로 매칭되지 않았을 수 있어요.</p>}
+          {news && news.length === 0 && <p className="mt-4 text-center text-sm text-slate-400">{newsTerm ? `‘${newsTerm}’ ` : ""}관련 최신 영문 뉴스를 찾지 못했습니다. (희소 품목이거나 영문명 미등록일 수 있어요)</p>}
         </div>
 
         {/* 조회 폼 */}

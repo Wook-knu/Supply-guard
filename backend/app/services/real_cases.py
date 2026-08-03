@@ -32,15 +32,16 @@ def build_real_cases(db: Session, hs_code: str, item_name_ko: str | None = None)
     ), {"h": hs}).mappings().first() if hs else None
     name_en = (row or {}).get("name_en") if row else None
     name_ko = item_name_ko or ((row or {}).get("name_ko") if row else None) or f"HS {hs}"
+    # GDELT는 영어 뉴스 위주 → 영문명 우선, 없으면 한글명.
     term = (name_en or name_ko or "").strip()
     if not term:
         return {"articles": [], "query": "", "source": "gdelt"}
 
-    context = " OR ".join(f'"{c}"' for c in _CONTEXT)
-    query = f'"{term}" ({context})'
+    # 희소 품목도 결과가 나오게 품목명만으로 검색(맥락 AND 강제 제거). 최신순.
+    query = f'"{term}"' if " " in term else term
     url = f"{_GDELT}?" + urllib.parse.urlencode({
         "query": query, "mode": "artlist", "format": "json",
-        "maxrecords": 20, "sort": "datedesc", "timespan": "6m",
+        "maxrecords": 25, "sort": "datedesc", "timespan": "12m",
     })
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "SupplyGuard/1.0"})
