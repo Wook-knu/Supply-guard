@@ -5,6 +5,7 @@
 
 import Link from "next/link"
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type RiskOut, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
@@ -20,6 +21,7 @@ const riskColor = (sgri: number | null) => (sgri == null ? "#94a3b8" : sgri >= 6
 const levelOf = (sgri: number | null) => (sgri == null ? "데이터 없음" : sgri >= 60 ? "높음" : sgri >= 35 ? "주의" : "안전")
 
 export default function MapPage() {
+  const router = useRouter()
   const [items, setItems] = useState<QueryOut[]>([])
   const [hs, setHs] = useState("283691")
   const [risks, setRisks] = useState<RiskOut[]>([])
@@ -54,12 +56,19 @@ export default function MapPage() {
 
   const sel = selectedCountry ? points.find((p) => p.code === selectedCountry) : null
   const selCompanies = selectedCountry ? suppliers.filter((s) => s.company.country_code === selectedCountry) : []
+  // 줌인한 국가 안에 점으로 찍을 기업들
+  const companyPoints = useMemo(() => suppliers.map((s) => ({
+    companyId: s.company.company_id, name: s.company.name,
+    countryCode: s.company.country_code ?? "", isAi: (s.company.data_source ?? "").startsWith("ai:"),
+  })), [suppliers])
+  const goCompany = (id: number) => router.push(`/suppliers/${id}${selectedQuery?.query_id ? `?query_id=${selectedQuery.query_id}` : ""}`)
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#eef2f7]">
       {/* 지도 (전체 화면) */}
       <div className="absolute inset-0">
-        <WorldRiskMap points={points} selected={selectedCountry} onSelect={setSelectedCountry} showLabels fill height={760} />
+        <WorldRiskMap points={points} selected={selectedCountry} onSelect={setSelectedCountry} showLabels fill height={760}
+          companies={companyPoints} focusCountry={selectedCountry} onCompanySelect={goCompany} />
       </div>
 
       {/* 좌상단: 뒤로 + 품목 선택 + 범례 */}
@@ -81,8 +90,11 @@ export default function MapPage() {
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />주의</span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" />높음</span>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">공급국 {points.length}개국 · 드래그 이동, 우측 +/− 확대</p>
+          <p className="mt-2 text-[11px] text-slate-400">공급국 {points.length}개국 · 국가를 클릭하면 확대되고 기업이 점으로 표시됩니다.</p>
         </div>
+        {selectedCountry && (
+          <button onClick={() => setSelectedCountry(null)} className="w-full rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 text-sm font-medium text-slate-600 shadow-lg backdrop-blur hover:bg-slate-50">← 전체 지도 보기</button>
+        )}
       </div>
 
       {/* 우측: 국가 상세 패널 */}

@@ -5,10 +5,21 @@
 //  · 마커 레이더 펄스, 허브 핀
 // 드래그 이동 + 확대/축소 + 국가 라벨. 마커 클릭 시 상위로 국가 코드를 알린다.
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ComposableMap, Geographies, Geography, Line, Marker, ZoomableGroup } from "react-simple-maps"
 import { COUNTRY_COORDS } from "@/lib/country-coords"
 import { getCountryName } from "@/lib/countries"
+
+export type CompanyPoint = { companyId: number; name: string; countryCode: string; isAi?: boolean }
+
+// 국가 중심 기준으로 기업 점을 결정적으로 흩뿌린다(실제 좌표가 없으므로 국가 내 분포로 표현).
+function scatter(center: [number, number], index: number, total: number): [number, number] {
+  if (total <= 1) return center
+  const golden = 2.399963  // 황금각(라디안) — 겹치지 않게 나선 배치
+  const a = index * golden
+  const radius = 1.4 + 2.6 * Math.sqrt((index + 1) / total)  // 도(°) 단위 반경
+  return [center[0] + Math.cos(a) * radius, center[1] + Math.sin(a) * radius * 0.72]
+}
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 const HUB: [number, number] = COUNTRY_COORDS.KR // 한국(수입 허브)
@@ -22,7 +33,7 @@ export function riskColor(sgri: number | null): string {
   return "#10b981"
 }
 
-export default function WorldRiskMap({ points, selected, onSelect, showLabels = false, height = 460, preview = false, fill = false, animated = true }: {
+export default function WorldRiskMap({ points, selected, onSelect, showLabels = false, height = 460, preview = false, fill = false, animated = true, companies, focusCountry, onCompanySelect }: {
   points: RiskPoint[]
   selected?: string | null
   onSelect?: (code: string) => void
@@ -31,9 +42,25 @@ export default function WorldRiskMap({ points, selected, onSelect, showLabels = 
   preview?: boolean
   fill?: boolean
   animated?: boolean
+  companies?: CompanyPoint[]
+  focusCountry?: string | null      // 값이 있으면 그 국가로 줌인하고 기업 점을 표시
+  onCompanySelect?: (companyId: number) => void
 }) {
   const [view, setView] = useState<{ coordinates: [number, number]; zoom: number }>({ coordinates: [12, 18], zoom: 1 })
   const z = view.zoom
+
+  // 국가 포커스가 바뀌면 해당 국가로 줌인(없으면 세계 뷰로 복귀).
+  useEffect(() => {
+    if (focusCountry && COUNTRY_COORDS[focusCountry]) {
+      setView({ coordinates: COUNTRY_COORDS[focusCountry], zoom: 4.5 })
+    } else if (focusCountry === null) {
+      setView({ coordinates: [12, 18], zoom: 1 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCountry])
+
+  const focusCompanies = focusCountry ? (companies ?? []).filter((c) => c.countryCode === focusCountry) : []
+  const focusCenter = focusCountry ? COUNTRY_COORDS[focusCountry] : undefined
 
   const geos = (
     <Geographies geography={GEO_URL}>
@@ -88,11 +115,24 @@ export default function WorldRiskMap({ points, selected, onSelect, showLabels = 
     </Marker>
   )
 
+  // 줌인한 국가 내부의 기업 점(실좌표 없음 → 국가 중심 기준 분포로 표현)
+  const companyDots = focusCenter ? focusCompanies.map((c, i) => {
+    const coord = scatter(focusCenter, i, focusCompanies.length)
+    const r = 3.2 / z
+    return (
+      <Marker key={`co-${c.companyId}`} coordinates={coord} onClick={() => onCompanySelect?.(c.companyId)}>
+        <circle r={r} fill={c.isAi ? "#f59e0b" : "#2563eb"} stroke="#fff" strokeWidth={1.2 / z} style={{ cursor: "pointer" }} />
+        <text textAnchor="middle" y={-r - 3 / z} style={{ fontSize: 8.5 / z, fill: "#1e293b", fontWeight: 600, pointerEvents: "none" }}>{c.name.length > 12 ? c.name.slice(0, 12) + "…" : c.name}</text>
+      </Marker>
+    )
+  }) : null
+
   const inner = (
     <>
       {geos}
       {routes}
       {markers}
+      {companyDots}
       {hub}
     </>
   )
