@@ -562,13 +562,8 @@ export default function Dashboard() {
             </Card>
           </section>
 
-          {/* 하단: AI 브리핑 · 대체 공급국(품목 선택) · 최신 동향 */}
+          {/* 하단: 대체 공급국(국가, 좌) · 품목별 기업 추천(우) · 최신 동향 */}
           <section className="grid gap-6 lg:grid-cols-3">
-            <Card className="border-2 border-indigo-200 bg-gradient-to-br from-blue-50/80 to-cyan-50/50 shadow-sm">
-              <CardHeader className="pb-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="text-base">AI 리스크 브리핑</CardTitle></div><Badge className="border-blue-100 bg-white text-blue-600 hover:bg-white">오늘</Badge></div></CardHeader>
-              <CardContent><p className="text-sm leading-6 text-slate-600">{alerts[0]?.message ?? alerts[0]?.title ?? "새로운 리스크 브리핑 데이터가 없습니다."}</p><div className="mt-4 flex gap-2"><Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700"><Link href="/alerts">대응 전략 보기</Link></Button><Button asChild size="sm" variant="outline" className="border-blue-200 bg-white text-blue-700"><Link href="/reports/new">보고서 생성</Link></Button></div></CardContent>
-            </Card>
-
             <Card id="alternatives" className="scroll-mt-20 border-2 border-emerald-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Globe2 className="h-4 w-4" /></span><div><CardTitle className="text-base">대체 공급국 추천</CardTitle><CardDescription className="mt-1">국가 차원 · 품목별</CardDescription></div></div>
@@ -578,6 +573,19 @@ export default function Dashboard() {
                 {countryRecos.map((reco, index) => <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3" key={reco.country_code}><div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">{reco.country_code}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between"><span className="text-sm font-medium">{getCountryName(reco.country_code)}</span><span className="text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(reco.fit_score ?? reco.sgri_score ?? 0))}</span></div><p className="mt-1 truncate text-xs text-slate-500">{reco.rationale ?? "SGRI 종합 평가 기반 추천"}</p></div>{index === 0 && <CheckCircle2 className="h-4 w-4 text-blue-600" />}</div>)}
                 {countryRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">추천 데이터가 없습니다.</p>}
                 <Link href={selectedItem?.query_id ? `/recommendations?query_id=${selectedItem.query_id}` : "/recommendations"} className="block pt-1 text-center text-xs font-medium text-blue-600 hover:underline">전체 보기 →</Link>
+              </CardContent>
+            </Card>
+
+            {/* 품목별 기업 추천 (국가 카드 오른쪽) */}
+            <Card className="border-2 border-blue-200 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 기업 추천</CardTitle><CardDescription className="mt-1">공급사 · 품목별</CardDescription></div></div>
+                <select aria-label="기업추천 품목 선택" value={selectedHsCode} onChange={(e) => setSelectedHsCode(e.target.value)} disabled={monitoredItems.length === 0} className="h-8 max-w-28 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {supplierRecos.slice(0, 3).map((r) => <Link key={r.company.company_id} href={`/suppliers/${r.company.company_id}${selectedItem?.query_id ? `?query_id=${selectedItem.query_id}` : ""}`} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3 transition-colors hover:bg-slate-50"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Building2 className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{r.company.name}</span><span className="shrink-0 text-xs font-semibold text-emerald-600">적합도 {Math.round(Number(r.fit_score ?? 0))}</span></div><p className="mt-1 truncate text-xs text-slate-500">{getCountryName(r.company.country_code ?? "")}{(r.company.data_source ?? "").startsWith("ai:") ? " · AI 추정" : " · 실데이터"}</p></div></Link>)}
+                {supplierRecos.length === 0 && <p className="py-6 text-center text-xs text-slate-400">추천 기업이 없습니다. 분석하면 표시됩니다.</p>}
+                <Link href={selectedItem?.query_id ? `/recommendations/companies?query_id=${selectedItem.query_id}` : "/recommendations/companies"} className="block pt-1 text-center text-xs font-medium text-blue-600 hover:underline">전체 보기 →</Link>
               </CardContent>
             </Card>
 
