@@ -7,12 +7,12 @@ import Link from "next/link"
 import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
-import { COUNTRY_OPTIONS } from "@/lib/countries"
+import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { ArrowLeft, Bell, BarChart3, ExternalLink, Loader2, Newspaper, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
 const verdictCls = (v: string) =>
@@ -79,6 +79,12 @@ export default function BenchmarkPage() {
 
   const maxScale = 100
   const itemName = useMemo(() => items.find((i) => i.hs_code === hs)?.item_name, [items, hs])
+  // 지표 행: 국가 선택 시 (그 국가 값 vs 이 품목 평균), 아니면 (이 품목 평균 vs 전체 품목 평균)
+  const indRows = useMemo(() => {
+    if (data?.country?.indicators) return data.country.indicators.map((x) => ({ key: x.key, label: x.label, val: x.value, base: x.item_avg, delta: x.delta, verdict: x.verdict }))
+    return (data?.indicators ?? []).map((x) => ({ key: x.key, label: x.label, val: x.item_avg, base: x.all_avg, delta: x.delta, verdict: x.verdict }))
+  }, [data])
+  const indMode = data?.country ? "country" : "item"
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -137,7 +143,7 @@ export default function BenchmarkPage() {
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
             <div>
               <div className="flex items-center gap-2"><Newspaper className="h-4 w-4 text-blue-600" /><p className="text-base font-semibold">이 품목 실제 뉴스·사례</p><Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">실제 · 출처 있음</Badge></div>
-              <p className="mt-1 text-sm text-slate-500">GDELT 글로벌 뉴스에서 이 품목의 <span className="font-medium text-slate-600">실제 기사</span>를 최신순으로 가져옵니다.{newsTerm ? <> 검색어: <span className="font-medium text-blue-600">‘{newsTerm}’</span></> : ""} (영문 뉴스 위주라 영문명으로 검색)</p>
+              <p className="mt-1 text-sm text-slate-500">GDELT 글로벌 뉴스에서 이 품목의 <span className="font-medium text-slate-600">실제 기사</span>를 최신순으로 가져옵니다.{newsTerm ? <> 검색어: <span className="font-medium text-blue-600">‘{newsTerm}’</span></> : ""}</p>
             </div>
             <Button onClick={loadNews} disabled={newsLoading} variant="outline" className="w-fit border-slate-200">{newsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Newspaper className="mr-2 h-4 w-4" />}{news ? "새로고침" : "실제 뉴스 보기"}</Button>
           </div>
@@ -183,59 +189,64 @@ export default function BenchmarkPage() {
           <div className="flex justify-center py-20 text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : data && !data.error ? (
           <div className="mt-6 space-y-6">
-            {/* SGRI 종합 */}
+            {/* SGRI 종합 — 국가 선택 시 그 국가 vs 이 품목 평균, 아니면 이 품목 평균 vs 전체 품목 평균 */}
             <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-3"><CardTitle className="text-base">종합 SGRI {itemName ? `· ${itemName}` : ""}</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-base">종합 SGRI {itemName ? `· ${itemName}` : ""}{data.country ? ` · ${getCountryName(data.country.country_code)}` : ""}</CardTitle></CardHeader>
               <CardContent>
-                <div className="flex flex-wrap items-center gap-6">
-                  <div><p className="text-xs text-slate-400">이 품목 평균</p><p className="text-3xl font-bold tracking-tight text-slate-800">{data.item_avg_sgri}</p></div>
-                  <div className="text-slate-300">vs</div>
-                  <div><p className="text-xs text-slate-400">전체 품목 평균</p><p className="text-3xl font-bold tracking-tight text-slate-400">{data.all_items_avg_sgri}</p></div>
-                  <div className="ml-auto flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-semibold ${verdictCls(data.sgri_verdict ?? "")}`}>
-                      {(data.sgri_delta ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                      {(data.sgri_delta ?? 0) > 0 ? "+" : ""}{data.sgri_delta} · {data.sgri_verdict}
-                    </span>
-                  </div>
-                </div>
+                {data.country ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div><p className="text-xs text-slate-400">{getCountryName(data.country.country_code)} SGRI</p><p className="text-3xl font-bold tracking-tight" style={{ color: data.country.sgri >= 50 ? "#e11d48" : data.country.sgri >= 35 ? "#f59e0b" : "#10b981" }}>{data.country.sgri}</p></div>
+                      <div className="text-slate-300">vs</div>
+                      <div><p className="text-xs text-slate-400">이 품목 전체국가 평균</p><p className="text-3xl font-bold tracking-tight text-slate-400">{data.country.item_avg_sgri}</p></div>
+                      <div className="ml-auto flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-semibold ${verdictCls(data.country.verdict ?? "")}`}>
+                          {(data.country.vs_item_avg ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          {(data.country.vs_item_avg ?? 0) > 0 ? "+" : ""}{data.country.vs_item_avg} · {data.country.verdict}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">이 품목 후보 <span className="font-medium">{data.country.candidate_countries}개국</span> 중 위험 상위 <span className="font-medium">{data.country.risk_percentile}%</span> 수준입니다.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div><p className="text-xs text-slate-400">이 품목 평균</p><p className="text-3xl font-bold tracking-tight text-slate-800">{data.item_avg_sgri}</p></div>
+                      <div className="text-slate-300">vs</div>
+                      <div><p className="text-xs text-slate-400">전체 품목 평균</p><p className="text-3xl font-bold tracking-tight text-slate-400">{data.all_items_avg_sgri}</p></div>
+                      <div className="ml-auto flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-semibold ${verdictCls(data.sgri_verdict ?? "")}`}>
+                          {(data.sgri_delta ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          {(data.sgri_delta ?? 0) > 0 ? "+" : ""}{data.sgri_delta} · {data.sgri_verdict}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">위에서 <span className="font-medium text-blue-600">국가를 선택</span>하면 그 국가의 SGRI를 이 품목 평균과 비교합니다.</p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
             {/* 6지표 비교 */}
             <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-3"><CardTitle className="text-base">지표별 상대 위치 (6개)</CardTitle></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-base">지표별 상대 위치 (6개)</CardTitle><CardDescription className="mt-1">{indMode === "country" ? `${getCountryName(data.country!.country_code)} 지표값 vs 이 품목 전체국가 평균` : "이 품목 평균 vs 전체 품목 평균"}</CardDescription></CardHeader>
               <CardContent className="space-y-4">
-                {(data.indicators ?? []).map((ind) => (
+                {indRows.map((ind) => (
                   <div key={ind.key}>
                     <div className="mb-1.5 flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-700"><span className="mr-1.5 text-xs font-bold text-blue-500">{ind.key}</span>{ind.label}</span>
-                      <span className="flex items-center gap-2"><span className="text-slate-500">{ind.item_avg}</span><Badge variant="outline" className={`text-[11px] ${verdictCls(ind.verdict)}`}>{ind.delta > 0 ? "+" : ""}{ind.delta}</Badge></span>
+                      <span className="flex items-center gap-2"><span className="font-semibold text-slate-700">{ind.val}</span><Badge variant="outline" className={`text-[11px] ${verdictCls(ind.verdict)}`}>{ind.delta > 0 ? "+" : ""}{ind.delta}</Badge></span>
                     </div>
                     <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div className={`h-full rounded-full ${ind.delta >= 5 ? "bg-rose-400" : ind.delta <= -5 ? "bg-emerald-400" : "bg-blue-400"}`} style={{ width: `${Math.min(100, (ind.item_avg / maxScale) * 100)}%` }} />
-                      {/* 전체 평균 마커 */}
-                      <div className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-500" style={{ left: `${Math.min(100, (ind.all_avg / maxScale) * 100)}%` }} title={`전체 평균 ${ind.all_avg}`} />
+                      <div className={`h-full rounded-full ${ind.delta >= 5 ? "bg-rose-400" : ind.delta <= -5 ? "bg-emerald-400" : "bg-blue-400"}`} style={{ width: `${Math.min(100, (ind.val / maxScale) * 100)}%` }} />
+                      <div className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-500" style={{ left: `${Math.min(100, (ind.base / maxScale) * 100)}%` }} title={`평균 ${ind.base}`} />
                     </div>
                   </div>
                 ))}
-                <p className="pt-1 text-xs text-slate-400"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-400 align-middle" /> 이 품목 지표값 · <span className="mx-1 inline-block h-3 w-0.5 bg-slate-500 align-middle" /> 전체 품목 평균 · 오른쪽일수록 위험</p>
+                <p className="pt-1 text-xs text-slate-400"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-400 align-middle" /> {indMode === "country" ? "이 국가 지표값" : "이 품목 지표값"} · <span className="mx-1 inline-block h-3 w-0.5 bg-slate-500 align-middle" /> {indMode === "country" ? "이 품목 평균" : "전체 품목 평균"} · 오른쪽일수록 위험</p>
               </CardContent>
             </Card>
 
-            {/* 국가 상대 위치 */}
-            {data.country && (
-              <Card className="border-blue-200 bg-blue-50/40 shadow-sm">
-                <CardHeader className="pb-3"><CardTitle className="text-base">{data.country.country_code} 국가 상대 위치</CardTitle></CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-700">{data.country.summary}</p>
-                  <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                    <div><p className="text-2xl font-bold text-slate-800">{data.country.sgri}</p><p className="text-xs text-slate-400">국가 SGRI</p></div>
-                    <div><p className="text-2xl font-bold text-slate-800">상위 {data.country.risk_percentile}%</p><p className="text-xs text-slate-400">위험 순위 ({data.country.candidate_countries}개국 중)</p></div>
-                    <div><p className={`text-2xl font-bold ${data.country.vs_item_avg >= 0 ? "text-rose-500" : "text-emerald-600"}`}>{data.country.vs_item_avg > 0 ? "+" : ""}{data.country.vs_item_avg}</p><p className="text-xs text-slate-400">품목 평균 대비</p></div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
             <p className="text-center text-xs text-slate-400">기준: {data.basis}</p>
           </div>
         ) : null}

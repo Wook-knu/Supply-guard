@@ -299,7 +299,7 @@ export type ItemBenchmark = {
   sgri_delta?: number
   sgri_verdict?: string
   indicators?: BenchmarkIndicator[]
-  country?: { country_code: string; sgri: number; candidate_countries: number; risk_percentile: number; vs_item_avg: number; summary: string }
+  country?: { country_code: string; sgri: number; item_avg_sgri?: number; candidate_countries: number; risk_percentile: number; vs_item_avg: number; verdict?: string; indicators?: { key: string; label: string; value: number; item_avg: number; delta: number; verdict: string }[]; summary: string }
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {

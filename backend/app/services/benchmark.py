@@ -73,25 +73,40 @@ def compute_benchmark(db: Session, hs_code: str, country_code: str | None = None
     # 국가 상대 위치 (선택)
     if country_code:
         cc = country_code.upper()
-        row = db.execute(text(
-            "SELECT sgri_score FROM country_risk_scores WHERE hs_code = :h AND country_code = :c"
-        ), {"h": hs, "c": cc}).scalar()
-        if row is not None:
+        raw_cols = ", ".join(k for k, _ in _KEYS)
+        crow = db.execute(text(
+            f"SELECT sgri_score, {raw_cols} FROM country_risk_scores "
+            f"WHERE hs_code = :h AND country_code = :c ORDER BY as_of_date DESC LIMIT 1"
+        ), {"h": hs, "c": cc}).first()
+        if crow is not None and crow[0] is not None:
+            csgri = round(float(crow[0]), 1)
             stats = db.execute(text(
                 "SELECT count(*), sum(CASE WHEN sgri_score <= :s THEN 1 ELSE 0 END) "
                 "FROM country_risk_scores WHERE hs_code = :h AND sgri_score IS NOT NULL"
-            ), {"h": hs, "s": float(row)}).one()
+            ), {"h": hs, "s": float(crow[0])}).one()
             total, le = int(stats[0]), int(stats[1] or 0)
-            # 위험 상위 백분위(높을수록 위험). 낮은 SGRI=안전이므로 (안전한 국가 비율)로 순위 환산.
-            safer_pct = round((le - 1) / total * 100, 0) if total else 0  # 이 국가보다 안전/같은 비율
-            risk_percentile = round(100 - safer_pct, 0)                   # 위험 상위 %
+            safer_pct = round((le - 1) / total * 100, 0) if total else 0
+            risk_percentile = round(100 - safer_pct, 0)
+            # 국가 지표값 vs 이 품목 전체국가 평균(item[i])
+            c_inds = []
+            for i, (k, label) in enumerate(_KEYS, start=1):
+                cv, av = crow[i], item[i]
+                if cv is None or av is None:
+                    continue
+                cv, av = round(float(cv), 1), round(float(av), 1)
+                c_inds.append({"key": k[-1].upper(), "label": label, "value": cv,
+                               "item_avg": av, "delta": round(cv - av, 1), "verdict": _verdict(cv - av)})
             result["country"] = {
                 "country_code": cc,
-                "sgri": round(float(row), 1),
+                "sgri": csgri,
+                "item_avg_sgri": item_sgri,            # 이 품목 전체국가 평균(비교 기준)
                 "candidate_countries": total,
-                "risk_percentile": risk_percentile,   # 상위 x% 위험
-                "vs_item_avg": round(float(row) - item_sgri, 1),
-                "summary": f"{cc}는 {hs} 후보 {total}개국 중 위험 상위 {risk_percentile:.0f}% 수준입니다.",
+                "risk_percentile": risk_percentile,
+                "vs_item_avg": round(csgri - item_sgri, 1),
+                "verdict": _verdict(csgri - item_sgri),
+                "indicators": c_inds,
+                "summary": f"{cc}는 이 품목 후보 {total}개국 중 위험 상위 {risk_percentile:.0f}% 수준이며, "
+                           f"품목 평균({item_sgri}) 대비 {csgri - item_sgri:+.1f}점입니다.",
             }
     return result
 
