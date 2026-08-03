@@ -1,27 +1,23 @@
 "use client"
 
-// 신규 모니터링 품목을 등록하고 백그라운드 SGRI 분석을 시작하는 화면입니다.
+// 신규 모니터링 품목 등록 — 토스식 단계별 퍼널 UX.
+// 한 화면에 질문 하나 → 상단 진행바 → 하단 큰 버튼 → 예/아니요 분기.
+// 마지막 "등록" 후 기존 SGRI 분석 흐름(build-sgri)으로 이어진다.
 
 import Link from "next/link"
-import { FormEvent, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { api, type BuildItemSgriResult, type HsCodeOut, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
-import { ArrowLeft, ArrowRight, Bell, Box, Check, ChevronDown, CircleAlert, CircleHelp, Globe2, Info, Loader2, PackagePlus, RefreshCw, ShieldAlert, Sparkles } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Loader2, MapPin, Pencil, RefreshCw, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { Textarea } from "@/components/ui/textarea"
 
 const STORAGE_KEY = "supplyguard:draft-item"
 const POLL_INTERVAL_MS = 1_500
 const MAX_POLL_ATTEMPTS = 40
 
 type ItemForm = {
-  // 화면에서 편집되는 품목 등록 데이터의 형태입니다.
   name: string
   hsCode: string
   quantity: string
@@ -30,34 +26,36 @@ type ItemForm = {
   currency: string
   countries: string[]
   deliveryDate: string
-  supplierNotes: string
   priority: string
 }
 
 const initialForm: ItemForm = {
-  name: "",
-  hsCode: "",
-  quantity: "",
-  qtyUnit: "톤",
-  targetPrice: "",
-  currency: "USD",
-  countries: [],
-  deliveryDate: "",
-  supplierNotes: "",
-  priority: "high",
+  name: "", hsCode: "", quantity: "", qtyUnit: "톤", targetPrice: "", currency: "USD",
+  countries: [], deliveryDate: "", priority: "high",
 }
 
 const QTY_UNITS = ["톤", "kg", "개", "L", "㎥", "박스"]
 const CURRENCIES = ["USD", "KRW", "EUR", "CNY", "JPY"]
-// 백엔드 qty_unit는 영문 코드로 저장 (톤 → ton). 나머지는 그대로.
 const QTY_UNIT_CODE: Record<string, string> = { "톤": "ton", kg: "kg", "개": "ea", L: "l", "㎥": "m3", "박스": "box" }
 
+const PRIORITIES = [
+  { id: "high", title: "높음", desc: "매일 위험 신호를 확인해요", emoji: "🚨" },
+  { id: "normal", title: "보통", desc: "주간 리포트로 확인해요", emoji: "📊" },
+  { id: "low", title: "낮음", desc: "월간 리포트로 확인해요", emoji: "🗓️" },
+]
+
+// 퍼널 단계 정의
+const STEPS = ["name", "origin", "specs", "priority", "review"] as const
+type Step = (typeof STEPS)[number]
+
 export default function NewItemPage() {
-  const [submitting, setSubmitting] = useState(false)
+  const [step, setStep] = useState(0)
   const [form, setForm] = useState<ItemForm>(initialForm)
-  const [countryInput, setCountryInput] = useState("")
-  const [isCountryListOpen, setIsCountryListOpen] = useState(false)
+  const [hasOrigin, setHasOrigin] = useState<"yes" | "no" | null>(null)
   const [error, setError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  // 등록 후 분석
   const [createdItem, setCreatedItem] = useState<QueryOut | null>(null)
   const [buildStatus, setBuildStatus] = useState<"idle" | "pending" | "done" | "error">("idle")
   const [buildProgress, setBuildProgress] = useState(0)
@@ -65,47 +63,38 @@ export default function NewItemPage() {
   const [buildError, setBuildError] = useState("")
   const mountedRef = useRef(true)
   const buildRequestInFlightRef = useRef(false)
-  // 품목명 → HS 자동완성 + 이미 등록된 HS 중복 체크
+
+  // HS 자동완성 + 중복 체크 + 국가 선택
   const [hsSuggestions, setHsSuggestions] = useState<HsCodeOut[]>([])
   const [showHsSuggest, setShowHsSuggest] = useState(false)
+  const [showHsInput, setShowHsInput] = useState(false)
   const [existingHsCodes, setExistingHsCodes] = useState<Set<string>>(new Set())
   const hsSearchTimer = useRef<number | null>(null)
+  const [countryInput, setCountryInput] = useState("")
 
-  const normalizedCountryInput = countryInput.trim().toLocaleLowerCase("ko")
-  const filteredCountryOptions = COUNTRY_OPTIONS.filter(({ code, name }) =>
-    !form.countries.includes(name)
-    && (!normalizedCountryInput
-      || code.toLowerCase().includes(normalizedCountryInput)
-      || name.toLocaleLowerCase("ko").includes(normalizedCountryInput)),
-  )
+  const current: Step = STEPS[step]
 
   useEffect(() => {
     mountedRef.current = true
-    // 이전에 저장한 초안이 있으면 브라우저 저장소에서 복원합니다.
     const draft = window.localStorage.getItem(STORAGE_KEY)
     if (draft) {
       try {
-        setForm({ ...initialForm, ...JSON.parse(draft) })
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY)
-      }
+        const parsed = { ...initialForm, ...JSON.parse(draft) }
+        setForm(parsed)
+        if (parsed.countries?.length) setHasOrigin("yes")
+      } catch { window.localStorage.removeItem(STORAGE_KEY) }
     }
-    // 이미 등록된 품목의 HS 코드(중복 방지용) 로드
     api.getQueries()
       .then((rows) => setExistingHsCodes(new Set(rows.map((r) => (r.hs_code ?? "").trim()).filter(Boolean))))
       .catch(() => {})
-    return () => {
-      mountedRef.current = false
-    }
+    return () => { mountedRef.current = false }
   }, [])
 
   const updateField = (field: keyof ItemForm, value: string) => {
-    // 모든 텍스트 입력을 하나의 form 상태에서 관리합니다.
     setError("")
-    setForm((current) => ({ ...current, [field]: value }))
+    setForm((c) => ({ ...c, [field]: value }))
   }
 
-  // 품목명 입력 시 HS 코드 자동완성 검색(디바운스). 이름/코드로 검색.
   const onNameChange = (value: string) => {
     updateField("name", value)
     if (hsSearchTimer.current) window.clearTimeout(hsSearchTimer.current)
@@ -119,184 +108,377 @@ export default function NewItemPage() {
   }
 
   const pickHsSuggestion = (hs: HsCodeOut) => {
-    // 자동완성 선택 → 품목명 + HS 코드 자동 채움
-    setForm((current) => ({ ...current, name: hs.name_ko || current.name, hsCode: hs.hs_code }))
+    setForm((c) => ({ ...c, name: hs.name_ko || c.name, hsCode: hs.hs_code }))
     setShowHsSuggest(false)
   }
 
   const addCountry = (value = countryInput) => {
-    // 빈 값과 중복 국가는 목록에 추가하지 않습니다.
-    const enteredCountry = value.trim()
-    const matchedCountry = COUNTRY_OPTIONS.find(({ code, name }) =>
-      code.toLowerCase() === enteredCountry.toLowerCase()
-      || name.toLocaleLowerCase("ko") === enteredCountry.toLocaleLowerCase("ko"),
-    )
-    const country = matchedCountry?.name ?? enteredCountry
+    const entered = value.trim()
+    const matched = COUNTRY_OPTIONS.find(({ code, name }) =>
+      code.toLowerCase() === entered.toLowerCase() || name.toLocaleLowerCase("ko") === entered.toLocaleLowerCase("ko"))
+    const country = matched?.name ?? entered
     if (!country || form.countries.includes(country)) return
-    setForm((current) => ({ ...current, countries: [...current.countries, country] }))
+    setForm((c) => ({ ...c, countries: [...c.countries, country] }))
     setCountryInput("")
-    setIsCountryListOpen(false)
   }
 
-  const removeCountry = (country: string) => {
-    setForm((current) => ({ ...current, countries: current.countries.filter((item) => item !== country) }))
-  }
+  const removeCountry = (country: string) =>
+    setForm((c) => ({ ...c, countries: c.countries.filter((x) => x !== country) }))
 
-  const saveItem = async (event: FormEvent) => {
-    // 필수값을 검증한 뒤 백엔드(POST /queries)에 품목을 먼저 등록합니다.
-    event.preventDefault()
-    const normalizedHsCode = form.hsCode.replace(/[^0-9]/g, "")
-    // 품목명만 필수. HS·공급국·납기는 선택(공급국을 넣으면 현재국 vs 대체국 비교에 활용).
-    if (!form.name.trim()) {
-      setError("품목명을 입력해 주세요.")
-      return
-    }
-    if (normalizedHsCode && normalizedHsCode.length < 2) {
-      setError("HS 코드를 입력하려면 숫자 2자리 이상이어야 합니다. (모르면 비워 두세요)")
-      return
-    }
-    if (normalizedHsCode && existingHsCodes.has(normalizedHsCode)) {
-      setError(`이미 등록된 품목입니다 (HS ${normalizedHsCode}). 품목 목록에서 확인해 주세요.`)
-      return
-    }
+  const normalizedCountryInput = countryInput.trim().toLocaleLowerCase("ko")
+  const filteredCountryOptions = COUNTRY_OPTIONS.filter(({ code, name }) =>
+    !form.countries.includes(name)
+    && (!normalizedCountryInput || code.toLowerCase().includes(normalizedCountryInput) || name.toLocaleLowerCase("ko").includes(normalizedCountryInput)),
+  ).slice(0, 8)
+
+  // ── 단계 이동 ──
+  const goNext = () => {
     setError("")
-    setSubmitting(true)
+    if (current === "name" && !form.name.trim()) { setError("품목명을 입력해 주세요."); return }
+    if (current === "origin") {
+      if (hasOrigin === null) { setError("예 / 아니요를 선택해 주세요."); return }
+      if (hasOrigin === "yes" && form.countries.length === 0) { setError("거래 중인 국가를 하나 이상 추가하거나 ‘아니요’를 선택하세요."); return }
+    }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
+    setStep((s) => Math.min(s + 1, STEPS.length - 1))
+  }
+  const goBack = () => { setError(""); setStep((s) => Math.max(0, s - 1)) }
+
+  const chooseNoOrigin = () => {
+    setHasOrigin("no")
+    setForm((c) => ({ ...c, countries: [] }))
+    setError("")
+    window.setTimeout(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 180)
+  }
+
+  // ── 등록 ──
+  const submit = async () => {
+    const hs = form.hsCode.replace(/[^0-9]/g, "")
+    if (!form.name.trim()) { setStep(0); setError("품목명을 입력해 주세요."); return }
+    if (hs && hs.length < 2) { setError("HS 코드는 숫자 2자리 이상이어야 합니다. (모르면 비워 두세요)"); return }
+    if (hs && existingHsCodes.has(hs)) { setError(`이미 등록된 품목입니다 (HS ${hs}). 품목 목록에서 확인해 주세요.`); return }
+    setError(""); setSubmitting(true)
     try {
-      // 등록 요청 중 새로고침해도 복원할 수 있도록 최신 초안을 저장합니다.
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
-      // 납기일 → 리드타임(일수)로 환산
       const leadDays = form.deliveryDate
         ? Math.max(0, Math.round((new Date(form.deliveryDate).getTime() - Date.now()) / 86_400_000))
         : undefined
       const created = await api.createQuery({
         item_name: form.name.trim(),
-        hs_code: normalizedHsCode || undefined, // "2836.91" → "283691", 없으면 생략
+        hs_code: hs || undefined,
         required_qty: form.quantity ? Number(form.quantity) : undefined,
         target_price: form.targetPrice ? Number(form.targetPrice) : undefined,
         qty_unit: QTY_UNIT_CODE[form.qtyUnit] ?? "ton",
         lead_time_days: leadDays,
         importer_code: "KR",
-        // 현재 거래 중인 공급국(선택) → 현재국 vs 대체국 비교에 활용
         origin_country: form.countries.length ? form.countries.join(",") : undefined,
       })
       setCreatedItem(created)
       window.localStorage.removeItem(STORAGE_KEY)
     } catch (err) {
       setError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.")
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   const startAnalysis = async () => {
     if (!createdItem || buildStatus === "pending" || buildRequestInFlightRef.current) return
-
     buildRequestInFlightRef.current = true
-    setBuildStatus("pending")
-    setBuildProgress(2)
-    setBuildResult(null)
-    setBuildError("")
-
+    setBuildStatus("pending"); setBuildProgress(2); setBuildResult(null); setBuildError("")
     try {
       const started = await api.buildItemSgri(createdItem.hs_code ?? form.hsCode.replace(/[^0-9]/g, ""))
       let job = started
-
       for (let attempt = 0; job.status === "pending" && attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS))
         if (!mountedRef.current) return
         job = await api.getBuildJob(started.job_id)
         setBuildProgress(Math.min(95, Math.round(((attempt + 1) / MAX_POLL_ATTEMPTS) * 100)))
       }
-
       if (!mountedRef.current) return
-      if (job.status === "error") {
-        throw new Error(job.error || "품목 분석에 실패했습니다.")
-      }
-      if (job.status !== "done" || !job.result) {
-        throw new Error("분석 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요.")
-      }
-      if (job.result.error) {
-        throw new Error(job.result.error)
-      }
-
-      setBuildResult(job.result)
-      setBuildProgress(100)
-      setBuildStatus("done")
+      if (job.status === "error") throw new Error(job.error || "품목 분석에 실패했습니다.")
+      if (job.status !== "done" || !job.result) throw new Error("분석 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요.")
+      if (job.result.error) throw new Error(job.result.error)
+      setBuildResult(job.result); setBuildProgress(100); setBuildStatus("done")
     } catch (err) {
       if (!mountedRef.current) return
-      setBuildStatus("error")
-      setBuildError(err instanceof Error ? err.message : "품목 분석 중 오류가 발생했습니다.")
-    } finally {
-      buildRequestInFlightRef.current = false
-    }
+      setBuildStatus("error"); setBuildError(err instanceof Error ? err.message : "품목 분석 중 오류가 발생했습니다.")
+    } finally { buildRequestInFlightRef.current = false }
   }
 
+  const progress = createdItem ? 100 : Math.round(((step + 1) / (STEPS.length + 1)) * 100)
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      {/* 상단: 뒤로 + 진행바 */}
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-lg items-center gap-3 px-5">
+          {createdItem ? (
+            <Link href="/items" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
+          ) : step === 0 ? (
+            <Link href="/dashboard" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
+          ) : (
+            <button onClick={goBack} aria-label="이전" className="text-slate-500 hover:text-slate-800"><ArrowLeft className="h-5 w-5" /></button>
+          )}
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="w-10 text-right text-xs font-medium text-slate-400">{createdItem ? "완료" : `${step + 1}/${STEPS.length}`}</span>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
-        <div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><PackagePlus className="h-4 w-4" /> 공급망 등록</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">모니터링할 품목을 등록하세요</h1><p className="mt-2 text-sm text-slate-500">품목과 조달 조건을 입력하면 AI가 공급망 위험도를 분석합니다.</p></div><Badge className="w-fit border-blue-100 bg-blue-50 px-3 py-1.5 text-blue-700 hover:bg-blue-50">{createdItem ? "2 / 2 SGRI 분석" : "1 / 2 기본 정보"}</Badge></div>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <form id="item-form" onSubmit={saveItem} className="lg:col-span-2"><fieldset disabled={Boolean(createdItem)} className={createdItem ? "opacity-70" : ""}><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">품목 및 조달 정보</CardTitle><CardDescription className="mt-1">{createdItem ? "품목 등록이 완료되어 입력 내용이 잠겼습니다." : "* 표시는 필수 입력 항목입니다."}</CardDescription></CardHeader><CardContent className="space-y-7 pt-6">
-            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600"><Box className="h-4 w-4" /></div><h2 className="text-sm font-semibold">품목 정보</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="품목명" required helper="입력하면 HS 코드를 추천해 드려요."><Input placeholder="예: 리튬 탄산염" value={form.name} onChange={(event) => onNameChange(event.target.value)} onFocus={() => hsSuggestions.length > 0 && setShowHsSuggest(true)} onBlur={() => window.setTimeout(() => setShowHsSuggest(false), 150)} autoComplete="off" className="h-11" />{showHsSuggest && <div role="listbox" aria-label="HS 코드 추천" className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"><div className="border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-500">품목 · HS 코드 추천</div><div className="max-h-56 overflow-y-auto p-1">{hsSuggestions.map((hs) => <button type="button" role="option" aria-selected="false" key={hs.hs_code} onMouseDown={(e) => { e.preventDefault(); pickHsSuggestion(hs) }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700"><span className="truncate">{hs.name_ko || hs.name_en}</span><span className="shrink-0 text-xs font-medium text-slate-400">HS {hs.hs_code}</span></button>)}</div></div>}</Field><Field label="HS 코드" helper="모르면 비워 두세요 (품목명으로 추천됨)."><Input placeholder="예: 2836.91 (선택)" value={form.hsCode} onChange={(event) => updateField("hsCode", event.target.value)} className="h-11" /></Field><Field label="연간 예상 수량"><Input placeholder="예: 500" type="number" min="0" value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} className="h-11 pr-20" /><select aria-label="수량 단위" value={form.qtyUnit} onChange={(event) => updateField("qtyUnit", event.target.value)} className="absolute inset-y-0 right-1.5 my-1.5 cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-medium text-slate-600 outline-none transition-colors hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">{QTY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select></Field><Field label="목표 단가"><Input placeholder="예: 18,000" type="number" min="0" value={form.targetPrice} onChange={(event) => updateField("targetPrice", event.target.value)} className="h-11 pr-28" /><div className="absolute inset-y-0 right-1.5 my-1.5 flex items-center gap-1"><select aria-label="통화" value={form.currency} onChange={(event) => updateField("currency", event.target.value)} className="h-full cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-medium text-slate-600 outline-none transition-colors hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select><span className="pr-1 text-sm text-slate-400">/ {form.qtyUnit}</span></div></Field></div></section>
-
-            <div className="border-t border-slate-100" />
-            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50 text-violet-600"><Globe2 className="h-4 w-4" /></div><div><h2 className="text-sm font-semibold">현재 거래 중인 조달 현황</h2><p className="text-xs text-slate-400">지금 실제로 조달하고 있는 곳을 입력하면, 이를 기준으로 위험도를 분석하고 대체 공급처를 추천합니다.</p></div></div><div className="grid gap-5 md:grid-cols-2"><Field label="현재 거래 중인 공급국" helper="(선택) 입력하면 현재국 vs 대체국을 비교해 드려요."><div className="relative"><div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5">{form.countries.map((country) => <Badge key={country} className="bg-slate-100 text-slate-600 hover:bg-slate-100">{country}<button type="button" aria-label={`${country} 삭제`} onClick={() => removeCountry(country)} className="ml-1 text-slate-400 hover:text-rose-500">×</button></Badge>)}<Input aria-label="공급국 추가" value={countryInput} onChange={(event) => { setCountryInput(event.target.value); setIsCountryListOpen(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCountry() } }} placeholder="국가명 또는 코드 입력" className="h-7 min-w-24 flex-1 border-0 px-1 shadow-none focus-visible:ring-0" /><button type="button" aria-expanded={isCountryListOpen} aria-haspopup="listbox" onClick={() => setIsCountryListOpen((current) => !current)} className="flex items-center gap-1 px-1 text-xs font-medium text-blue-600">+ 추가<ChevronDown className={`h-3 w-3 transition-transform ${isCountryListOpen ? "rotate-180" : ""}`} /></button></div>{isCountryListOpen && <div role="listbox" aria-label="공급국 선택" className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"><div className="flex items-center justify-between border-b border-slate-100 px-3 py-2"><span className="text-xs font-medium text-slate-700">국가 선택</span><span className="text-[11px] text-slate-400">{filteredCountryOptions.length}개</span></div><div className="max-h-56 overflow-y-auto p-1">{filteredCountryOptions.map(({ code, name }) => <button type="button" role="option" aria-selected="false" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700"><span>{name}</span><span className="text-xs text-slate-400">{code}</span></button>)}{filteredCountryOptions.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-400">일치하는 국가가 없습니다.</p>}</div></div>}</div></Field><Field label="희망 납기일" helper="(선택)"><Input type="date" value={form.deliveryDate} onChange={(event) => updateField("deliveryDate", event.target.value)} className="h-11" /></Field><div className="md:col-span-2"><Label className="text-sm font-medium">공급사 또는 조달 경로 <span className="text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="현재 거래 중인 공급사명, 경유 항만, 특이사항 등을 입력하세요." value={form.supplierNotes} onChange={(event) => updateField("supplierNotes", event.target.value)} /></div></div></section>
-
-            <div className="border-t border-slate-100" />
-            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50 text-amber-600"><CircleHelp className="h-4 w-4" /></div><h2 className="text-sm font-semibold">분석 우선순위</h2></div><div className="grid gap-3 sm:grid-cols-3">{[{ id: "high", title: "높음", description: "매일 위험 신호를 확인" }, { id: "normal", title: "보통", description: "주간 리포트로 확인" }, { id: "low", title: "낮음", description: "월간 리포트로 확인" }].map((option) => <button type="button" key={option.id} onClick={() => updateField("priority", option.id)} className={`rounded-lg border p-4 text-left transition-colors ${form.priority === option.id ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold">{option.title}</span>{form.priority === option.id && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600"><Check className="h-3 w-3 text-white" /></span>}</div><p className="mt-1 text-xs text-slate-500">{option.description}</p></button>)}</div></section>
-            {error && <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-          </CardContent></Card></fieldset></form>
-
-          <aside className="space-y-5"><Card className="border-blue-100 bg-gradient-to-br from-blue-50/80 to-cyan-50/60 shadow-sm"><CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><Sparkles className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">AI가 분석하는 항목</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-slate-600"><AnalysisItem text="국가·공급처 의존도" /><AnalysisItem text="수출 규제 및 지정학 리스크" /><AnalysisItem text="물류 지연과 항만 혼잡도" /><AnalysisItem text="가격 변동성과 ESG 규제" /><div className="mt-4 rounded-lg border border-blue-100 bg-white/80 p-3 text-xs leading-5 text-slate-500"><Info className="mr-1 inline h-3.5 w-3.5 text-blue-600" /> 공개 무역 통계와 뉴스 데이터를 결합해 SGRI 점수를 계산합니다.</div></CardContent></Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">등록 후 진행 과정</CardTitle></CardHeader><CardContent><ol className="space-y-4">{["기본 위험도 분석", "고위험 이슈 뉴스 수집", "대체 공급국·기업 추천", "AI 대응 보고서 생성"].map((item, index) => <li className="flex gap-3" key={item}><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${index === 0 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{index + 1}</span><span className="pt-0.5 text-sm text-slate-600">{item}</span></li>)}</ol></CardContent></Card></aside>
-        </div>
-
-        {createdItem && (
-          <Card className={`mt-6 shadow-sm ${buildStatus === "error" ? "border-rose-200" : buildStatus === "done" ? "border-emerald-200" : "border-blue-200"}`}>
-            <CardContent className="p-5 md:p-6">
-              {buildStatus === "idle" && (
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Check className="h-5 w-5" /></span>
-                  <div><p className="font-semibold text-slate-800">품목 등록이 완료되었습니다.</p>{createdItem.hs_code ? <p className="mt-1 text-sm text-slate-500">이제 HS {createdItem.hs_code}의 무역 데이터를 수집하고 SGRI를 계산할 수 있습니다. 분석에는 수십 초가 걸릴 수 있습니다.</p> : <p className="mt-1 text-sm text-amber-700">HS 코드가 없어 위험도 분석은 제한됩니다. 품목명으로 HS를 선택해 재등록하거나, 목록에서 나중에 추가하세요. (모니터링 항목으로는 저장됨)</p>}</div>
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-28 pt-6">
+        {createdItem ? (
+          <CompletionView item={createdItem} status={buildStatus} progress={buildProgress} result={buildResult} error={buildError} onStart={startAnalysis} />
+        ) : (
+          <div key={step} className="flex flex-1 flex-col animate-in fade-in slide-in-from-right-4 duration-300">
+            {/* ── 품목명 ── */}
+            {current === "name" && (
+              <Step icon="📦" title="어떤 품목을 모니터링할까요?" subtitle="품목명을 입력하면 HS 코드를 자동으로 추천해 드려요.">
+                <div className="relative">
+                  <Input autoFocus placeholder="예: 리튬 탄산염" value={form.name}
+                    onChange={(e) => onNameChange(e.target.value)}
+                    onFocus={() => hsSuggestions.length > 0 && setShowHsSuggest(true)}
+                    onBlur={() => window.setTimeout(() => setShowHsSuggest(false), 150)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !showHsSuggest) goNext() }}
+                    autoComplete="off" className="h-14 rounded-xl text-lg" />
+                  {showHsSuggest && (
+                    <div role="listbox" className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-400">품목 · HS 코드 추천</div>
+                      <div className="max-h-60 overflow-y-auto p-1">
+                        {hsSuggestions.map((hs) => (
+                          <button type="button" key={hs.hs_code} onMouseDown={(e) => { e.preventDefault(); pickHsSuggestion(hs) }}
+                            className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-700">
+                            <span className="truncate">{hs.name_ko || hs.name_en}</span>
+                            <span className="shrink-0 text-xs font-medium text-slate-400">HS {hs.hs_code}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {buildStatus === "pending" && (
-                <div role="status" aria-live="polite">
-                  <div className="flex items-start gap-3"><Loader2 className="mt-0.5 h-5 w-5 animate-spin text-blue-600" /><div><p className="font-semibold text-slate-800">품목 데이터를 분석하고 있습니다.</p><p className="mt-1 text-sm text-slate-500">다년간 무역 데이터를 수집해 국가별 SGRI를 계산합니다. 이 화면을 잠시 유지해 주세요.</p></div></div>
-                  <Progress value={buildProgress} className="mt-5 h-2" />
-                  <p className="mt-2 text-right text-xs font-medium text-slate-500">폴링 경과 {buildProgress}%</p>
+                {/* HS 코드 (선택) */}
+                <div className="mt-3">
+                  {form.hsCode && !showHsInput ? (
+                    <button type="button" onClick={() => setShowHsInput(true)} className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+                      HS {form.hsCode} <Pencil className="h-3 w-3" />
+                    </button>
+                  ) : showHsInput || form.hsCode ? (
+                    <Input placeholder="HS 코드 (선택)" value={form.hsCode} onChange={(e) => updateField("hsCode", e.target.value)} className="h-11 rounded-xl" />
+                  ) : (
+                    <button type="button" onClick={() => setShowHsInput(true)} className="text-sm font-medium text-slate-400 hover:text-slate-600">+ HS 코드 직접 입력 (모르면 건너뛰기)</button>
+                  )}
                 </div>
-              )}
-              {buildStatus === "done" && buildResult && (
-                <div role="status" aria-live="polite" className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Check className="h-5 w-5" /></span>
-                  <div><p className="font-semibold text-slate-800">SGRI 분석이 완료되었습니다.</p>{buildResult.countries > 0 ? <p className="mt-1 text-sm text-slate-600">HS {buildResult.hs_code}에 대해 <span className="font-semibold text-emerald-700">{buildResult.countries}개 국가</span>의 위험도를 계산했습니다.</p> : <p className="mt-1 text-sm text-slate-500">분석은 완료됐지만 계산된 국가 결과가 없습니다. 추천 화면에서 데이터 상태를 확인해 주세요.</p>}</div>
+              </Step>
+            )}
+
+            {/* ── 현재 조달국 (예/아니요) ── */}
+            {current === "origin" && (
+              <Step icon="🌍" title="지금 조달하고 있는 국가가 있나요?" subtitle="현재 거래국을 알려주시면, 대체 공급국과 위험도를 비교해 드려요.">
+                <div className="grid grid-cols-2 gap-3">
+                  <ChoiceCard active={hasOrigin === "yes"} onClick={() => { setHasOrigin("yes"); setError("") }} emoji="✅" title="네, 있어요" desc="거래국 선택" />
+                  <ChoiceCard active={hasOrigin === "no"} onClick={chooseNoOrigin} emoji="🆕" title="아니요" desc="신규로 찾는 중" />
                 </div>
-              )}
-              {buildStatus === "error" && (
-                <div role="alert" className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" /><div><p className="font-semibold text-slate-800">품목 분석을 완료하지 못했습니다.</p><p className="mt-1 text-sm text-rose-700">{buildError}</p><p className="mt-1 text-xs text-slate-500">등록된 품목은 유지되므로 다시 등록할 필요가 없습니다.</p></div></div>
-              )}
-            </CardContent>
-          </Card>
+                {hasOrigin === "yes" && (
+                  <div className="mt-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="mb-2 text-sm font-medium text-slate-600">현재 거래 중인 공급국</p>
+                    {form.countries.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {form.countries.map((c) => (
+                          <span key={c} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+                            <MapPin className="h-3 w-3" />{c}
+                            <button type="button" onClick={() => removeCountry(c)} className="ml-0.5 text-blue-400 hover:text-rose-500">×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative">
+                      <Input value={countryInput} onChange={(e) => setCountryInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCountry() } }}
+                        placeholder="국가명 또는 코드 입력 (예: 칠레, CL)" className="h-12 rounded-xl" />
+                      {countryInput.trim() && filteredCountryOptions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                          <div className="max-h-52 overflow-y-auto p-1">
+                            {filteredCountryOptions.map(({ code, name }) => (
+                              <button type="button" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-700">
+                                <span>{name}</span><span className="text-xs text-slate-400">{code}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Step>
+            )}
+
+            {/* ── 물량/단가 (선택) ── */}
+            {current === "specs" && (
+              <Step icon="📈" title="예상 물량과 목표가가 있나요?" subtitle="선택 항목이에요. 없으면 건너뛰어도 분석에는 문제 없어요.">
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-1.5 text-sm font-medium text-slate-600">연간 예상 수량</p>
+                    <div className="relative">
+                      <Input type="number" min="0" placeholder="예: 500" value={form.quantity} onChange={(e) => updateField("quantity", e.target.value)} className="h-12 rounded-xl pr-20" />
+                      <select aria-label="단위" value={form.qtyUnit} onChange={(e) => updateField("qtyUnit", e.target.value)} className="absolute inset-y-0 right-1.5 my-1.5 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2 text-sm font-medium text-slate-600 outline-none hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                        {QTY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-sm font-medium text-slate-600">목표 단가</p>
+                    <div className="relative">
+                      <Input type="number" min="0" placeholder="예: 18,000" value={form.targetPrice} onChange={(e) => updateField("targetPrice", e.target.value)} className="h-12 rounded-xl pr-28" />
+                      <div className="absolute inset-y-0 right-1.5 my-1.5 flex items-center gap-1">
+                        <select aria-label="통화" value={form.currency} onChange={(e) => updateField("currency", e.target.value)} className="h-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2 text-sm font-medium text-slate-600 outline-none hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <span className="pr-1 text-sm text-slate-400">/ {form.qtyUnit}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-sm font-medium text-slate-600">희망 납기일 <span className="text-slate-400">(선택)</span></p>
+                    <Input type="date" value={form.deliveryDate} onChange={(e) => updateField("deliveryDate", e.target.value)} className="h-12 rounded-xl" />
+                  </div>
+                </div>
+              </Step>
+            )}
+
+            {/* ── 모니터링 빈도 ── */}
+            {current === "priority" && (
+              <Step icon="🔔" title="얼마나 자주 확인할까요?" subtitle="위험 신호를 알려드리는 주기를 선택하세요.">
+                <div className="space-y-3">
+                  {PRIORITIES.map((p) => (
+                    <button type="button" key={p.id} onClick={() => updateField("priority", p.id)}
+                      className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all ${form.priority === p.id ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}>
+                      <span className="text-2xl">{p.emoji}</span>
+                      <div className="flex-1"><p className="font-semibold">{p.title}</p><p className="text-sm text-slate-500">{p.desc}</p></div>
+                      {form.priority === p.id && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600"><Check className="h-4 w-4 text-white" /></span>}
+                    </button>
+                  ))}
+                </div>
+              </Step>
+            )}
+
+            {/* ── 확인 ── */}
+            {current === "review" && (
+              <Step icon="✨" title="이대로 등록할까요?" subtitle="입력하신 내용을 확인하세요. 수정하려면 항목을 누르세요.">
+                <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
+                  <ReviewRow label="품목명" value={form.name || "—"} onEdit={() => setStep(0)} />
+                  <ReviewRow label="HS 코드" value={form.hsCode || "품목명으로 자동 추천"} onEdit={() => setStep(0)} />
+                  <ReviewRow label="현재 거래국" value={form.countries.length ? form.countries.join(", ") : "없음 (신규 탐색)"} onEdit={() => setStep(1)} />
+                  <ReviewRow label="물량 / 목표가" value={[form.quantity && `${form.quantity}${form.qtyUnit}`, form.targetPrice && `${Number(form.targetPrice).toLocaleString()}${form.currency}`].filter(Boolean).join(" · ") || "미입력"} onEdit={() => setStep(2)} />
+                  <ReviewRow label="모니터링 빈도" value={PRIORITIES.find((p) => p.id === form.priority)?.title ?? "높음"} onEdit={() => setStep(3)} />
+                </div>
+              </Step>
+            )}
+
+            {error && <p role="alert" className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+          </div>
         )}
-
-        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-6"><p className="hidden text-sm text-slate-500 md:block">{createdItem ? "분석이 끝나면 해당 품목의 추천 결과로 이동할 수 있습니다." : "등록 후에도 대시보드에서 언제든 확인할 수 있습니다."}</p><div className="ml-auto flex gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href={createdItem ? "/items" : "/dashboard"}>{createdItem ? "품목 목록" : "취소"}</Link></Button>{!createdItem && <Button type="submit" form="item-form" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">{submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />등록 중...</> : <>품목 등록 <ArrowRight className="ml-2 h-4 w-4" /></>}</Button>}{createdItem && buildStatus === "idle" && createdItem.hs_code && <Button type="button" onClick={startAnalysis} className="bg-blue-600 hover:bg-blue-700">이 품목 분석 시작 <ArrowRight className="ml-2 h-4 w-4" /></Button>}{createdItem && buildStatus === "pending" && <Button type="button" disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" />분석 진행 중</Button>}{createdItem && buildStatus === "error" && <Button type="button" onClick={startAnalysis} className="bg-blue-600 hover:bg-blue-700"><RefreshCw className="mr-2 h-4 w-4" />분석 다시 시도</Button>}{createdItem && buildStatus === "done" && <Button asChild className="bg-emerald-600 hover:bg-emerald-700"><Link href={`/recommendations?query_id=${createdItem.query_id}`}>추천 결과 보기 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}</div></div>
       </main>
+
+      {/* 하단 고정 버튼 */}
+      {!createdItem && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-100 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-lg items-center gap-3 px-5 py-4">
+            {current === "specs" && (
+              <Button variant="ghost" onClick={goNext} className="h-12 flex-1 text-slate-500">건너뛰기</Button>
+            )}
+            {current === "review" ? (
+              <Button onClick={submit} disabled={submitting} className="flex-1 rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
+                {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />등록 중...</> : <>품목 등록하기</>}
+              </Button>
+            ) : (
+              <Button onClick={goNext} className="flex-1 rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
+                다음 <ArrowRight className="ml-1.5 h-5 w-5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function Field({ label, required, helper, children }: { label: string; required?: boolean; helper?: string; children: React.ReactNode }) {
-  return <div className="relative"><Label className="text-sm font-medium">{label}{required && <span className="ml-0.5 text-rose-500">*</span>}</Label>{helper && <span className="ml-1.5 text-xs text-slate-400">{helper}</span>}<div className="relative mt-2">{children}</div></div>
+// ── 하위 컴포넌트 ──
+function Step({ icon, title, subtitle, children }: { icon: string; title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-6 text-4xl">{icon}</div>
+      <h1 className="text-2xl font-bold leading-snug tracking-tight">{title}</h1>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
+      <div className="mt-8">{children}</div>
+    </div>
+  )
 }
 
-function AnalysisItem({ text }: { text: string }) {
-  return <div className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-600" /><span>{text}</span></div>
+function ChoiceCard({ active, onClick, emoji, title, desc }: { active: boolean; onClick: () => void; emoji: string; title: string; desc: string }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all ${active ? "border-blue-500 bg-blue-50/70 ring-1 ring-blue-500" : "border-slate-200 hover:border-slate-300"}`}>
+      <span className="text-2xl">{emoji}</span>
+      <div><p className="font-semibold">{title}</p><p className="text-xs text-slate-500">{desc}</p></div>
+    </button>
+  )
+}
+
+function ReviewRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
+  return (
+    <button type="button" onClick={onEdit} className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-slate-50">
+      <span className="text-sm text-slate-400">{label}</span>
+      <span className="flex items-center gap-2 text-sm font-medium text-slate-800"><span className="max-w-[15rem] truncate">{value}</span><Pencil className="h-3.5 w-3.5 shrink-0 text-slate-300" /></span>
+    </button>
+  )
+}
+
+function CompletionView({ item, status, progress, result, error, onStart }: {
+  item: QueryOut; status: "idle" | "pending" | "done" | "error"; progress: number
+  result: BuildItemSgriResult | null; error: string; onStart: () => void
+}) {
+  return (
+    <div className="flex flex-1 flex-col animate-in fade-in duration-300">
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Check className="h-8 w-8" /></div>
+      <h1 className="text-2xl font-bold tracking-tight">품목 등록 완료!</h1>
+      <p className="mt-2 text-sm leading-6 text-slate-500">
+        <span className="font-medium text-slate-700">{item.item_name}</span>
+        {item.hs_code ? ` (HS ${item.hs_code})` : ""} 이(가) 모니터링 목록에 추가됐어요.
+      </p>
+
+      <Card className="mt-6 border-slate-200 shadow-sm">
+        <CardContent className="p-5">
+          {status === "idle" && (
+            item.hs_code ? (
+              <div className="flex items-start gap-3"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" /><div><p className="font-semibold text-slate-800">이제 SGRI 분석을 시작할 수 있어요.</p><p className="mt-1 text-sm text-slate-500">HS {item.hs_code}의 무역 데이터를 수집해 국가별 위험도를 계산합니다. (수십 초 소요)</p></div></div>
+            ) : (
+              <div className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" /><div><p className="font-semibold text-slate-800">HS 코드가 없어 위험도 분석은 제한돼요.</p><p className="mt-1 text-sm text-slate-500">모니터링 항목으로는 저장됐어요. 목록에서 HS를 추가하면 분석할 수 있어요.</p></div></div>
+            )
+          )}
+          {status === "pending" && (
+            <div role="status" aria-live="polite">
+              <div className="flex items-start gap-3"><Loader2 className="mt-0.5 h-5 w-5 animate-spin text-blue-600" /><div><p className="font-semibold text-slate-800">공급망을 분석하고 있어요.</p><p className="mt-1 text-sm text-slate-500">다년간 무역 데이터로 국가별 SGRI를 계산합니다.</p></div></div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div>
+            </div>
+          )}
+          {status === "done" && result && (
+            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Check className="h-5 w-5" /></span><div><p className="font-semibold text-slate-800">SGRI 분석 완료!</p>{result.countries > 0 ? <p className="mt-1 text-sm text-slate-600">HS {result.hs_code}에 대해 <span className="font-semibold text-emerald-700">{result.countries}개 국가</span>의 위험도를 계산했어요.</p> : <p className="mt-1 text-sm text-slate-500">분석은 됐지만 계산된 국가 결과가 없어요. 추천 화면에서 확인해 주세요.</p>}</div></div>
+          )}
+          {status === "error" && (
+            <div role="alert" className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" /><div><p className="font-semibold text-slate-800">분석을 완료하지 못했어요.</p><p className="mt-1 text-sm text-rose-700">{error}</p></div></div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="mt-6 space-y-2.5">
+        {status === "idle" && item.hs_code && (
+          <Button onClick={onStart} className="w-full rounded-xl bg-blue-600 hover:bg-blue-700" style={{ height: 52 }}>이 품목 분석 시작 <ArrowRight className="ml-1.5 h-5 w-5" /></Button>
+        )}
+        {status === "pending" && <Button disabled className="w-full rounded-xl" style={{ height: 52 }}><Loader2 className="mr-2 h-5 w-5 animate-spin" />분석 진행 중</Button>}
+        {status === "error" && <Button onClick={onStart} className="w-full rounded-xl bg-blue-600 hover:bg-blue-700" style={{ height: 52 }}><RefreshCw className="mr-2 h-4 w-4" />분석 다시 시도</Button>}
+        {status === "done" && (
+          <Button asChild className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700" style={{ height: 52 }}><Link href={`/recommendations?query_id=${item.query_id}`}>추천 결과 보기 <ArrowRight className="ml-1.5 h-5 w-5" /></Link></Button>
+        )}
+        <Button asChild variant="ghost" className="w-full text-slate-500"><Link href="/items">품목 목록으로</Link></Button>
+      </div>
+    </div>
+  )
 }
