@@ -4,6 +4,7 @@
 // 백엔드: GET /benchmark/item/{hs_code}[?country_code=]. 데이터 기반(경쟁사 날조 없음).
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
@@ -62,7 +63,7 @@ export default function BenchmarkPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <BackLink />
         <div className="mt-6">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><BarChart3 className="h-4 w-4" /> 벤치마크</div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">내 품목은 평균 대비 얼마나 위험할까요?</h1>

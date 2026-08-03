@@ -4,6 +4,7 @@
 // 백엔드: GET/POST /subscription (backend/app/api/v1/subscription.py)
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useEffect, useState } from "react"
 import { api, type SubscriptionState } from "@/lib/api"
 import { ArrowLeft, Bell, Check, CreditCard, Loader2, Lock, Minus, ShieldAlert, Sparkles, X } from "lucide-react"
@@ -78,7 +79,7 @@ export default function PricingPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <BackLink />
 
         <div className="mt-6 text-center">
           <div className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-blue-600"><CreditCard className="h-4 w-4" /> 요금제</div>

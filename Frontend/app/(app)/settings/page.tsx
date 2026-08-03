@@ -4,6 +4,7 @@
 // 알림 기준은 저장 API 준비 전까지 화면 상태로 관리합니다.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useEffect, useRef, useState } from "react"
 import { api, type UserOut } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
@@ -125,7 +126,7 @@ export default function SettingsPage() {
   const initials = (user?.name || user?.email || "SW").slice(0, 2).toUpperCase()
 
   return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><Avatar className="h-8 w-8 border border-slate-200">{avatar && <AvatarImage src={avatar} alt="" />}<AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">{initials}</AvatarFallback></Avatar></header>
-    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link><div className="mt-6"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><Settings2 className="h-4 w-4" /> 계정·공급망 설정</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">서비스 설정</h1><p className="mt-2 text-sm text-slate-500">내 프로필, 모니터링 품목, 팀 알림 수신자를 관리합니다.</p></div>
+    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><BackLink /><div className="mt-6"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><Settings2 className="h-4 w-4" /> 계정·공급망 설정</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">서비스 설정</h1><p className="mt-2 text-sm text-slate-500">내 프로필, 모니터링 품목, 팀 알림 수신자를 관리합니다.</p></div>
       <Tabs defaultValue="profile" className="mt-7"><TabsList className="h-auto flex-wrap bg-slate-100"><TabsTrigger value="profile">내 프로필</TabsTrigger><TabsTrigger value="items">공급망 품목</TabsTrigger><TabsTrigger value="team">팀·수신자</TabsTrigger><TabsTrigger value="alerts">알림 기준</TabsTrigger></TabsList>
 
         <TabsContent value="profile" className="mt-6 space-y-6">

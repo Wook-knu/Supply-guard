@@ -4,6 +4,7 @@
 // 백엔드: /boards (backend/app/api/v1/boards.py). 상태: 후보 → 검토중 → 선정 / 제외.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useRef, useState } from "react"
 import { api, type Board, type BoardCard, type BoardDetail } from "@/lib/api"
 import { ArrowLeft, Bell, Building2, ClipboardList, Globe2, Loader2, Mic, MicOff, Plus, Save, ShieldAlert, StickyNote, Trash2, X } from "lucide-react"
@@ -107,7 +108,7 @@ export default function BoardsPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <BackLink />
         <div className="mt-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><ClipboardList className="h-4 w-4" /> 검토 보드</div>

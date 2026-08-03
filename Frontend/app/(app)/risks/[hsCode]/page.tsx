@@ -4,6 +4,7 @@
 // 실데이터: GET /risks?hs_code=… (국가별 6지표 S·C·V·L·P·E + 종합 SGRI)
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useSearchParams } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, Bell, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
@@ -100,7 +101,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
       <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
     </header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-      <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+      <BackLink />
       <div className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end">
         <div>
           <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${toneOf(topScore)}`}><span className={`h-2 w-2 rounded-full ${topLevel === "high" ? "bg-rose-500" : topLevel === "medium" ? "bg-amber-500" : "bg-emerald-500"}`} /> {LEVEL_LABEL[topLevel]} 모니터링</div>

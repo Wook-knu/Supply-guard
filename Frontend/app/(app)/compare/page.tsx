@@ -4,6 +4,7 @@
 // 백엔드: GET /risks?hs_code= (country_risk_scores). 국가별 최신값으로 정렬.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type RiskOut } from "@/lib/api"
@@ -120,7 +121,7 @@ function ComparePage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <BackLink />
         <div className="mt-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><GitCompareArrows className="h-4 w-4" /> 비교하기</div>

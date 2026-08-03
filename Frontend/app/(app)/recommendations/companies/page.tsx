@@ -5,6 +5,8 @@
 // 기업 데이터가 없는 국가는 Gemini가 실제 기업 후보를 자동 추천한다.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
@@ -33,6 +35,7 @@ function mapRows(rows: SupplierReco[]): SupplierRow[] {
 }
 
 export default function CompanyRecosPage() {
+  const router = useRouter()
   const [queryId, setQueryId] = useState<number | null>(null)
   const [items, setItems] = useState<QueryOut[]>([])
   const [itemName, setItemName] = useState("")
@@ -115,15 +118,15 @@ export default function CompanyRecosPage() {
   const countryCodes = groups.map(([c]) => c)
   const shown = focusCode ? groups.filter(([c]) => c === focusCode) : groups
   const focusEmpty = Boolean(focusCode && (groups.find(([c]) => c === focusCode)?.[1].length ?? 0) === 0)
-  const backHref = queryId ? `/recommendations?query_id=${queryId}` : "/recommendations"
 
   const CompanyCard = (s: SupplierRow) => {
     const cur = tradingIds.has(s.id) ? "trading" : registeredIds.has(s.id) ? "registered" : "none"
-    const cardRing = cur === "trading" ? "border-blue-500 ring-1 ring-blue-500" : cur === "registered" ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-200 hover:border-blue-200"
-    const segStyles = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-amber-500 text-white", idle: "text-amber-600 hover:bg-amber-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
+    const cardRing = cur === "trading" ? "border-blue-500 ring-1 ring-blue-500" : cur === "registered" ? "border-emerald-400 ring-1 ring-emerald-200" : "border-slate-200 hover:border-blue-200"
+    const segStyles = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-emerald-600 text-white", idle: "text-emerald-600 hover:bg-emerald-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
     return (
-    <div className={`flex flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardRing}`} key={s.id}>
-      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{cur === "trading" ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : cur === "registered" ? <Badge className="border-0 bg-amber-500 text-white hover:bg-amber-500">등록 기업</Badge> : null}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
+    <div role="button" tabIndex={0} onClick={() => router.push(`/suppliers/${s.id}${queryId ? `?query_id=${queryId}` : ""}`)}
+      className={`flex cursor-pointer flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardRing}`} key={s.id}>
+      <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{cur === "trading" ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : cur === "registered" ? <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600">등록 기업</Badge> : null}</div>{s.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
       <div className="mt-3 flex items-center gap-1.5"><p className="font-semibold leading-tight">{s.name}</p>{s.verified && <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />}</div>
       <p className="mt-0.5 text-xs text-slate-500">{getCountryName(s.countryCode) || s.countryCode}{s.type && s.type !== "공급사" ? ` · ${s.type}` : ""}</p>
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
@@ -133,9 +136,8 @@ export default function CompanyRecosPage() {
         <div className="flex justify-between"><span className="text-slate-400">정시납품</span><span className="font-medium">{s.otd != null ? `${s.otd}%` : "–"}</span></div>
       </div>
       <p className="mt-3 min-h-10 flex-1 text-xs leading-5 text-slate-500"><span className="font-medium text-slate-600">추천 이유 · </span>{s.note || "SGRI·조달 적합도 기반 추천"}</p>
-      <div className="mt-3 flex items-center gap-2">
-        <Button asChild variant="outline" size="sm" className="shrink-0 border-slate-200"><Link href={`/suppliers/${s.id}${queryId ? `?query_id=${queryId}` : ""}`}>상세</Link></Button>
-        <span className="inline-flex flex-1 overflow-hidden rounded-lg border border-slate-200">
+      <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+        <span className="inline-flex w-full overflow-hidden rounded-lg border border-slate-200">
           {([["trading", "거래중"], ["registered", "등록"], ["none", "해제"]] as const).map(([key, label], i) => (
             <button key={key} type="button" disabled={savingCompany} onClick={() => setCompanyStatus(s.id, key)}
               className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${cur === key ? segStyles[key].active : `bg-white ${segStyles[key].idle}`}`}>{label}</button>
@@ -157,7 +159,7 @@ export default function CompanyRecosPage() {
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-      <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 국가 추천으로 돌아가기</Link>
+      <BackLink />
       <div className="mt-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-blue-600"><Sparkles className="h-4 w-4" /> 기업 추천</div>

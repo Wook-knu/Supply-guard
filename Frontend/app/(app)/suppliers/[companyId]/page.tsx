@@ -6,7 +6,7 @@
 
 import Link from "next/link"
 import { use, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, BadgeCheck, Bell, Building2, Check, ExternalLink, Globe2, MapPin, ShieldAlert, ShieldCheck, Truck } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -17,29 +17,55 @@ import { api, type CompanyDetail, type SupplierReco } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
 
 function num(v: string | number | null): number { return Number(v ?? 0) }
+const toIds = (raw: string | null | undefined) => new Set((raw ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = use(params)
+  const cid = Number(companyId)
+  const router = useRouter()
   const queryId = Number(useSearchParams().get("query_id")) || null
   const [company, setCompany] = useState<CompanyDetail | null>(null)
   const [reco, setReco] = useState<SupplierReco | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [regIds, setRegIds] = useState<Set<number>>(new Set())    // 이 질의에서 등록한 기업들
+  const [trIds, setTrIds] = useState<Set<number>>(new Set())      // 그중 거래중 기업들
+  const [savingC, setSavingC] = useState(false)
 
   useEffect(() => {
-    api.getCompany(Number(companyId))
+    api.getCompany(cid)
       .then(setCompany)
       .catch(() => setCompany(null))
       .finally(() => setLoaded(true))
-  }, [companyId])
+  }, [cid])
 
-  // 질의 맥락이 있으면 이 회사의 추천 적합도·근거를 함께 불러온다.
+  // 질의 맥락이 있으면 이 회사의 추천 적합도·근거 + 등록/거래중 상태를 함께 불러온다.
   useEffect(() => {
     if (!queryId) return
-    api.getSupplierRecos(queryId)
-      .then((rows) => setReco(rows.find((r) => r.company.company_id === Number(companyId)) ?? null))
+    Promise.all([api.getSupplierRecos(queryId), api.getQuery(queryId)])
+      .then(([rows, q]) => {
+        setReco(rows.find((r) => r.company.company_id === cid) ?? null)
+        const reg = toIds(q.registered_company_ids), tr = toIds(q.trading_company_ids)
+        if (q.trading_company_id) { reg.add(q.trading_company_id); tr.add(q.trading_company_id) }
+        setRegIds(reg); setTrIds(tr)
+      })
       .catch(() => setReco(null))
-  }, [queryId, companyId])
+  }, [queryId, cid])
 
+  // 이 기업을 거래중/등록/해제로 지정
+  async function setStatus(next: "trading" | "registered" | "none") {
+    if (!queryId || savingC) return
+    const reg = new Set(regIds), tr = new Set(trIds)
+    if (next === "none") { reg.delete(cid); tr.delete(cid) }
+    else if (next === "registered") { reg.add(cid); tr.delete(cid) }
+    else { reg.add(cid); tr.add(cid) }
+    const pr = regIds, pt = trIds
+    setRegIds(reg); setTrIds(tr); setSavingC(true)
+    try { await api.updateQuery(queryId, { registered_company_ids: [...reg].join(","), trading_company_ids: [...tr].join(","), trading_company_id: null }) }
+    catch { setRegIds(pr); setTrIds(pt) }
+    finally { setSavingC(false) }
+  }
+
+  const curStatus = trIds.has(cid) ? "trading" : regIds.has(cid) ? "registered" : "none"
   const fit = reco?.fit_score ? Math.round(num(reco.fit_score)) : null
   const onTime = company ? Math.round(num(company.on_time_delivery_rate)) : 0
   const defect = company ? num(company.defect_rate_pct) : 0
@@ -50,7 +76,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
       <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
     </header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <Link href="/recommendations" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대체 공급처 추천으로 돌아가기</Link>
+      <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 뒤로</button>
 
       {!loaded ? <p className="mt-16 text-center text-sm text-slate-400">불러오는 중…</p>
         : !company ? <div className="mt-16 text-center text-sm text-slate-500">해당 공급사 정보를 찾을 수 없습니다.<div className="mt-3"><Button asChild variant="outline"><Link href="/recommendations">추천 목록으로</Link></Button></div></div>
@@ -68,8 +94,17 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
             </div>
             {fit !== null && <div className="rounded-xl bg-emerald-50 px-4 py-3 text-right"><p className="text-2xl font-semibold text-emerald-600">{fit}</p><p className="text-xs text-emerald-700">조달 적합도</p></div>}
           </div>
-          <div className="mt-7 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
-            {company.website && <Button asChild variant="outline" className="border-slate-200"><a href={company.website} target="_blank" rel="noreferrer"><Globe2 className="mr-2 h-4 w-4" />기업 홈페이지 <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a></Button>}
+          <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
+            {/* 홈페이지: 등록돼 있으면 그 주소, 없으면 회사명 웹 검색으로 연결 */}
+            <Button asChild variant="outline" className="border-slate-200"><a href={company.website || `https://www.google.com/search?q=${encodeURIComponent((company.name_en || company.name) + " official website")}`} target="_blank" rel="noreferrer"><Globe2 className="mr-2 h-4 w-4" />기업 홈페이지 <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a></Button>
+            {queryId && (
+              <span className="inline-flex overflow-hidden rounded-lg border border-slate-200">
+                {(() => { const seg = { trading: { active: "bg-blue-600 text-white", idle: "text-blue-600 hover:bg-blue-50" }, registered: { active: "bg-emerald-600 text-white", idle: "text-emerald-600 hover:bg-emerald-50" }, none: { active: "bg-rose-500 text-white", idle: "text-rose-500 hover:bg-rose-50" } }
+                  return ([["trading", "거래중"], ["registered", "등록"], ["none", "해제"]] as const).map(([key, label], i) => (
+                    <button key={key} type="button" disabled={savingC} onClick={() => setStatus(key)} className={`px-3.5 py-2 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-slate-200" : ""} ${curStatus === key ? seg[key].active : `bg-white ${seg[key].idle}`}`}>{label}</button>
+                  )) })()}
+              </span>
+            )}
             <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href={queryId ? `/reports/new?query_id=${queryId}` : "/reports/new"}>검토 보고서에 추가 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
           </div>
         </section>
@@ -104,13 +139,16 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ compa
             <Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm">
               <CardHeader className="pb-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white"><ShieldCheck className="h-4 w-4" /></div><CardTitle className="mt-3 text-base">추천 이유</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {reco?.rationale
-                  ? <p className="text-sm leading-6 text-slate-600">{reco.rationale}</p>
-                  : <>
-                    <Reason icon={Globe2} title="공급 국가" text={`${getCountryName(company.country_code ?? "")} 기반 공급사입니다.`} />
-                    <Reason icon={Truck} title="납품 신뢰도" text={`정시 납품률 ${onTime}% 수준입니다.`} />
-                    <Reason icon={MapPin} title="다변화 후보" text="조달처 다변화 후보로 검토할 수 있습니다." />
-                  </>}
+                <p className="text-sm leading-6 text-slate-700">{reco?.rationale || `${getCountryName(company.country_code ?? "")} 소재의 ${company.name} 공급사입니다.`} 아래 근거를 종합해 추천 후보로 선정했습니다.</p>
+                <div className="space-y-3 border-t border-blue-100 pt-3">
+                  {fit !== null && <Reason icon={ShieldCheck} title={`조달 적합도 ${fit}점`} text="소재 국가의 공급망 위험도(SGRI)와 조달 조건을 종합한 점수입니다. 높을수록 안정적으로 조달할 수 있습니다." />}
+                  <Reason icon={Globe2} title={`소재 국가 · ${getCountryName(company.country_code ?? "") || "미상"}`} text={`${getCountryName(company.country_code ?? "")}의 SGRI 위험도(정책·물류 등)를 적합도에 반영했습니다. 국가 위험이 낮을수록 우선 검토 대상입니다.`} />
+                  <Reason icon={Truck} title={`정시 납품률 ${onTime}%`} text={onTime >= 90 ? "납기 준수 신뢰도가 높아 생산 일정 리스크가 낮습니다." : onTime > 0 ? "납기 준수 이력을 확인한 뒤 계약을 권장합니다." : "정시 납품 데이터가 없어 사전 확인이 필요합니다."} />
+                  {defect > 0 && <Reason icon={ShieldCheck} title={`불량률 ${defect}%`} text={defect <= 3 ? "품질 안정성이 양호한 수준입니다." : "품질 편차가 있을 수 있어 샘플 검수를 권장합니다."} />}
+                  {(company.certifications ?? []).length > 0 && <Reason icon={BadgeCheck} title="보유 인증" text={`${(company.certifications ?? []).join(", ")} 인증을 보유해 품질·환경 기준을 충족합니다.`} />}
+                  {company.lead_time_days != null && <Reason icon={Truck} title={`예상 리드타임 ${company.lead_time_days}일`} text="발주부터 납품까지 예상 기간입니다. 안전재고·발주 시점 계획에 참고하세요." />}
+                  <Reason icon={MapPin} title="조달 다변화 가치" text="특정국·특정기업 의존도를 낮추는 대체 공급 후보로, 공급망 리스크 분산에 기여합니다." />
+                </div>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">

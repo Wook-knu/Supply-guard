@@ -4,6 +4,7 @@
 // 품목별 SGRI·알림 분포를 표/그래프로 보여준다. (AI 보고서 작성과는 별개 페이지)
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useEffect, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { ArrowLeft, ArrowRight, Bot, CircleAlert, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react"
@@ -32,7 +33,7 @@ export default function TrendsPage() {
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+      <BackLink />
       <div className="mt-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><TrendingUp className="h-4 w-4" /> 최신 동향 분석</div>

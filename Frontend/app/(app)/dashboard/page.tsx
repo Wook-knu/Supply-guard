@@ -498,7 +498,7 @@ export default function Dashboard() {
                   <Link key={`${row.hs}-${row.countryCode}`} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.name}</p>
-                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.status === "trading" ? "font-medium text-blue-500" : row.status === "registered" ? "font-medium text-slate-500" : ""}>{row.status === "trading" ? "현재 거래국" : row.status === "registered" ? "등록 국가" : "최고 위험국"}</span></p>}
+                      {row.countryCode && <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.countryCode)} · <span className={row.status === "trading" ? "font-medium text-blue-600" : row.status === "registered" ? "font-medium text-emerald-600" : ""}>{row.status === "trading" ? "현재 거래국" : row.status === "registered" ? "등록 국가" : "최고 위험국"}</span></p>}
                     </div>
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
                   </Link>
@@ -522,7 +522,7 @@ export default function Dashboard() {
                   <Link key={`${c.hs}-${c.companyId}`} href={`/suppliers/${c.companyId}?query_id=${c.queryId}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(c.country)} · <span className={c.status === "trading" ? "font-medium text-blue-500" : "font-medium text-amber-600"}>{c.status === "trading" ? "현재 거래 기업" : "등록 기업"}</span> · {c.itemName}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(c.country)} · <span className={c.status === "trading" ? "font-medium text-blue-600" : "font-medium text-emerald-600"}>{c.status === "trading" ? "현재 거래 기업" : "등록 기업"}</span> · {c.itemName}</p>
                     </div>
                     <span className="text-2xl font-bold tracking-tight text-slate-800">{c.fit}</span>
                     {c.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}

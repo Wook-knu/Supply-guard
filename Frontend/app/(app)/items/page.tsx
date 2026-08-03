@@ -3,6 +3,7 @@
 // 사용자가 등록한 모니터링 품목과 각 품목의 최신 최고 SGRI를 관리합니다.
 
 import Link from "next/link"
+import BackLink from "@/components/back-link"
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
@@ -192,9 +193,7 @@ export default function ItemsPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600">
-          <ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기
-        </Link>
+        <BackLink />
 
         <section className="mt-6 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
