@@ -89,6 +89,18 @@ export default function ComparePage() {
     return vals.length ? Math.min(...vals) : null
   }, [countries, originCodes])
 
+  // 두 국가 1:1 비교
+  const [codeA, setCodeA] = useState("")
+  const [codeB, setCodeB] = useState("")
+  useEffect(() => {
+    if (!countries.length) return
+    setCodeA((p) => (p && countries.some((c) => c.country_code === p) ? p : countries[0].country_code))
+    setCodeB((p) => (p && countries.some((c) => c.country_code === p) ? p : (countries[1]?.country_code ?? countries[0].country_code)))
+  }, [countries])
+  const cA = countries.find((c) => c.country_code === codeA)
+  const cB = countries.find((c) => c.country_code === codeB)
+  const COMPARE_ROWS: { key: keyof RiskOut; code: string; label: string }[] = [...INDICATORS, { key: "sgri_score", code: "SGRI", label: "종합" }]
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
@@ -118,6 +130,34 @@ export default function ComparePage() {
         </div>
 
         {error && <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
+
+        {!loading && countries.length > 1 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-base font-semibold">두 국가 1:1 비교</p>
+            <p className="mt-1 text-sm text-slate-500">두 국가를 골라 지표별로 누가 더 낮은지(안전한지) 비교합니다. 낮을수록 좋습니다.</p>
+            <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <select value={codeA} onChange={(e) => setCodeA(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+              <span className="text-sm font-medium text-slate-400">vs</span>
+              <select value={codeB} onChange={(e) => setCodeB(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+            </div>
+            <div className="mt-4 divide-y divide-slate-100">
+              {COMPARE_ROWS.map((ind) => {
+                const a = num(cA?.[ind.key] as string | null)
+                const b = num(cB?.[ind.key] as string | null)
+                const aLower = a != null && b != null && a < b
+                const bLower = a != null && b != null && b < a
+                return (
+                  <div key={ind.code} className="grid grid-cols-[1fr_7rem_1fr] items-center gap-2 py-2.5 text-sm">
+                    <div className={`text-right ${aLower ? "font-bold text-emerald-600" : "text-slate-700"}`}>{a ?? "–"}{aLower ? <span className="ml-1 text-xs">▼{(b as number) - (a as number)}</span> : ""}</div>
+                    <div className="text-center text-xs text-slate-500"><span className="font-bold text-slate-700">{ind.code}</span> {ind.label}</div>
+                    <div className={`text-left ${bLower ? "font-bold text-emerald-600" : "text-slate-700"}`}>{b ?? "–"}{bLower ? <span className="ml-1 text-xs">▼{(a as number) - (b as number)}</span> : ""}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="mt-3 text-center text-xs text-slate-400"><span className="font-medium text-emerald-600">초록</span> = 더 낮음(안전) · ▼ 상대보다 낮은 값</p>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-20 text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>
