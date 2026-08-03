@@ -93,25 +93,23 @@ export default function LoginPage() {
     }
   }
 
-  return <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-50 p-4 md:p-8">
-    {/* 토스식: 큰 라운드 카드가 부드러운 배경 위에 떠 있음 */}
-    <div className="grid w-full max-w-5xl overflow-hidden rounded-[2.5rem] bg-white shadow-[0_30px_80px_-20px_rgba(30,64,175,0.25)] lg:min-h-[660px] lg:grid-cols-2">
-      {/* 좌측: 회전하는 지구본 */}
-      <section className="relative hidden overflow-hidden bg-gradient-to-br from-blue-700 via-blue-500 to-cyan-400 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="absolute inset-0 opacity-90"><LoginGlobe /></div>
-        <div className="pointer-events-none relative z-10 flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/25 backdrop-blur"><ShieldAlert className="h-5 w-5" /></div><span className="font-semibold">SupplyGuard</span></div>
-        <div className="pointer-events-none relative z-10">
-          <p className="text-sm font-medium text-blue-50">AI 기반 공급망 리스크 관리</p>
-          <h1 className="mt-4 max-w-md text-4xl font-bold leading-snug tracking-tight drop-shadow-sm">불확실한 공급망을<br />선제적으로 관리하세요.</h1>
-          <p className="mt-5 max-w-md leading-7 text-blue-50/90 drop-shadow-sm">품목별 위험 신호부터 대체 공급국·대응 보고서까지, 하나의 흐름으로.</p>
-          <p className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">🌐 지구본을 드래그해 돌려 보세요</p>
-        </div>
-        <p className="pointer-events-none relative z-10 text-xs text-blue-100/70">© 2026 SupplyGuard</p>
-      </section>
+  return <div className="grid min-h-screen bg-white lg:grid-cols-2">
+    {/* 좌측: 화면을 꽉 채우는 회전 지구본 */}
+    <section className="relative hidden overflow-hidden bg-gradient-to-br from-blue-700 via-blue-500 to-cyan-400 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <div className="absolute inset-0 opacity-90"><LoginGlobe /></div>
+      <div className="pointer-events-none relative z-10 flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/25 backdrop-blur"><ShieldAlert className="h-5 w-5" /></div><span className="font-semibold">SupplyGuard</span></div>
+      <div className="pointer-events-none relative z-10">
+        <p className="text-sm font-medium text-blue-50">AI 기반 공급망 리스크 관리</p>
+        <h1 className="mt-4 max-w-md text-4xl font-bold leading-snug tracking-tight drop-shadow-sm">불확실한 공급망을<br />선제적으로 관리하세요.</h1>
+        <p className="mt-5 max-w-md leading-7 text-blue-50/90 drop-shadow-sm">품목별 위험 신호부터 대체 공급국·대응 보고서까지, 하나의 흐름으로.</p>
+        <p className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">🌐 지구본을 드래그해 돌려 보세요</p>
+      </div>
+      <p className="pointer-events-none relative z-10 text-xs text-blue-100/70">© 2026 SupplyGuard</p>
+    </section>
 
-      {/* 우측: 로그인 폼 */}
-      <section className="flex items-center justify-center px-6 py-10 md:px-12">
-        <div className="w-full max-w-sm">
+    {/* 우측: 로그인 폼 (화면 절반 꽉) */}
+    <section className="flex items-center justify-center px-6 py-10 md:px-16">
+      <div className="w-full max-w-sm">
           <div className="mb-7 flex items-center gap-2.5 lg:hidden"><div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white"><ShieldAlert className="h-5 w-5" /></div><span className="font-semibold">SupplyGuard</span></div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">{mode === "signup" ? "회원가입" : "다시 오셨네요 👋"}</h2>
           <p className="mt-2 text-sm text-slate-500">{mode === "signup" ? "이메일과 비밀번호로 계정을 만드세요." : "업무용 계정으로 로그인해 공급망을 관리하세요."}</p>
@@ -129,7 +127,6 @@ export default function LoginPage() {
         </div>
       </section>
     </div>
-  </div>
 }
 
 function CompanySetup({ onComplete }: { onComplete: () => void }) { return <div className="grid min-h-screen place-items-center bg-slate-50 p-5"><Card className="w-full max-w-xl border-slate-200 shadow-sm"><CardContent className="p-7 md:p-9"><div className="flex items-center gap-2 text-sm font-medium text-blue-600"><Sparkles className="h-4 w-4" /> 첫 설정</div><h1 className="mt-3 text-2xl font-semibold">기업 정보를 알려주세요</h1><p className="mt-2 text-sm text-slate-500">맞춤형 공급망 리스크 분석을 위해 필요한 기본 정보입니다.</p><div className="mt-7 grid gap-5 md:grid-cols-2"><Field label="기업명"><Input placeholder="예: SupplyGuard Demo Co." /></Field><Field label="산업군"><Input placeholder="예: 배터리 소재 제조" /></Field><Field label="주요 수입 국가"><Input placeholder="예: 중국, 대만" /></Field><Field label="담당자 이메일"><Input placeholder="name@company.co.kr" type="email" /></Field></div><div className="mt-7 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-slate-600"><Globe2 className="mr-2 inline h-4 w-4 text-blue-600" /> 다음 단계에서 품목을 등록하면 국가 의존도와 공급망 위험도를 분석합니다.</div><div className="mt-7 flex justify-end"><Button onClick={onComplete} className="bg-blue-600 hover:bg-blue-700">설정 완료 <ArrowRight className="ml-2 h-4 w-4" /></Button></div></CardContent></Card></div> }
