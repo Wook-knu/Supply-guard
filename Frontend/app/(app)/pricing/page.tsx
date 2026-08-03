@@ -97,7 +97,7 @@ export default function PricingPage() {
                 const isCurrent = plan.key === state.current_plan
                 const isPro = plan.key === "pro"
                 return (
-                  <Card key={plan.key} className={`relative flex h-full flex-col ${isPro ? "border-blue-500 shadow-lg ring-1 ring-blue-500" : "border-slate-200 shadow-sm"}`}>
+                  <Card key={plan.key} className={`relative flex h-full flex-col hover:-translate-y-1 hover:shadow-xl ${isPro ? "border-blue-500 shadow-lg ring-1 ring-blue-500" : "border-slate-200 shadow-sm"}`}>
                     {isPro && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border-0 bg-blue-600 px-3 py-1 text-white hover:bg-blue-600">가장 인기</Badge>}
                     <CardHeader className="pb-4">
                       <div className="flex items-center justify-between">
