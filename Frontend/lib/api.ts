@@ -227,6 +227,45 @@ export type SubscriptionState = {
 export type ChatMessage = { role: "user" | "assistant"; content: string }
 export type ChatResponse = { answer: string; followups: string[]; source: string }
 
+// 검토 보드/카드 (backend/app/api/v1/boards.py) — 칸반식 조달 검토 워크스페이스
+export type BoardCard = {
+  item_id: number
+  board_id: number
+  kind: string              // country | company | note
+  ref_code: string | null
+  title: string
+  memo: string | null
+  status: string | null     // candidate | reviewing | selected | rejected
+  position: number | null
+  created_at: string | null
+}
+export type Board = {
+  board_id: number
+  user_id: number | null
+  query_id: number | null
+  title: string
+  description: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+export type BoardDetail = Board & { items: BoardCard[] }
+export type BoardCardCreate = { kind: string; title: string; ref_code?: string; memo?: string; status?: string }
+export type BoardCardUpdate = { title?: string; memo?: string; status?: string; position?: number }
+
+// 벤치마크 (backend/app/api/v1/benchmark.py)
+export type BenchmarkIndicator = { key: string; label: string; item_avg: number; all_avg: number; delta: number; verdict: string }
+export type ItemBenchmark = {
+  hs_code: string
+  error?: string
+  basis?: string
+  item_avg_sgri?: number
+  all_items_avg_sgri?: number
+  sgri_delta?: number
+  sgri_verdict?: string
+  indicators?: BenchmarkIndicator[]
+  country?: { country_code: string; sgri: number; candidate_countries: number; risk_percentile: number; vs_item_avg: number; summary: string }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("Content-Type")) {
@@ -340,4 +379,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message, query_id: opts?.query_id, history: opts?.history }),
     }),
+  // 검토 보드 (칸반식 조달 검토)
+  getBoards: () => http<Board[]>("/boards"),
+  createBoard: (body: { title: string; description?: string; query_id?: number }) =>
+    http<Board>("/boards", { method: "POST", body: JSON.stringify(body) }),
+  getBoard: (boardId: number) => http<BoardDetail>(`/boards/${boardId}`),
+  updateBoard: (boardId: number, body: { title?: string; description?: string }) =>
+    http<Board>(`/boards/${boardId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoard: (boardId: number) => http<void>(`/boards/${boardId}`, { method: "DELETE" }),
+  addBoardCard: (boardId: number, body: BoardCardCreate) =>
+    http<BoardCard>(`/boards/${boardId}/items`, { method: "POST", body: JSON.stringify(body) }),
+  updateBoardCard: (boardId: number, itemId: number, body: BoardCardUpdate) =>
+    http<BoardCard>(`/boards/${boardId}/items/${itemId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoardCard: (boardId: number, itemId: number) =>
+    http<void>(`/boards/${boardId}/items/${itemId}`, { method: "DELETE" }),
+  // 벤치마크 (품목/국가 상대 위치)
+  getItemBenchmark: (hsCode: string, countryCode?: string) =>
+    http<ItemBenchmark>(`/benchmark/item/${encodeURIComponent(hsCode)}${countryCode ? `?country_code=${countryCode}` : ""}`),
 }

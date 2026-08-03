@@ -1,0 +1,146 @@
+"use client"
+
+// 비교하기 — 한 품목의 후보 국가들을 6지표·SGRI로 나란히 비교한다.
+// 백엔드: GET /risks?hs_code= (country_risk_scores). 국가별 최신값으로 정렬.
+
+import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
+import { api, type QueryOut, type RiskOut } from "@/lib/api"
+import { getCountryName } from "@/lib/countries"
+import { ArrowLeft, Bell, GitCompareArrows, Loader2, ShieldAlert, Trophy } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
+const INDICATORS: { key: keyof RiskOut; code: string; label: string }[] = [
+  { key: "score_s", code: "S", label: "수급" },
+  { key: "score_c", code: "C", label: "집중도" },
+  { key: "score_v", code: "V", label: "가격" },
+  { key: "score_l", code: "L", label: "물류" },
+  { key: "score_p", code: "P", label: "정책" },
+  { key: "score_e", code: "E", label: "ESG" },
+]
+
+// 위험도 값(0~100) → 셀 배경색. 낮을수록 안전(초록), 높을수록 위험(빨강).
+const cellCls = (v: number | null) => {
+  if (v == null) return "text-slate-300"
+  if (v >= 60) return "bg-rose-50 text-rose-700 font-semibold"
+  if (v >= 35) return "bg-amber-50 text-amber-700"
+  return "bg-emerald-50 text-emerald-700"
+}
+const num = (s: string | null) => (s == null ? null : Math.round(Number(s)))
+
+export default function ComparePage() {
+  const [items, setItems] = useState<QueryOut[]>([])
+  const [hs, setHs] = useState("283691")
+  const [rows, setRows] = useState<RiskOut[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    api.getQueries()
+      .then((qs) => {
+        const withHs = qs.filter((r) => r.hs_code)
+        setItems(withHs)
+        if (withHs[0]?.hs_code) setHs(withHs[0].hs_code)
+      })
+      .catch(() => {})
+  }, [])
+
+  const load = (hsCode: string) => {
+    const clean = hsCode.replace(/[^0-9]/g, "")
+    if (!clean) return
+    setLoading(true)
+    api.getRisks(clean)
+      .then((r) => { setRows(r); setError(r.length === 0 ? "해당 품목의 국가별 SGRI 데이터가 아직 없습니다. 먼저 품목을 분석해 주세요." : "") })
+      .catch(() => setError("데이터를 불러오지 못했습니다."))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load(hs) /* eslint-disable-next-line */ }, [])
+
+  // 국가별 최신 레코드만 남기고 SGRI 오름차순(안전한 국가부터)
+  const countries = useMemo(() => {
+    const latest = new Map<string, RiskOut>()
+    rows.forEach((r) => {
+      const cur = latest.get(r.country_code)
+      if (!cur || r.as_of_date > cur.as_of_date) latest.set(r.country_code, r)
+    })
+    return [...latest.values()].sort((a, b) => Number(a.sgri_score ?? 999) - Number(b.sgri_score ?? 999))
+  }, [rows])
+
+  const itemName = useMemo(() => items.find((i) => i.hs_code === hs)?.item_name, [items, hs])
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
+        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
+        <div className="mt-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><GitCompareArrows className="h-4 w-4" /> 비교하기</div>
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">후보 국가를 한눈에 비교하세요</h1>
+            <p className="mt-2 text-sm text-slate-500">선택한 품목의 조달 후보 국가들을 6개 지표와 종합 SGRI로 나란히 비교합니다. 낮을수록 안전합니다.</p>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-500">품목 선택</label>
+            {items.length > 0 ? (
+              <select value={hs} onChange={(e) => { setHs(e.target.value); load(e.target.value) }} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
+                {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
+              </select>
+            ) : (
+              <div className="flex gap-2"><input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-10 w-36 rounded-md border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><Button onClick={() => load(hs)} className="h-10 bg-blue-600 hover:bg-blue-700">조회</Button></div>
+            )}
+          </div>
+        </div>
+
+        {error && <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
+
+        {loading ? (
+          <div className="flex justify-center py-20 text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : countries.length > 0 ? (
+          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 text-slate-500">
+                  <th className="px-4 py-3 text-left font-medium">국가</th>
+                  {INDICATORS.map((ind) => <th key={ind.code} className="px-3 py-3 text-center font-medium" title={ind.label}><span className="font-bold text-slate-600">{ind.code}</span><span className="ml-1 hidden text-xs text-slate-400 lg:inline">{ind.label}</span></th>)}
+                  <th className="px-4 py-3 text-center font-semibold text-slate-700">SGRI</th>
+                  <th className="px-4 py-3 text-center font-medium">등급</th>
+                </tr>
+              </thead>
+              <tbody>
+                {countries.map((c, idx) => (
+                  <tr key={c.country_code} className={`border-b border-slate-50 last:border-0 ${idx === 0 ? "bg-emerald-50/30" : ""}`}>
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      <span className="inline-flex items-center gap-1.5">{idx === 0 && <Trophy className="h-3.5 w-3.5 text-emerald-500" />}{getCountryName(c.country_code)}<span className="text-xs font-normal text-slate-400">{c.country_code}</span></span>
+                    </td>
+                    {INDICATORS.map((ind) => {
+                      const v = num(c[ind.key] as string | null)
+                      return <td key={ind.code} className="px-1.5 py-1.5 text-center"><span className={`inline-block min-w-9 rounded-md px-2 py-1 ${cellCls(v)}`}>{v ?? "–"}</span></td>
+                    })}
+                    <td className="px-4 py-3 text-center text-base font-bold text-slate-800">{num(c.sgri_score) ?? "–"}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant="outline" className={c.level === "높음" ? "border-rose-200 bg-rose-50 text-rose-600" : c.level === "중간" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>{c.level}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-100" /> 안전(&lt;35)</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-100" /> 주의(35~60)</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-rose-100" /> 위험(≥60)</span>
+              <span className="ml-auto"><Trophy className="mr-1 inline h-3 w-3 text-emerald-500" />최저 위험 후보 {itemName ?? ""}</span>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  )
+}
