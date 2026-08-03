@@ -137,7 +137,7 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
         from app.models.query import UserQuery
         from app.services.recommend import generate_recommendations
         for q in db.execute(select(UserQuery).where(UserQuery.hs_code == hs)).scalars():
-            generate_recommendations(db, q)
+            generate_recommendations(db, q, ai_fallback=True)
     except Exception as exc:  # noqa: BLE001 - 추천 재생성 실패는 SGRI 결과를 막지 않는다
         ingest_error = ingest_error or f"reco regen: {type(exc).__name__}: {exc}"[:200]
 
