@@ -206,25 +206,25 @@ export default function NewItemPage() {
   const progress = createdItem ? 100 : Math.round(((step + 1) / (STEPS.length + 1)) * 100)
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900">
-      {/* 상단: 뒤로 + 진행바 */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-lg items-center gap-3 px-5">
-          {createdItem ? (
-            <Link href="/items" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
-          ) : step === 0 ? (
-            <Link href="/dashboard" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
-          ) : (
-            <button onClick={goBack} aria-label="이전" className="text-slate-500 hover:text-slate-800"><ArrowLeft className="h-5 w-5" /></button>
-          )}
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+    <div className="flex min-h-screen items-start justify-center bg-slate-50 px-4 py-6 text-slate-900 md:items-center md:py-10">
+      <div className="w-full max-w-xl">
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          {/* 상단: 뒤로 + 진행바 */}
+          <div className="flex h-14 items-center gap-3 border-b border-slate-100 px-5">
+            {createdItem ? (
+              <Link href="/items" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
+            ) : step === 0 ? (
+              <Link href="/dashboard" aria-label="닫기" className="text-slate-400 hover:text-slate-700"><ArrowLeft className="h-5 w-5" /></Link>
+            ) : (
+              <button onClick={goBack} aria-label="이전" className="text-slate-500 hover:text-slate-800"><ArrowLeft className="h-5 w-5" /></button>
+            )}
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+            </div>
+            <span className="w-10 text-right text-xs font-medium text-slate-400">{createdItem ? "완료" : `${step + 1}/${STEPS.length}`}</span>
           </div>
-          <span className="w-10 text-right text-xs font-medium text-slate-400">{createdItem ? "완료" : `${step + 1}/${STEPS.length}`}</span>
-        </div>
-      </header>
 
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-28 pt-6">
+          <div className="flex min-h-[420px] flex-col px-6 py-8">
         {createdItem ? (
           <CompletionView item={createdItem} status={buildStatus} progress={buildProgress} result={buildResult} error={buildError} onStart={startAnalysis} />
         ) : (
@@ -374,28 +374,25 @@ export default function NewItemPage() {
 
             {error && <p role="alert" className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
           </div>
-        )}
-      </main>
-
-      {/* 하단 고정 버튼 */}
-      {!createdItem && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-100 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-lg items-center gap-3 px-5 py-4">
-            {current === "specs" && (
-              <Button variant="ghost" onClick={goNext} className="h-12 flex-1 text-slate-500">건너뛰기</Button>
-            )}
-            {current === "review" ? (
-              <Button onClick={submit} disabled={submitting} className="flex-1 rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
-                {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />등록 중...</> : <>품목 등록하기</>}
-              </Button>
-            ) : (
-              <Button onClick={goNext} className="flex-1 rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
-                다음 <ArrowRight className="ml-1.5 h-5 w-5" />
-              </Button>
-            )}
+          )}
           </div>
+
+          {/* 하단 버튼 (카드 내부 고정 — 단계 무관하게 위치 일정) */}
+          {!createdItem && (
+            <div className="border-t border-slate-100 px-6 py-4">
+              {current === "review" ? (
+                <Button onClick={submit} disabled={submitting} className="w-full rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
+                  {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />등록 중...</> : "품목 등록하기"}
+                </Button>
+              ) : (
+                <Button onClick={goNext} className="w-full rounded-xl bg-blue-600 text-base font-semibold hover:bg-blue-700" style={{ height: 52 }}>
+                  다음 <ArrowRight className="ml-1.5 h-5 w-5" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
