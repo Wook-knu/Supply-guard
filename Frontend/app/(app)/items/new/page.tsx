@@ -25,15 +25,14 @@ type ItemForm = {
   qtyUnit: string
   targetPrice: string
   currency: string
-  countries: string[]         // 등록한 관련 국가(전체)
-  tradingCountries: string[]  // 그중 '현재 거래 중'
+  countries: string[]
   deliveryDate: string
   priority: string
 }
 
 const initialForm: ItemForm = {
   name: "", hsCode: "", quantity: "", qtyUnit: "톤", targetPrice: "", currency: "USD",
-  countries: [], tradingCountries: [], deliveryDate: "", priority: "high",
+  countries: [], deliveryDate: "", priority: "high",
 }
 
 const QTY_UNITS = ["톤", "kg", "개", "L", "㎥", "박스"]
@@ -54,6 +53,7 @@ type Step = (typeof STEPS)[number]
 export default function NewItemPage() {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<ItemForm>(initialForm)
+  const [hasOrigin, setHasOrigin] = useState<"yes" | "no" | null>(null)
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -83,6 +83,7 @@ export default function NewItemPage() {
       try {
         const parsed = { ...initialForm, ...JSON.parse(draft) }
         setForm(parsed)
+        if (parsed.countries?.length) setHasOrigin("yes")
       } catch { window.localStorage.removeItem(STORAGE_KEY) }
     }
     api.getQueries()
@@ -119,16 +120,12 @@ export default function NewItemPage() {
       code.toLowerCase() === entered.toLowerCase() || name.toLocaleLowerCase("ko") === entered.toLocaleLowerCase("ko"))
     const country = matched?.name ?? entered
     if (!country || form.countries.includes(country)) return
-    // 새로 추가하는 국가는 기본 '현재 거래 중'으로 표시(가장 흔한 경우). 토글로 바꿀 수 있음.
-    setForm((c) => ({ ...c, countries: [...c.countries, country], tradingCountries: [...c.tradingCountries, country] }))
+    setForm((c) => ({ ...c, countries: [...c.countries, country] }))
     setCountryInput("")
   }
 
   const removeCountry = (country: string) =>
-    setForm((c) => ({ ...c, countries: c.countries.filter((x) => x !== country), tradingCountries: c.tradingCountries.filter((x) => x !== country) }))
-
-  const toggleTrading = (country: string) =>
-    setForm((c) => ({ ...c, tradingCountries: c.tradingCountries.includes(country) ? c.tradingCountries.filter((x) => x !== country) : [...c.tradingCountries, country] }))
+    setForm((c) => ({ ...c, countries: c.countries.filter((x) => x !== country) }))
 
   const normalizedCountryInput = countryInput.trim().toLocaleLowerCase("ko")
   const filteredCountryOptions = COUNTRY_OPTIONS.filter(({ code, name }) =>
@@ -140,20 +137,26 @@ export default function NewItemPage() {
   const goNext = () => {
     setError("")
     if (current === "name" && !form.name.trim()) { setError("품목명을 입력해 주세요."); return }
-    if (current === "origin" && form.countries.length === 0) {
-      setError("관련 국가를 하나 이상 등록해 주세요. SGRI는 국가별로 계산됩니다.")
-      return
+    if (current === "origin") {
+      if (hasOrigin === null) { setError("예 / 아니요를 선택해 주세요."); return }
+      if (hasOrigin === "yes" && form.countries.length === 0) { setError("거래 중인 국가를 하나 이상 추가하거나 ‘아니요’를 선택하세요."); return }
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(form))
     setStep((s) => Math.min(s + 1, STEPS.length - 1))
   }
   const goBack = () => { setError(""); setStep((s) => Math.max(0, s - 1)) }
 
+  const chooseNoOrigin = () => {
+    setHasOrigin("no")
+    setForm((c) => ({ ...c, countries: [] }))
+    setError("")
+    window.setTimeout(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 180)
+  }
+
   // ── 등록 ──
   const submit = async () => {
     const hs = form.hsCode.replace(/[^0-9]/g, "")
     if (!form.name.trim()) { setStep(0); setError("품목명을 입력해 주세요."); return }
-    if (form.countries.length === 0) { setStep(1); setError("관련 국가를 하나 이상 등록해 주세요."); return }
     if (hs && hs.length < 2) { setError("HS 코드는 숫자 2자리 이상이어야 합니다. (모르면 비워 두세요)"); return }
     if (hs && existingHsCodes.has(hs)) { setError(`이미 등록된 품목입니다 (HS ${hs}). 품목 목록에서 확인해 주세요.`); return }
     setError(""); setSubmitting(true)
@@ -170,7 +173,6 @@ export default function NewItemPage() {
         lead_time_days: leadDays,
         importer_code: "KR",
         origin_country: form.countries.length ? form.countries.join(",") : undefined,
-        trading_country: form.tradingCountries.length ? form.tradingCountries.join(",") : undefined,
       })
       setCreatedItem(created)
       window.localStorage.removeItem(STORAGE_KEY)
@@ -281,47 +283,44 @@ export default function NewItemPage() {
               </Step>
             )}
 
-            {/* ── 관련 국가 등록 (필수) + 거래중/관심 구분 ── */}
+            {/* ── 현재 조달국 (예/아니요) ── */}
             {current === "origin" && (
-              <Step icon="🌍" title="이 품목의 관련 국가를 등록하세요" subtitle="SGRI는 국가별로 계산돼요. 최소 1개 국가를 등록하고, 지금 거래 중인 국가는 ‘거래중’으로 표시해 주세요.">
-                <div>
-                  {form.countries.length > 0 && (
-                    <div className="mb-3 space-y-2">
-                      {form.countries.map((c) => {
-                        const trading = form.tradingCountries.includes(c)
-                        return (
-                          <div key={c} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5">
-                            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-800"><MapPin className="h-3.5 w-3.5 text-slate-400" />{c}</span>
-                            <div className="flex items-center gap-1.5">
-                              <button type="button" onClick={() => toggleTrading(c)}
-                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${trading ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
-                                {trading ? "현재 거래중" : "관심(등록만)"}
-                              </button>
-                              <button type="button" onClick={() => removeCountry(c)} className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-500" aria-label="삭제">×</button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <div className="relative">
-                    <Input value={countryInput} onChange={(e) => setCountryInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCountry() } }}
-                      placeholder="국가명 또는 코드 입력 후 Enter (예: 칠레, CL)" className="h-12 rounded-xl" />
-                    {countryInput.trim() && filteredCountryOptions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                        <div className="max-h-52 overflow-y-auto p-1">
-                          {filteredCountryOptions.map(({ code, name }) => (
-                            <button type="button" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-700">
-                              <span>{name}</span><span className="text-xs text-slate-400">{code}</span>
-                            </button>
-                          ))}
-                        </div>
+              <Step icon="🌍" title="지금 조달하고 있는 국가가 있나요?" subtitle="현재 거래국을 알려주시면, 대체 공급국과 위험도를 비교해 드려요.">
+                <div className="grid grid-cols-2 gap-3">
+                  <ChoiceCard active={hasOrigin === "yes"} onClick={() => { setHasOrigin("yes"); setError("") }} emoji="✅" title="네, 있어요" desc="거래국 선택" />
+                  <ChoiceCard active={hasOrigin === "no"} onClick={chooseNoOrigin} emoji="🆕" title="아니요" desc="신규로 찾는 중" />
+                </div>
+                {hasOrigin === "yes" && (
+                  <div className="mt-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="mb-2 text-sm font-medium text-slate-600">현재 거래 중인 공급국</p>
+                    {form.countries.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {form.countries.map((c) => (
+                          <span key={c} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+                            <MapPin className="h-3 w-3" />{c}
+                            <button type="button" onClick={() => removeCountry(c)} className="ml-0.5 text-blue-400 hover:text-rose-500">×</button>
+                          </span>
+                        ))}
                       </div>
                     )}
+                    <div className="relative">
+                      <Input value={countryInput} onChange={(e) => setCountryInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCountry() } }}
+                        placeholder="국가명 또는 코드 입력 (예: 칠레, CL)" className="h-12 rounded-xl" />
+                      {countryInput.trim() && filteredCountryOptions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                          <div className="max-h-52 overflow-y-auto p-1">
+                            {filteredCountryOptions.map(({ code, name }) => (
+                              <button type="button" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-700">
+                                <span>{name}</span><span className="text-xs text-slate-400">{code}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-3 text-xs text-slate-400">아직 거래처가 없다면 관심 국가만 ‘관심(등록만)’으로 등록해도 돼요. 국가별 SGRI와 대체 공급국을 함께 볼 수 있어요.</p>
-                </div>
+                )}
               </Step>
             )}
 
@@ -380,7 +379,7 @@ export default function NewItemPage() {
                 <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
                   <ReviewRow label="품목명" value={form.name || "—"} onEdit={() => setStep(0)} />
                   <ReviewRow label="HS 코드" value={form.hsCode || "품목명으로 자동 추천"} onEdit={() => setStep(0)} />
-                  <ReviewRow label="등록 국가" value={form.countries.length ? form.countries.map((c) => form.tradingCountries.includes(c) ? `${c}(거래중)` : `${c}(관심)`).join(", ") : "미등록"} onEdit={() => setStep(1)} />
+                  <ReviewRow label="현재 거래국" value={form.countries.length ? form.countries.join(", ") : "없음 (신규 탐색)"} onEdit={() => setStep(1)} />
                   <ReviewRow label="물량 / 목표가" value={[form.quantity && `${form.quantity}${form.qtyUnit}`, form.targetPrice && `${Number(form.targetPrice).toLocaleString()}${form.currency}`].filter(Boolean).join(" · ") || "미입력"} onEdit={() => setStep(2)} />
                   <ReviewRow label="모니터링 빈도" value={PRIORITIES.find((p) => p.id === form.priority)?.title ?? "높음"} onEdit={() => setStep(3)} />
                 </div>
@@ -424,6 +423,16 @@ function Step({ icon, title, subtitle, children }: { icon: string; title: string
       <p className="mt-2 text-sm leading-6 text-slate-500">{subtitle}</p>
       <div className="mt-8">{children}</div>
     </div>
+  )
+}
+
+function ChoiceCard({ active, onClick, emoji, title, desc }: { active: boolean; onClick: () => void; emoji: string; title: string; desc: string }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all duration-200 active:scale-[0.98] ${active ? "border-blue-500 bg-blue-50/70 shadow-sm ring-1 ring-blue-500" : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"}`}>
+      <span className="text-2xl">{emoji}</span>
+      <div><p className="font-semibold">{title}</p><p className="text-xs text-slate-500">{desc}</p></div>
+    </button>
   )
 }
 
