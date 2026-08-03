@@ -36,15 +36,28 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   const { hsCode } = use(params)
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [queryId, setQueryId] = useState<number | null>(null)
+  const [queryName, setQueryName] = useState<string | null>(null)
 
   useEffect(() => {
     api.getRisks(hsCode)
       .then((data) => setRows(data))
       .catch(() => setRows([]))
       .finally(() => setLoaded(true))
+    // 이 HS로 등록된 내 품목을 찾아 query_id를 확보(추천·보고서 링크에 사용)
+    api.getQueries()
+      .then((qs) => {
+        const q = qs.find((row) => (row.hs_code ?? "") === hsCode)
+        setQueryId(q?.query_id ?? null)
+        setQueryName(q?.item_name?.trim() || null)
+      })
+      .catch(() => {})
   }, [hsCode])
 
-  const itemName = HS_NAME[hsCode] ?? `HS ${hsCode}`
+  // 추천/보고서 링크(query_id 있으면 붙임)
+  const recoHref = queryId != null ? `/recommendations?query_id=${queryId}` : "/recommendations"
+  const reportHref = queryId != null ? `/reports/new?query_id=${queryId}` : "/reports/new"
+  const itemName = queryName ?? HS_NAME[hsCode] ?? `HS ${hsCode}`
   // 국가를 SGRI 높은 순으로 정렬, 최고 위험국을 대표로 사용
   const ranked = useMemo(() => [...rows].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [rows])
   const worst = ranked[0]
@@ -65,8 +78,8 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
           <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{worst ? ` · 최고 위험국 ${getCountryName(worst.country_code)}` : ""}</p>
         </div>
         <div className="flex gap-2">
-          <Button asChild variant="outline" className="border-slate-200 bg-white"><Link href="/recommendations"><Globe2 className="mr-2 h-4 w-4" />대체 공급국 보기</Link></Button>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href="/reports/new"><FileText className="mr-2 h-4 w-4" />보고서 생성</Link></Button>
+          <Button asChild variant="outline" className="border-slate-200 bg-white"><Link href={recoHref}><Globe2 className="mr-2 h-4 w-4" />대체 공급국·기업 추천</Link></Button>
+          <Button asChild className="bg-blue-600 hover:bg-blue-700"><Link href={reportHref}><FileText className="mr-2 h-4 w-4" />보고서 초안 생성</Link></Button>
         </div>
       </div>
 
@@ -116,7 +129,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
                 <Action number="1" title="저위험 공급국 견적 요청" note={`${ranked.filter((r) => levelOf(num(r.sgri_score)) === "low").length}개국이 안정 범위입니다.`} />
                 <Action number="2" title="안전재고 확보 검토" note="납기 지연 가능성에 대비합니다." />
                 <Action number="3" title="리스크 보고서 공유" note="구매·생산 부서에 초안을 전달합니다." />
-                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href="/recommendations">대체 공급처 검토 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                <Button asChild className="mt-2 w-full bg-blue-600 hover:bg-blue-700"><Link href={recoHref}>대체 공급처 검토 <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">
