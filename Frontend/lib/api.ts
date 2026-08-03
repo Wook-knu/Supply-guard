@@ -203,6 +203,26 @@ export type TokenResponse = {
   user: UserOut
 }
 
+// 구독 요금제 (backend/app/services/plans.py 와 1:1)
+export type PlanCatalog = {
+  key: string
+  label: string
+  price_krw: number
+  target: string
+  max_items: number | null
+  custom_quote?: boolean
+  highlights: string[]
+  features: Record<string, boolean>
+}
+
+export type SubscriptionState = {
+  plans: PlanCatalog[]
+  current_plan: string
+  label: string
+  usage: { items: number; items_limit: number | null }
+  features: Record<string, boolean>
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("Content-Type")) {
@@ -303,4 +323,11 @@ export const api = {
     http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),
   markAlertRead: (alertId: number) =>
     http<AlertOut>(`/alerts/${alertId}/read`, { method: "PATCH" }),
+  // 구독 요금제 — 카탈로그 + 현재 플랜/사용량 조회, 플랜 변경(데모 mock 결제)
+  getSubscription: () => http<SubscriptionState>("/subscription"),
+  subscribe: (plan: string) =>
+    http<Omit<SubscriptionState, "plans"> & { ok: boolean }>("/subscription", {
+      method: "POST",
+      body: JSON.stringify({ plan }),
+    }),
 }

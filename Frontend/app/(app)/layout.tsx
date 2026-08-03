@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { ChevronsLeft, ChevronsRight, CircleAlert, FileText, Globe2, Home, LayoutGrid, Settings, ShieldAlert, Sparkles } from "lucide-react"
+import { ChevronsLeft, ChevronsRight, CircleAlert, CreditCard, FileText, Globe2, Home, LayoutGrid, Settings, ShieldAlert, Sparkles } from "lucide-react"
 
 const NAV = [
   { href: "/dashboard", label: "대시보드", icon: Home },
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/risks/283691", label: "리스크 분석", icon: CircleAlert, match: "/risks" },
   { href: "/recommendations", label: "대체 공급처", icon: Globe2 },
   { href: "/reports/new", label: "AI 보고서", icon: FileText, match: "/reports" },
+  { href: "/pricing", label: "요금제", icon: CreditCard },
   { href: "/settings", label: "설정", icon: Settings },
 ]
 
