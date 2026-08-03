@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { api, type SubscriptionState } from "@/lib/api"
-import { ArrowLeft, Bell, Check, CreditCard, Loader2, Minus, ShieldAlert, Sparkles } from "lucide-react"
+import { ArrowLeft, Bell, Check, CreditCard, Loader2, Lock, Minus, ShieldAlert, Sparkles, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ export default function PricingPage() {
   const [changing, setChanging] = useState<string | null>(null)
   const [notice, setNotice] = useState("")
   const [error, setError] = useState("")
+  const [checkout, setCheckout] = useState<{ key: string; label: string; price: number } | null>(null)  // 결제 모달 대상
 
   const load = () => {
     setLoading(true)
@@ -42,17 +43,24 @@ export default function PricingPage() {
 
   useEffect(load, [])
 
-  const changePlan = async (key: string, label: string) => {
+  // '이 요금제 선택' → 결제(체크아웃) 모달을 연다.
+  const openCheckout = (key: string, label: string, price: number) => {
     if (!state || key === state.current_plan || changing) return
-    if (!window.confirm(`${label} 요금제로 변경할까요?\n(데모 환경 — 실제 결제는 발생하지 않습니다)`)) return
-    setChanging(key)
-    setNotice("")
+    setError(""); setNotice("")
+    setCheckout({ key, label, price })
+  }
+
+  // 결제 승인(테스트 모드) → 플랜 활성화.
+  const confirmCheckout = async () => {
+    if (!checkout) return
+    setChanging(checkout.key)
     try {
-      const res = await api.subscribe(key)
+      const res = await api.subscribe(checkout.key)
       setState((prev) => (prev ? { ...prev, current_plan: res.current_plan, label: res.label, usage: res.usage, features: res.features } : prev))
-      setNotice(`${label} 요금제로 변경되었습니다. 이제 해당 기능을 이용할 수 있어요.`)
+      setNotice(`결제가 완료되어 ${checkout.label} 요금제가 활성화되었습니다. (테스트 결제)`)
+      setCheckout(null)
     } catch {
-      setError("요금제 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+      setError("결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
     } finally {
       setChanging(null)
     }
@@ -128,8 +136,8 @@ export default function PricingPage() {
                         ) : isCurrent ? (
                           <Button disabled variant="outline" className="w-full border-slate-200 text-slate-400">현재 이용 중</Button>
                         ) : (
-                          <Button onClick={() => changePlan(plan.key, plan.label)} disabled={changing !== null} className={`w-full ${isPro ? "bg-blue-600 hover:bg-blue-700" : ""}`} variant={isPro ? "default" : "outline"}>
-                            {changing === plan.key ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />변경 중...</> : "이 요금제 선택"}
+                          <Button onClick={() => openCheckout(plan.key, plan.label, plan.price_krw)} disabled={changing !== null} className={`w-full ${isPro ? "bg-blue-600 hover:bg-blue-700" : ""}`} variant={isPro ? "default" : "outline"}>
+                            {plan.price_krw === 0 ? "무료로 시작" : "이 요금제 결제"}
                           </Button>
                         )}
                       </div>
@@ -177,10 +185,48 @@ export default function PricingPage() {
             </div>
 
             <p className="mt-8 flex items-center justify-center gap-1.5 text-center text-xs text-slate-400">
-              <Sparkles className="h-3.5 w-3.5 text-blue-500" /> 데모 환경에서는 실제 결제 없이 플랜이 즉시 전환되어 기능을 체험할 수 있습니다.
+              <Sparkles className="h-3.5 w-3.5 text-blue-500" /> 결제는 테스트 모드로 동작합니다. 실제 PG(토스페이먼츠·Stripe) 키를 연결하면 그대로 실 청구로 전환됩니다.
             </p>
           </>
         ) : null}
+
+        {/* 결제(체크아웃) 모달 — 테스트 모드 */}
+        {checkout && (() => {
+          const vat = Math.round(checkout.price * 0.1)
+          const total = checkout.price + vat
+          const won = (n: number) => `₩${n.toLocaleString("ko-KR")}`
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => changing || setCheckout(null)}>
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between">
+                  <div><div className="flex items-center gap-2 text-sm font-medium text-blue-600"><CreditCard className="h-4 w-4" /> 결제</div><h3 className="mt-1 text-lg font-semibold">{checkout.label} 요금제 구독</h3></div>
+                  <button type="button" onClick={() => !changing && setCheckout(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="닫기"><X className="h-5 w-5" /></button>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-5 text-amber-800"><span className="font-semibold">테스트 모드</span> · 실제 카드 청구는 발생하지 않습니다. 데모용 결제 흐름입니다.</div>
+
+                <div className="mt-4 space-y-2 rounded-xl border border-slate-200 p-4 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">{checkout.label} 월 구독</span><span className="font-medium">{checkout.price === 0 ? "무료" : won(checkout.price)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">부가세 (10%)</span><span className="font-medium">{won(vat)}</span></div>
+                  <div className="flex justify-between border-t border-slate-100 pt-2 text-base"><span className="font-semibold">총 결제금액</span><span className="font-bold text-blue-600">{won(total)}{checkout.price > 0 ? " / 월" : ""}</span></div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="mb-1.5 text-xs font-medium text-slate-500">결제 수단</p>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3.5 py-3 text-sm">
+                    <span className="flex items-center gap-2"><span className="flex h-6 w-9 items-center justify-center rounded bg-slate-800 text-[10px] font-bold text-white">TEST</span>테스트 카드 •••• 4242</span>
+                    <span className="text-xs text-slate-400">만료 12/30</span>
+                  </div>
+                </div>
+
+                <Button onClick={confirmCheckout} disabled={changing !== null} className="mt-5 h-11 w-full bg-blue-600 hover:bg-blue-700">
+                  {changing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />결제 처리 중...</> : <><Lock className="mr-2 h-4 w-4" />{checkout.price === 0 ? "무료로 시작하기" : `${won(total)} 결제하고 구독 시작`}</>}
+                </Button>
+                <p className="mt-2 text-center text-[11px] text-slate-400">결제 시 구독 약관 및 자동 갱신에 동의하는 것으로 간주됩니다.</p>
+              </div>
+            </div>
+          )
+        })()}
       </main>
     </div>
   )
