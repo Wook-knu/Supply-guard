@@ -364,7 +364,7 @@ export default function Dashboard() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> 실시간 모니터링</div>
               <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">안녕하세요{userName ? `, ${userName}님` : ""}</h1>
-              <p className="mt-1 text-sm text-slate-500">오늘 확인이 필요한 공급망 리스크가 <span className="font-semibold text-rose-600">{alertCount}건</span> 있습니다.</p>
+              <p className="mt-1 text-sm text-slate-500">오늘 확인이 필요한 공급망 리스크가 <Link href="/alerts" className="font-semibold text-rose-600 underline decoration-rose-300 underline-offset-2 transition-colors hover:text-rose-700">{alertCount}건</Link> 있습니다.</p>
             </div>
             <div className="flex items-center gap-2">
               <DropdownMenu>
@@ -380,10 +380,10 @@ export default function Dashboard() {
           </section>
 
           <section className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric icon={ShieldAlert} label="선택 품목 위험도" value={String(currentScore)} suffix="/ 100" change={`직전 대비 ${scoreChange >= 0 ? "+" : ""}${scoreChange}`} tone="rose" />
-            <Metric icon={Box} label="모니터링 품목" value={String(monitoredItems.length)} suffix="개" change="내 등록 품목" tone="blue" />
-            <Metric icon={AlertTriangle} label="활성 경보" value={String(alertCount)} suffix="건" change="실시간 집계" tone="amber" />
-            <Metric icon={Globe2} label="대체 공급국" value={String(countryRecos.length)} suffix="개" change={selectedItem ? "추천 업데이트됨" : "품목 선택 시 표시"} tone="emerald" />
+            <Metric icon={ShieldAlert} label="선택 품목 위험도" value={String(currentScore)} suffix="/ 100" change={`직전 대비 ${scoreChange >= 0 ? "+" : ""}${scoreChange}`} tone="rose" href={`/risks/${selectedItem?.hs_code ?? "283691"}`} />
+            <Metric icon={Box} label="모니터링 품목" value={String(monitoredItems.length)} suffix="개" change="내 등록 품목" tone="blue" href="/items" />
+            <Metric icon={AlertTriangle} label="활성 경보" value={String(alertCount)} suffix="건" change="실시간 집계" tone="amber" href="/alerts" />
+            <Metric icon={Globe2} label="대체 공급국" value={String(countryRecos.length)} suffix="개" change={selectedItem ? "추천 업데이트됨" : "품목 선택 시 표시"} tone="emerald" href={selectedItem?.query_id ? `/recommendations?query_id=${selectedItem.query_id}` : "/items"} />
           </section>
 
           <section className="grid gap-6 xl:grid-cols-3">
@@ -433,12 +433,12 @@ export default function Dashboard() {
   )
 }
 
-function Metric({ icon: Icon, label, value, suffix, change, tone }: { icon: typeof ShieldAlert; label: string; value: string; suffix: string; change: string; tone: "rose" | "blue" | "amber" | "emerald" }) {
+function Metric({ icon: Icon, label, value, suffix, change, tone, href }: { icon: typeof ShieldAlert; label: string; value: string; suffix: string; change: string; tone: "rose" | "blue" | "amber" | "emerald"; href: string }) {
   const colors = {
     rose: "bg-rose-50 text-rose-600",
     blue: "bg-blue-50 text-blue-600",
     amber: "bg-amber-50 text-amber-600",
     emerald: "bg-emerald-50 text-emerald-600",
   }
-  return <Card className="border-slate-200 shadow-sm hover:shadow-md"><CardContent className="p-5"><div className="mb-5 flex items-center justify-between"><div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${colors[tone]}`}><Icon className="h-5 w-5" /></div><span className="text-xs font-medium text-slate-400">{change}</span></div><div><span className="text-3xl font-bold tracking-tight">{value}</span><span className="ml-1 text-sm text-slate-400">{suffix}</span></div><p className="mt-1 text-sm text-slate-500">{label}</p></CardContent></Card>
+  return <Link href={href} className="group block"><Card className="border-slate-200 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md active:scale-[0.99]"><CardContent className="p-5"><div className="mb-5 flex items-center justify-between"><div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${colors[tone]}`}><Icon className="h-5 w-5" /></div><span className="flex items-center gap-1 text-xs font-medium text-slate-400 transition-colors group-hover:text-blue-600">{change}<ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" /></span></div><div><span className="text-3xl font-bold tracking-tight">{value}</span><span className="ml-1 text-sm text-slate-400">{suffix}</span></div><p className="mt-1 text-sm text-slate-500">{label}</p></CardContent></Card></Link>
 }
