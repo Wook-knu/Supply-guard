@@ -211,6 +211,9 @@ export type UserOut = {
   plan: string | null
 }
 
+export type PeerCase = { profile: string; situation: string; action: string; outcome: string; lesson: string }
+export type PeerCases = { cases: PeerCase[]; source: string }
+
 export type TrendBrief = {
   summary: string
   highlights?: string[]
@@ -354,6 +357,8 @@ export const api = {
   getMe: () => http<UserOut>("/auth/me"),
   // 최신 동향 분석 (AI 요약 + 차트용 집계)
   getTrendBrief: () => http<TrendBrief>("/trends/brief"),
+  // 또래 중소기업 예시 사례 (AI 생성, 실거래 아님)
+  getPeerCases: (hs: string) => http<PeerCases>(`/benchmark/peer-cases/${encodeURIComponent(hs)}`),
   // 프로필 편집(이름/사진) · 비밀번호 변경
   updateMe: (body: { name?: string; picture_url?: string | null }) =>
     http<UserOut>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),

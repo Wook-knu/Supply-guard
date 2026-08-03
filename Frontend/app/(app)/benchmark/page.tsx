@@ -8,7 +8,7 @@ import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
-import { ArrowLeft, Bell, BarChart3, Loader2, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowLeft, Bell, BarChart3, Loader2, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,18 @@ export default function BenchmarkPage() {
   const [data, setData] = useState<ItemBenchmark | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [cases, setCases] = useState<import("@/lib/api").PeerCase[] | null>(null)
+  const [casesLoading, setCasesLoading] = useState(false)
+
+  const loadCases = () => {
+    const clean = hs.replace(/[^0-9]/g, "")
+    if (!clean || casesLoading) return
+    setCasesLoading(true)
+    api.getPeerCases(clean)
+      .then((r) => setCases(r.cases ?? []))
+      .catch(() => setCases([]))
+      .finally(() => setCasesLoading(false))
+  }
 
   useEffect(() => {
     api.getQueries()
@@ -78,8 +90,35 @@ export default function BenchmarkPage() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-700">✗ 아직 제공하지 않는 것</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">‘다른 중소기업이 이 가격에 거래했다’ 같은 <span className="font-medium">또래 실거래 단가</span>는 공개 데이터가 없어 지어내지 않습니다. 기업별 <span className="font-medium">예상 단가·리드타임</span> 비교는 <Link href="/recommendations" className="font-medium text-blue-600 hover:underline">대체 국가·기업 추천</Link>에서 확인하세요.</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">‘다른 중소기업이 이 가격에 거래했다’ 같은 <span className="font-medium">또래 실거래 단가</span>는 공개 데이터가 없어 지어내지 않습니다. 기업별 <span className="font-medium">예상 단가·리드타임</span> 비교는 <Link href="/recommendations" className="font-medium text-blue-600 hover:underline">대체 공급국</Link>에서 확인하세요.</p>
           </div>
+        </div>
+
+        {/* 또래 중소기업 예시 사례 (AI 생성) */}
+        <div className="mt-5 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+            <div>
+              <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-violet-600" /><p className="text-base font-semibold">또래 중소기업 사례</p><Badge className="border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-50">AI 예시</Badge></div>
+              <p className="mt-1 text-sm text-slate-500">이 품목을 조달하는 중소기업이 겪을 법한 상황·대응·결과를 AI가 예시로 보여줍니다. <span className="font-medium text-slate-600">실제 거래 기록이 아닙니다.</span></p>
+            </div>
+            <Button onClick={loadCases} disabled={casesLoading} className="w-fit bg-violet-600 hover:bg-violet-700">{casesLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{cases ? "다시 생성" : "AI 사례 보기"}</Button>
+          </div>
+          {cases && cases.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {cases.map((c, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-sm font-semibold text-slate-800">{c.profile}</p>
+                  <dl className="mt-2 space-y-1.5 text-xs leading-5">
+                    <div><dt className="inline font-medium text-slate-500">상황 · </dt><dd className="inline text-slate-600">{c.situation}</dd></div>
+                    <div><dt className="inline font-medium text-slate-500">대응 · </dt><dd className="inline text-slate-600">{c.action}</dd></div>
+                    <div><dt className="inline font-medium text-emerald-700">결과 · </dt><dd className="inline text-slate-700">{c.outcome}</dd></div>
+                    <div className="rounded-md bg-violet-50 px-2 py-1.5"><dt className="inline font-medium text-violet-700">시사점 · </dt><dd className="inline text-violet-800">{c.lesson}</dd></div>
+                  </dl>
+                </div>
+              ))}
+            </div>
+          )}
+          {cases && cases.length === 0 && <p className="mt-4 text-center text-sm text-slate-400">사례를 생성하지 못했습니다. (GEMINI 키 설정 또는 잠시 후 재시도)</p>}
         </div>
 
         {/* 조회 폼 */}
