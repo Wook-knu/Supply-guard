@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { api, type ChatMessage } from "@/lib/api"
-import { Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react"
+import { Bot, Loader2, Send, Sparkles, X } from "lucide-react"
 
 const GREETING: ChatMessage = {
   role: "assistant",
@@ -15,6 +15,7 @@ const STARTER_QUESTIONS = ["내 품목 중 가장 위험한 게 뭐야?", "대�
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
+  const [showHint, setShowHint] = useState(true)   // 첫 안내 말풍선(열면 사라짐)
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING])
   const [followups, setFollowups] = useState<string[]>(STARTER_QUESTIONS)
   const [input, setInput] = useState("")
@@ -47,14 +48,27 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* 우하단 플로팅 버튼 */}
+      {/* 안내 말풍선 — 닫혀있고 아직 대화를 안 열었을 때 */}
+      {!open && showHint && (
+        <div className="fixed bottom-8 right-[92px] z-40 max-w-[220px] animate-in fade-in slide-in-from-right-2 duration-500">
+          <div className="relative rounded-2xl bg-white px-4 py-3 text-sm font-medium leading-snug text-slate-700 shadow-xl ring-1 ring-slate-100">
+            <span className="mr-1">🤖</span>모르시는 게 있으면<br />여기에 물어보세요!
+            <button type="button" onClick={() => setShowHint(false)} aria-label="안내 닫기" className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 shadow hover:bg-slate-300"><X className="h-3 w-3" /></button>
+            {/* 오른쪽 꼬리(버튼 방향) */}
+            <span className="absolute right-[-5px] top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 bg-white" />
+          </div>
+        </div>
+      )}
+
+      {/* 우하단 플로팅 버튼 (AI 로봇) */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { setOpen((v) => !v); setShowHint(false) }}
         aria-label={open ? "AI 어시스턴트 닫기" : "AI 어시스턴트 열기"}
-        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 transition-transform hover:scale-105 active:scale-95"
+        className="fixed bottom-5 right-5 z-40 flex h-15 w-15 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 ring-4 ring-white transition-transform hover:scale-105 active:scale-95"
+        style={{ height: 60, width: 60 }}
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {open ? <X className="h-6 w-6" /> : <Bot className="h-7 w-7" />}
       </button>
 
       {/* 대화 패널 */}
