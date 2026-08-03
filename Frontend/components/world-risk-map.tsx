@@ -19,49 +19,61 @@ export function riskColor(sgri: number | null): string {
   return "#10b981"
 }
 
-export default function WorldRiskMap({ points, selected, onSelect, showLabels = false, height = 460 }: {
+export default function WorldRiskMap({ points, selected, onSelect, showLabels = false, height = 460, preview = false, fill = false }: {
   points: RiskPoint[]
   selected?: string | null
   onSelect?: (code: string) => void
   showLabels?: boolean
   height?: number
+  preview?: boolean   // 미리보기: 컨트롤 없음·비상호작용(클릭은 부모가 처리)
+  fill?: boolean      // 컨테이너 높이를 꽉 채움
 }) {
   const [view, setView] = useState<{ coordinates: [number, number]; zoom: number }>({ coordinates: [12, 18], zoom: 1 })
 
+  const markers = points.map((p) => {
+    const coord = COUNTRY_COORDS[p.code]
+    if (!coord) return null
+    const active = selected === p.code
+    const color = riskColor(p.sgri)
+    return (
+      <Marker key={p.code} coordinates={coord} onClick={preview ? undefined : () => onSelect?.(p.code)}>
+        {active && <circle r={12 / view.zoom} fill={color} opacity={0.25} />}
+        <circle r={(active ? 7 : 5) / view.zoom} fill={color} stroke="#fff" strokeWidth={1.4 / view.zoom} style={{ cursor: preview ? "inherit" : "pointer" }} />
+        {showLabels && (
+          <text textAnchor="middle" y={-10 / view.zoom} style={{ fontSize: 10 / view.zoom, fill: "#334155", fontWeight: 600, pointerEvents: "none" }}>{getCountryName(p.code)}</text>
+        )}
+      </Marker>
+    )
+  })
+
+  const geos = (
+    <Geographies geography={GEO_URL}>
+      {({ geographies }) =>
+        geographies.map((geo) => (
+          <Geography key={geo.rsmKey} geography={geo} fill="#e9eef4" stroke="#d3dbe4" strokeWidth={0.3}
+            style={{ default: { outline: "none" }, hover: { outline: "none", fill: preview ? "#e9eef4" : "#dfe6ee" }, pressed: { outline: "none" } }} />
+        ))
+      }
+    </Geographies>
+  )
+
   return (
-    <div className="relative w-full overflow-hidden rounded-xl bg-slate-50/40">
-      <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <button type="button" aria-label="확대" onClick={() => setView((v) => ({ ...v, zoom: Math.min(v.zoom * 1.5, 8) }))} className="flex h-8 w-8 items-center justify-center text-lg text-slate-600 hover:bg-slate-100">+</button>
-        <button type="button" aria-label="축소" onClick={() => setView((v) => ({ ...v, zoom: Math.max(v.zoom / 1.5, 1) }))} className="flex h-8 w-8 items-center justify-center border-t border-slate-100 text-lg text-slate-600 hover:bg-slate-100">−</button>
-      </div>
-      <ComposableMap projection="geoEqualEarth" width={800} height={height} style={{ width: "100%", height: "auto" }}>
-        <ZoomableGroup center={view.coordinates} zoom={view.zoom} minZoom={1} maxZoom={8} onMoveEnd={(v: { coordinates: [number, number]; zoom: number }) => setView(v)}>
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => (
-                <Geography key={geo.rsmKey} geography={geo} fill="#e9eef4" stroke="#d3dbe4" strokeWidth={0.3}
-                  style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#dfe6ee" }, pressed: { outline: "none" } }} />
-              ))
-            }
-          </Geographies>
-          {points.map((p) => {
-            const coord = COUNTRY_COORDS[p.code]
-            if (!coord) return null
-            const active = selected === p.code
-            const color = riskColor(p.sgri)
-            return (
-              <Marker key={p.code} coordinates={coord} onClick={() => onSelect?.(p.code)}>
-                {active && <circle r={12 / view.zoom} fill={color} opacity={0.25} />}
-                <circle r={(active ? 7 : 5) / view.zoom} fill={color} stroke="#fff" strokeWidth={1.4 / view.zoom} style={{ cursor: "pointer" }} />
-                {showLabels && (
-                  <text textAnchor="middle" y={-10 / view.zoom} style={{ fontSize: 10 / view.zoom, fill: "#334155", fontWeight: 600, pointerEvents: "none" }}>
-                    {getCountryName(p.code)}
-                  </text>
-                )}
-              </Marker>
-            )
-          })}
-        </ZoomableGroup>
+    <div className={`relative w-full overflow-hidden ${fill ? "h-full" : "rounded-xl bg-slate-50/40"}`} style={preview ? { pointerEvents: "none" } : undefined}>
+      {!preview && (
+        <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <button type="button" aria-label="확대" onClick={() => setView((v) => ({ ...v, zoom: Math.min(v.zoom * 1.5, 8) }))} className="flex h-8 w-8 items-center justify-center text-lg text-slate-600 hover:bg-slate-100">+</button>
+          <button type="button" aria-label="축소" onClick={() => setView((v) => ({ ...v, zoom: Math.max(v.zoom / 1.5, 1) }))} className="flex h-8 w-8 items-center justify-center border-t border-slate-100 text-lg text-slate-600 hover:bg-slate-100">−</button>
+        </div>
+      )}
+      <ComposableMap projection="geoEqualEarth" width={800} height={height} style={{ width: "100%", height: fill ? "100%" : "auto" }}>
+        {preview ? (
+          <>{geos}{markers}</>
+        ) : (
+          <ZoomableGroup center={view.coordinates} zoom={view.zoom} minZoom={1} maxZoom={8} onMoveEnd={(v: { coordinates: [number, number]; zoom: number }) => setView(v)}>
+            {geos}
+            {markers}
+          </ZoomableGroup>
+        )}
       </ComposableMap>
     </div>
   )

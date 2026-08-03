@@ -54,7 +54,13 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
+import dynamic from "next/dynamic"
+import type { RiskPoint } from "@/components/world-risk-map"
 
+const WorldRiskMap = dynamic(() => import("@/components/world-risk-map"), {
+  ssr: false,
+  loading: () => <div className="grid h-48 place-items-center text-xs text-slate-400">지도 로딩…</div>,
+})
 const mapRiskColor = (sgri: number | null) => (sgri == null ? "#94a3b8" : sgri >= 60 ? "#ef4444" : sgri >= 35 ? "#f59e0b" : "#10b981")
 
 type RiskRow = { item: string; hs: string; code: string; country: string; score: number; factor: string; level: "high" | "medium" | "low"; change?: string }
@@ -175,6 +181,16 @@ export default function Dashboard() {
       })
       .sort((a, b) => (b.sgri ?? -1) - (a.sgri ?? -1))
   }, [risks, monitoredItems, itemCompanies])
+  // 미니맵용: 선택 품목의 공급국(국가별 최신 SGRI)
+  const mapPoints = useMemo<RiskPoint[]>(() => {
+    const latest = new Map<string, RiskOut>()
+    riskHistory.forEach((r) => {
+      if (!selectedHsCode || r.hs_code !== selectedHsCode) return
+      const cur = latest.get(r.country_code)
+      if (!cur || r.as_of_date > cur.as_of_date) latest.set(r.country_code, r)
+    })
+    return [...latest.values()].map((r) => ({ code: r.country_code, sgri: r.sgri_score != null ? Math.round(Number(r.sgri_score)) : null }))
+  }, [riskHistory, selectedHsCode])
   const searchResults = useMemo<SearchResult[]>(() => {
     const normalizedTerm = searchTerm.trim().toLocaleLowerCase("ko")
     if (!normalizedTerm) return []
@@ -426,47 +442,53 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <section className="mb-7 grid gap-4 lg:grid-cols-2">
-            {/* 국가 위험도 */}
+          <section className="mb-7">
             <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span>
-                <div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">품목별 SGRI · 공급국 최고값</CardDescription></div>
-              </CardHeader>
-              <CardContent className="px-0 pb-2">
-                {perItemRisk.slice(0, 5).map((row) => (
-                  <Link key={row.hs} href={`/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
-                    <span className="flex-1 truncate text-sm font-medium">{row.name}</span>
-                    {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
-                  </Link>
-                ))}
-                {perItemRisk.length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">등록된 품목이 없습니다.</p>}
-              </CardContent>
-            </Card>
-
-            {/* 기업 적합도 */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span>
-                <div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">품목별 1순위 공급사</CardDescription></div>
-              </CardHeader>
-              <CardContent className="px-0 pb-2">
-                {perItemRisk.filter((r) => r.company).slice(0, 5).map((row) => (
-                  <div key={row.hs} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3">
-                    <span className="flex-1 truncate text-sm font-medium">{row.company!.name} <span className="text-xs font-normal text-slate-400">· {row.name}</span></span>
-                    <span className="text-2xl font-bold tracking-tight text-slate-800">{row.company!.fit}</span>
-                    {row.company!.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
+              <div className="grid md:grid-cols-2 md:divide-x md:divide-slate-100">
+                {/* 국가 위험도 */}
+                <div>
+                  <div className="flex items-center gap-3 px-6 pb-2 pt-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><p className="font-semibold">국가 위험도</p><p className="text-sm text-slate-500">품목별 SGRI · 공급국 최고값</p></div></div>
+                  <div className="pb-2">
+                    {perItemRisk.slice(0, 5).map((row) => (
+                      <Link key={row.hs} href={`/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
+                        <span className="flex-1 truncate text-sm font-medium">{row.name}</span>
+                        {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
+                      </Link>
+                    ))}
+                    {perItemRisk.length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">등록된 품목이 없습니다.</p>}
                   </div>
-                ))}
-                {perItemRisk.filter((r) => r.company).length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">분석된 품목이 없어요. 분석하면 기업이 표시됩니다.</p>}
-              </CardContent>
+                </div>
+                {/* 기업 적합도 */}
+                <div className="border-t border-slate-100 md:border-t-0">
+                  <div className="flex items-center gap-3 px-6 pb-2 pt-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><p className="font-semibold">기업 적합도</p><p className="text-sm text-slate-500">품목별 1순위 공급사</p></div></div>
+                  <div className="pb-2">
+                    {perItemRisk.filter((r) => r.company).slice(0, 5).map((row) => (
+                      <div key={row.hs} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3">
+                        <span className="flex-1 truncate text-sm font-medium">{row.company!.name} <span className="text-xs font-normal text-slate-400">· {row.name}</span></span>
+                        <span className="text-2xl font-bold tracking-tight text-slate-800">{row.company!.fit}</span>
+                        {row.company!.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
+                      </div>
+                    ))}
+                    {perItemRisk.filter((r) => r.company).length === 0 && <p className="px-6 py-8 text-center text-sm text-slate-400">분석된 품목이 없어요. 분석하면 기업이 표시됩니다.</p>}
+                  </div>
+                </div>
+              </div>
             </Card>
           </section>
 
           <section className="mb-7">
-            <Link href="/map" className="flex items-center justify-between rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50/70 to-cyan-50/50 px-5 py-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white"><Globe2 className="h-5 w-5" /></span><div><p className="text-sm font-semibold">글로벌 공급망 지도</p><p className="mt-0.5 text-xs text-slate-500">공급국 위험도를 세계지도에서 보고, 국가별 추천 기업까지 살펴보세요</p></div></div>
-              <span className="flex items-center gap-1 text-sm font-medium text-blue-600">지도 열기 <ArrowRight className="h-4 w-4" /></span>
+            <Link href="/map" className="group block">
+              <Card className="overflow-hidden border-slate-200 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Globe2 className="h-5 w-5" /></span><div><CardTitle className="text-base">글로벌 공급망 지도</CardTitle><CardDescription className="mt-0.5">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · 공급국 ${mapPoints.length}개국` : "품목별 공급국 위험도"}</CardDescription></div></div>
+                  <span className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:underline">지도 열기 <ArrowRight className="h-4 w-4" /></span>
+                </CardHeader>
+                <CardContent className="pb-0">
+                  <div className="pointer-events-none h-48 overflow-hidden rounded-xl border border-slate-100">
+                    <WorldRiskMap points={mapPoints} preview fill height={340} />
+                  </div>
+                </CardContent>
+              </Card>
             </Link>
           </section>
 
