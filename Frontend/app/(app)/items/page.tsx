@@ -326,7 +326,7 @@ export default function ItemsPage() {
                           {riskSummary?.countryCode && riskSummary.status !== "fallback" ? (
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-slate-700">{getCountryName(riskSummary.countryCode) || riskSummary.countryCode}</span>
-                              <span className={`text-xs ${riskSummary.status === "trading" ? "text-blue-600" : "text-emerald-600"}`}>{riskSummary.status === "trading" ? "현재 거래국" : "등록 국가"}</span>
+                              <span className={`text-xs ${riskSummary.status === "trading" ? "text-blue-600" : "text-emerald-600"}`}>{riskSummary.status === "trading" ? "현재 거래국" : "관심 국가"}</span>
                             </div>
                           ) : (
                             <Link href={`/recommendations?query_id=${item.query_id}`} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 hover:border-blue-300 hover:text-blue-600" title="대체 공급국에서 국가를 등록하세요"><span className="text-rose-500">✕</span> 국가등록</Link>
