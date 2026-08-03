@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { ArrowLeft, ArrowRight, Bot, CircleAlert, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { api, type TrendBrief } from "@/lib/api"
+import { getCountryName } from "@/lib/countries"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,12 +19,39 @@ function riskColor(sgri: number): string {
 }
 const SEV = { high: { label: "고위험", color: "#e11d48" }, medium: { label: "주의", color: "#f59e0b" }, low: { label: "안정", color: "#10b981" } }
 
+type RegCountry = { name: string; item: string; status: "trading" | "registered" }
+type RegCompany = { name: string; country: string; item: string; status: "trading" | "registered" }
+
 export default function TrendsPage() {
   const [brief, setBrief] = useState<TrendBrief | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
+  const [reg, setReg] = useState<{ countries: RegCountry[]; companies: RegCompany[] }>({ countries: [], companies: [] })
 
   useEffect(() => {
     api.getTrendBrief().then((b) => { setBrief(b); setStatus("ready") }).catch(() => setStatus("error"))
+  }, [])
+
+  // 등록한 국가·기업 현황 (내 품목에서 지정한 것)
+  useEffect(() => {
+    api.getQueries().then(async (qs) => {
+      const items = qs.filter((q) => q.hs_code)
+      const countries: RegCountry[] = []
+      items.forEach((q) => {
+        const trading = new Set((q.trading_country ?? "").split(",").map((s) => s.trim()).filter(Boolean))
+        ;(q.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).forEach((name) =>
+          countries.push({ name, item: q.item_name?.trim() || `HS ${q.hs_code}`, status: trading.has(name) ? "trading" : "registered" }))
+      })
+      const compLists = await Promise.all(items.map((q) => {
+        const rset = new Set((q.registered_company_ids ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
+        const tset = new Set((q.trading_company_ids ?? "").split(",").map((s) => Number(s.trim())).filter(Boolean))
+        if (q.trading_company_id) { rset.add(q.trading_company_id); tset.add(q.trading_company_id) }
+        if (rset.size === 0) return Promise.resolve<RegCompany[]>([])
+        return api.getSupplierRecos(q.query_id)
+          .then((rows) => rows.filter((r) => rset.has(r.company.company_id)).map((r): RegCompany => ({ name: r.company.name, country: getCountryName(r.company.country_code ?? ""), item: q.item_name?.trim() || `HS ${q.hs_code}`, status: tset.has(r.company.company_id) ? "trading" : "registered" })))
+          .catch((): RegCompany[] => [])
+      }))
+      setReg({ countries, companies: compLists.flat() })
+    }).catch(() => {})
   }, [])
 
   const items = brief?.stats.items ?? []
@@ -60,11 +88,35 @@ export default function TrendsPage() {
           </CardContent>
         </Card>
 
+        {/* 핵심 지표 타일 */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile label="모니터링 품목" value={`${brief.stats.item_count}개`} tone="slate" />
+          <StatTile label="평균 SGRI" value={brief.stats.avg_sgri != null ? String(brief.stats.avg_sgri) : "—"} tone="blue" />
+          <StatTile label="최고 위험 SGRI" value={brief.stats.max_sgri != null ? String(brief.stats.max_sgri) : "—"} tone="rose" />
+          <StatTile label="고위험 품목(50+)" value={`${brief.stats.high_count}개`} tone="amber" />
+        </div>
+
         {(brief.highlights?.length ?? 0) > 0 && (
           <Card className="mt-6 border-slate-200 shadow-sm"><CardHeader className="pb-3"><CardTitle className="text-base">핵심 변화</CardTitle></CardHeader>
             <CardContent className="space-y-2.5">{brief.highlights!.map((h, i) => <div key={i} className="flex items-start gap-2.5 text-sm"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">{i + 1}</span><span className="leading-6 text-slate-700">{h}</span></div>)}</CardContent>
           </Card>
         )}
+
+        {/* 등록 국가·기업 현황 */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 국가 현황</CardTitle><CardDescription className="mt-1">내가 거래중·관심으로 등록한 국가</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              {reg.countries.length > 0 ? reg.countries.map((c, i) => <div key={`${c.name}-${c.item}-${i}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"><span className="font-medium text-slate-700">{c.name}<span className="ml-1.5 text-xs text-slate-400">· {c.item}</span></span><Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "관심"}</Badge></div>)
+                : <p className="py-6 text-center text-xs text-slate-400">등록한 국가가 없습니다. 대체 공급국에서 등록하세요.</p>}
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 기업 현황</CardTitle><CardDescription className="mt-1">내가 거래중·등록으로 지정한 기업</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              {reg.companies.length > 0 ? reg.companies.map((c, i) => <div key={`${c.name}-${i}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"><span className="min-w-0 flex-1 truncate font-medium text-slate-700">{c.name}<span className="ml-1.5 text-xs text-slate-400">· {c.country} · {c.item}</span></span><Badge className={c.status === "trading" ? "border-0 bg-blue-600 text-white hover:bg-blue-600" : "border-0 bg-emerald-600 text-white hover:bg-emerald-600"}>{c.status === "trading" ? "거래중" : "등록"}</Badge></div>)
+                : <p className="py-6 text-center text-xs text-slate-400">지정한 기업이 없습니다. 기업 추천에서 지정하세요.</p>}
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           {/* 품목별 SGRI */}
@@ -102,4 +154,9 @@ export default function TrendsPage() {
       </>}
     </main>
   </div>
+}
+
+function StatTile({ label, value, tone }: { label: string; value: string; tone: "slate" | "blue" | "rose" | "amber" }) {
+  const c = { slate: "text-slate-800", blue: "text-blue-600", rose: "text-rose-600", amber: "text-amber-600" }[tone]
+  return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{label}</p><p className={`mt-1 text-2xl font-bold tracking-tight ${c}`}>{value}</p></div>
 }

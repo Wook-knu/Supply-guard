@@ -221,6 +221,10 @@ export type TrendBrief = {
     alert_by_type: Record<string, number>
     alert_by_severity: { high: number; medium: number; low: number }
     alert_total: number
+    avg_sgri: number | null
+    max_sgri: number | null
+    high_count: number
+    item_count: number
   }
 }
 

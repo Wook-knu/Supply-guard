@@ -44,11 +44,16 @@ def _stats(db: Session, ctx: dict, user_id: int | None) -> dict:
     for atype, s in rows:
         types[atype or "기타"] += 1
         sev[s or "low"] += 1
+    sgris = [i["sgri"] for i in items if i["sgri"] is not None]
     return {
         "items": sorted(items, key=lambda x: x["sgri"], reverse=True),
         "alert_by_type": dict(types),
         "alert_by_severity": {k: sev.get(k, 0) for k in ("high", "medium", "low")},
         "alert_total": sum(types.values()),
+        "avg_sgri": round(sum(sgris) / len(sgris), 1) if sgris else None,
+        "max_sgri": max(sgris) if sgris else None,
+        "high_count": sum(1 for s in sgris if s >= 50),
+        "item_count": len(items),
     }
 
 
