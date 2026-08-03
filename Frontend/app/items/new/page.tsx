@@ -4,7 +4,7 @@
 
 import Link from "next/link"
 import { FormEvent, useEffect, useRef, useState } from "react"
-import { api, type BuildItemSgriResult, type QueryOut } from "@/lib/api"
+import { api, type BuildItemSgriResult, type HsCodeOut, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS } from "@/lib/countries"
 import { ArrowLeft, ArrowRight, Bell, Box, Check, ChevronDown, CircleAlert, CircleHelp, Globe2, Info, Loader2, PackagePlus, RefreshCw, ShieldAlert, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -56,6 +56,11 @@ export default function NewItemPage() {
   const [buildError, setBuildError] = useState("")
   const mountedRef = useRef(true)
   const buildRequestInFlightRef = useRef(false)
+  // 품목명 → HS 자동완성 + 이미 등록된 HS 중복 체크
+  const [hsSuggestions, setHsSuggestions] = useState<HsCodeOut[]>([])
+  const [showHsSuggest, setShowHsSuggest] = useState(false)
+  const [existingHsCodes, setExistingHsCodes] = useState<Set<string>>(new Set())
+  const hsSearchTimer = useRef<number | null>(null)
 
   const normalizedCountryInput = countryInput.trim().toLocaleLowerCase("ko")
   const filteredCountryOptions = COUNTRY_OPTIONS.filter(({ code, name }) =>
@@ -76,6 +81,10 @@ export default function NewItemPage() {
         window.localStorage.removeItem(STORAGE_KEY)
       }
     }
+    // 이미 등록된 품목의 HS 코드(중복 방지용) 로드
+    api.getQueries()
+      .then((rows) => setExistingHsCodes(new Set(rows.map((r) => (r.hs_code ?? "").trim()).filter(Boolean))))
+      .catch(() => {})
     return () => {
       mountedRef.current = false
     }
@@ -85,6 +94,25 @@ export default function NewItemPage() {
     // 모든 텍스트 입력을 하나의 form 상태에서 관리합니다.
     setError("")
     setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  // 품목명 입력 시 HS 코드 자동완성 검색(디바운스). 이름/코드로 검색.
+  const onNameChange = (value: string) => {
+    updateField("name", value)
+    if (hsSearchTimer.current) window.clearTimeout(hsSearchTimer.current)
+    const q = value.trim()
+    if (q.length < 1) { setHsSuggestions([]); setShowHsSuggest(false); return }
+    hsSearchTimer.current = window.setTimeout(() => {
+      api.searchHsCodes(q)
+        .then((rows) => { setHsSuggestions(rows); setShowHsSuggest(rows.length > 0) })
+        .catch(() => setHsSuggestions([]))
+    }, 250)
+  }
+
+  const pickHsSuggestion = (hs: HsCodeOut) => {
+    // 자동완성 선택 → 품목명 + HS 코드 자동 채움
+    setForm((current) => ({ ...current, name: hs.name_ko || current.name, hsCode: hs.hs_code }))
+    setShowHsSuggest(false)
   }
 
   const addCountry = (value = countryInput) => {
@@ -109,12 +137,17 @@ export default function NewItemPage() {
     // 필수값을 검증한 뒤 백엔드(POST /queries)에 품목을 먼저 등록합니다.
     event.preventDefault()
     const normalizedHsCode = form.hsCode.replace(/[^0-9]/g, "")
-    if (!form.name.trim() || !form.hsCode.trim() || form.countries.length === 0 || !form.deliveryDate) {
-      setError("필수 항목을 모두 입력해 주세요.")
+    // HS 코드는 선택 항목(모르면 생략 가능). 품목명·공급국·납기만 필수.
+    if (!form.name.trim() || form.countries.length === 0 || !form.deliveryDate) {
+      setError("필수 항목(품목명·공급국·납기일)을 입력해 주세요.")
       return
     }
-    if (normalizedHsCode.length < 2) {
-      setError("HS 코드는 숫자 2자리 이상 입력해 주세요.")
+    if (normalizedHsCode && normalizedHsCode.length < 2) {
+      setError("HS 코드를 입력하려면 숫자 2자리 이상이어야 합니다. (모르면 비워 두세요)")
+      return
+    }
+    if (normalizedHsCode && existingHsCodes.has(normalizedHsCode)) {
+      setError(`이미 등록된 품목입니다 (HS ${normalizedHsCode}). 품목 목록에서 확인해 주세요.`)
       return
     }
     setError("")
@@ -128,7 +161,7 @@ export default function NewItemPage() {
         : undefined
       const created = await api.createQuery({
         item_name: form.name.trim(),
-        hs_code: normalizedHsCode, // "2836.91" → "283691"
+        hs_code: normalizedHsCode || undefined, // "2836.91" → "283691", 없으면 생략
         required_qty: form.quantity ? Number(form.quantity) : undefined,
         target_price: form.targetPrice ? Number(form.targetPrice) : undefined,
         qty_unit: "ton",
@@ -200,7 +233,7 @@ export default function NewItemPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           <form id="item-form" onSubmit={saveItem} className="lg:col-span-2"><fieldset disabled={Boolean(createdItem)} className={createdItem ? "opacity-70" : ""}><Card className="border-slate-200 shadow-sm"><CardHeader className="border-b border-slate-100 pb-5"><CardTitle className="text-base">품목 및 조달 정보</CardTitle><CardDescription className="mt-1">{createdItem ? "품목 등록이 완료되어 입력 내용이 잠겼습니다." : "* 표시는 필수 입력 항목입니다."}</CardDescription></CardHeader><CardContent className="space-y-7 pt-6">
-            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600"><Box className="h-4 w-4" /></div><h2 className="text-sm font-semibold">품목 정보</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="품목명" required><Input placeholder="예: 리튬 탄산염" value={form.name} onChange={(event) => updateField("name", event.target.value)} /></Field><Field label="HS 코드" required helper="알고 있는 경우 입력해 주세요."><Input placeholder="예: 2836.91" value={form.hsCode} onChange={(event) => updateField("hsCode", event.target.value)} /></Field><Field label="연간 예상 수량"><Input placeholder="예: 500" type="number" min="0" value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">톤</span></Field><Field label="목표 단가"><Input placeholder="예: 18,000" type="number" min="0" value={form.targetPrice} onChange={(event) => updateField("targetPrice", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">USD / 톤</span></Field></div></section>
+            <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600"><Box className="h-4 w-4" /></div><h2 className="text-sm font-semibold">품목 정보</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="품목명" required helper="입력하면 HS 코드를 추천해 드려요."><Input placeholder="예: 리튬 탄산염" value={form.name} onChange={(event) => onNameChange(event.target.value)} onFocus={() => hsSuggestions.length > 0 && setShowHsSuggest(true)} onBlur={() => window.setTimeout(() => setShowHsSuggest(false), 150)} autoComplete="off" />{showHsSuggest && <div role="listbox" aria-label="HS 코드 추천" className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"><div className="border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-500">품목 · HS 코드 추천</div><div className="max-h-56 overflow-y-auto p-1">{hsSuggestions.map((hs) => <button type="button" role="option" aria-selected="false" key={hs.hs_code} onMouseDown={(e) => { e.preventDefault(); pickHsSuggestion(hs) }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700"><span className="truncate">{hs.name_ko || hs.name_en}</span><span className="shrink-0 text-xs font-medium text-slate-400">HS {hs.hs_code}</span></button>)}</div></div>}</Field><Field label="HS 코드" helper="모르면 비워 두세요 (품목명으로 추천됨)."><Input placeholder="예: 2836.91 (선택)" value={form.hsCode} onChange={(event) => updateField("hsCode", event.target.value)} /></Field><Field label="연간 예상 수량"><Input placeholder="예: 500" type="number" min="0" value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">톤</span></Field><Field label="목표 단가"><Input placeholder="예: 18,000" type="number" min="0" value={form.targetPrice} onChange={(event) => updateField("targetPrice", event.target.value)} /><span className="absolute bottom-2.5 right-3 text-xs text-slate-400">USD / 톤</span></Field></div></section>
 
             <div className="border-t border-slate-100" />
             <section><div className="mb-4 flex items-center gap-2"><div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50 text-violet-600"><Globe2 className="h-4 w-4" /></div><h2 className="text-sm font-semibold">현재 조달 현황</h2></div><div className="grid gap-5 md:grid-cols-2"><Field label="현재 주요 공급국" required><div className="relative"><div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-1.5">{form.countries.map((country) => <Badge key={country} className="bg-slate-100 text-slate-600 hover:bg-slate-100">{country}<button type="button" aria-label={`${country} 삭제`} onClick={() => removeCountry(country)} className="ml-1 text-slate-400 hover:text-rose-500">×</button></Badge>)}<Input aria-label="공급국 추가" value={countryInput} onChange={(event) => { setCountryInput(event.target.value); setIsCountryListOpen(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCountry() } }} placeholder="국가명 또는 코드 입력" className="h-7 min-w-24 flex-1 border-0 px-1 shadow-none focus-visible:ring-0" /><button type="button" aria-expanded={isCountryListOpen} aria-haspopup="listbox" onClick={() => setIsCountryListOpen((current) => !current)} className="flex items-center gap-1 px-1 text-xs font-medium text-blue-600">+ 추가<ChevronDown className={`h-3 w-3 transition-transform ${isCountryListOpen ? "rotate-180" : ""}`} /></button></div>{isCountryListOpen && <div role="listbox" aria-label="공급국 선택" className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"><div className="flex items-center justify-between border-b border-slate-100 px-3 py-2"><span className="text-xs font-medium text-slate-700">국가 선택</span><span className="text-[11px] text-slate-400">{filteredCountryOptions.length}개</span></div><div className="max-h-56 overflow-y-auto p-1">{filteredCountryOptions.map(({ code, name }) => <button type="button" role="option" aria-selected="false" key={code} onClick={() => addCountry(name)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700"><span>{name}</span><span className="text-xs text-slate-400">{code}</span></button>)}{filteredCountryOptions.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-400">일치하는 국가가 없습니다.</p>}</div></div>}</div></Field><Field label="희망 납기일" required><Input type="date" value={form.deliveryDate} onChange={(event) => updateField("deliveryDate", event.target.value)} /></Field><div className="md:col-span-2"><Label className="text-sm font-medium">공급사 또는 조달 경로 <span className="text-slate-400">(선택)</span></Label><Textarea className="mt-2 min-h-24 resize-none" placeholder="현재 거래 중인 공급사명, 경유 항만, 특이사항 등을 입력하세요." value={form.supplierNotes} onChange={(event) => updateField("supplierNotes", event.target.value)} /></div></div></section>
