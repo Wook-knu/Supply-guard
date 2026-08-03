@@ -111,7 +111,7 @@ def generate_ai_companies(db: Session, hs: str, item_name: str, candidate_countr
                     "  (name, name_en, country_code, company_type, hs_codes, certifications, "
                     "   website, status, data_source, unit_price, lead_time_days, "
                     "   on_time_delivery_rate, defect_rate_pct) "
-                    "SELECT :name, :name_en, :cc, 'supplier', :hs::jsonb, :certs::jsonb, "
+                    "SELECT :name, :name_en, :cc, 'supplier', CAST(:hs AS jsonb), CAST(:certs AS jsonb), "
                     "   :web, 'active', 'ai:gemini', :price, :lead, :otd, :defect "
                     "WHERE NOT EXISTS (SELECT 1 FROM companies WHERE name = :name)"
                 ), {
