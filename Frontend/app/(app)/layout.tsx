@@ -55,7 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
           <button type="button" onClick={toggle} title={collapsed ? "펼치기" : "접기"}
             aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700 active:scale-95">
             {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
         </div>
@@ -67,7 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const active = isActive(item)
               return (
                 <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined}
-                  className={`flex items-center rounded-md py-2 text-sm font-medium transition-colors ${collapsed ? "justify-center px-0" : "gap-3 px-3"} ${active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"}`}>
+                  className={`flex items-center rounded-md py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98] ${collapsed ? "justify-center px-0" : "gap-3 px-3"} ${active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
                   <Icon className="h-4 w-4 shrink-0" />{!collapsed && item.label}
                 </Link>
               )
