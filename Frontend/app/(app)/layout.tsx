@@ -6,7 +6,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { CircleAlert, FileText, Globe2, Home, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, ShieldAlert, Sparkles } from "lucide-react"
+import { ChevronsLeft, ChevronsRight, CircleAlert, FileText, Globe2, Home, LayoutGrid, Settings, ShieldAlert, Sparkles } from "lucide-react"
 
 const NAV = [
   { href: "/dashboard", label: "대시보드", icon: Home },
@@ -41,11 +41,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-200 lg:flex ${collapsed ? "w-16" : "w-60"}`}>
-        <div className={`flex h-16 items-center border-b border-slate-100 ${collapsed ? "justify-center px-0" : "gap-2.5 px-5"}`}>
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div>
-            {!collapsed && <span className="font-semibold tracking-tight">SupplyGuard</span>}
-          </Link>
+        <div className={`flex h-16 items-center border-b border-slate-100 px-3 ${collapsed ? "justify-center" : "gap-2"}`}>
+          {!collapsed && (
+            <Link href="/dashboard" className="flex flex-1 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div>
+              <span className="font-semibold tracking-tight">SupplyGuard</span>
+            </Link>
+          )}
+          <button type="button" onClick={toggle} title={collapsed ? "펼치기" : "접기"}
+            aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+            {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+          </button>
         </div>
         <div className="flex-1 p-3">
           {!collapsed && <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">메뉴</p>}
@@ -70,10 +77,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/reports/new" className="mt-2 inline-block text-xs font-semibold text-blue-700">보고서 생성 →</Link>
           </div>
         )}
-        <button type="button" onClick={toggle} aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
-          className={`flex items-center border-t border-slate-100 py-3 text-xs font-medium text-slate-500 hover:bg-slate-50 ${collapsed ? "justify-center" : "gap-2 px-5"}`}>
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /> 접기</>}
-        </button>
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
