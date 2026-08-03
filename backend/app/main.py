@@ -4,6 +4,7 @@ SupplyGuard 백엔드 진입점.
 문서:  http://localhost:8000/docs  (Swagger = 자동 API 명세서)
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,8 +14,20 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.db import engine
 
+_DB_DIR = Path(__file__).resolve().parents[2] / "database"
+
+# 회사가 데모 수준(소수)일 때 1회 로드할 배터리 실기업 시드 (파일 순서 = 의존 순서).
+_SEED_FILES = [
+    "migrate_companies_procurement.sql",  # 조달 컬럼(단가·납기 등) 보장
+    "seed_hs_codes_battery.sql",           # 282520/282200 HS 추가
+    "seed_companies_real.sql",             # 실기업 75개사(배터리)
+    "seed_country_risk_battery.sql",       # 배터리 품목 국가 SGRI
+]
+
 # 운영 DB(Railway) 덤프 복원 시 누락될 수 있는 스키마 객체를 시작 시점에 보장한다(idempotent).
 _ENSURE_SQL = [
+    # 회사 데이터 출처 구분 컬럼(실데이터/AI추정) — 실기업 시드가 사용.
+    """ALTER TABLE companies ADD COLUMN IF NOT EXISTS data_source VARCHAR(50);""",
     # S지표(수급 불안정성): comtrade World 합계행을 읽는 뷰
     """CREATE OR REPLACE VIEW s_source_monthly AS
        SELECT hs_code, period AS period, trade_value_usd AS import_value
@@ -39,6 +52,27 @@ async def lifespan(_: FastAPI):
                 conn.execute(text(stmt))
         except Exception as exc:  # noqa: BLE001 — 테이블 미존재 등은 무시하고 기동
             print(f"[startup] ensure skipped: {exc}")
+
+    # 실기업 시드 1회 로드 (회사가 10곳 미만일 때만 — 멱등 파일이라 반복돼도 안전).
+    try:
+        with engine.begin() as conn:
+            company_count = conn.execute(text("SELECT count(*) FROM companies")).scalar() or 0
+        if company_count < 10:
+            for fname in _SEED_FILES:
+                try:
+                    raw = engine.raw_connection()
+                    try:
+                        cur = raw.cursor()
+                        cur.execute("SET client_encoding TO 'UTF8'")
+                        cur.execute((_DB_DIR / fname).read_text(encoding="utf-8"))
+                        raw.commit()
+                    finally:
+                        raw.close()
+                except Exception as exc:  # noqa: BLE001 — 개별 시드 실패는 건너뛴다
+                    print(f"[startup] seed {fname} skipped: {exc}")
+            print(f"[startup] company seed loaded (was {company_count})")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] company seed check skipped: {exc}")
     yield
 
 
