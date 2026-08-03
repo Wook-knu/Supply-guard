@@ -448,7 +448,7 @@ export default function Dashboard() {
 
           <section className="mb-7 grid gap-4 lg:grid-cols-2">
             {/* 국가 위험도 */}
-            <Card className="border-slate-200 border-t-[3px] border-t-rose-400 shadow-sm">
+            <Card className="border-2 border-rose-300 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><AlertTriangle className="h-5 w-5" /></span><div><CardTitle className="text-base">국가 위험도</CardTitle><CardDescription className="mt-0.5">품목별 SGRI · 공급국 최고값</CardDescription></div></div>
                 <button type="button" onClick={() => setNatlDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{natlDesc ? "위험 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
@@ -465,7 +465,7 @@ export default function Dashboard() {
             </Card>
 
             {/* 기업 적합도 */}
-            <Card className="border-slate-200 border-t-[3px] border-t-blue-400 shadow-sm">
+            <Card className="border-2 border-blue-300 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><Building2 className="h-5 w-5" /></span><div><CardTitle className="text-base">기업 적합도</CardTitle><CardDescription className="mt-0.5">품목별 1순위 공급사 · 클릭 시 상세</CardDescription></div></div>
                 <button type="button" onClick={() => setCompDesc((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50">{compDesc ? "적합도 높은순" : "낮은순"}<ArrowUpDown className="h-3 w-3" /></button>
@@ -486,7 +486,7 @@ export default function Dashboard() {
           {/* 지도(작게) + 리스크 추이 나란히 */}
           <section className="mb-7 grid gap-6 lg:grid-cols-2">
             <Link href="/map" className="group block">
-              <Card className="h-full overflow-hidden border-slate-200 border-t-[3px] border-t-cyan-400 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+              <Card className="h-full overflow-hidden border-2 border-cyan-300 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600"><Globe2 className="h-5 w-5" /></span><div><CardTitle className="text-base">글로벌 공급망 지도</CardTitle><CardDescription className="mt-0.5">{selectedItem ? `공급국 ${mapPoints.length}개국` : "품목별 공급국 위험도"}</CardDescription></div></div>
                   <span className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:underline">열기 <ArrowRight className="h-4 w-4" /></span>
@@ -499,7 +499,7 @@ export default function Dashboard() {
               </Card>
             </Link>
 
-            <Card className="border-slate-200 border-t-[3px] border-t-violet-400 shadow-sm">
+            <Card className="border-2 border-violet-300 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · 공급국 중 최고 SGRI · ${period}` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
                 <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
@@ -513,12 +513,12 @@ export default function Dashboard() {
 
           {/* 하단: AI 브리핑 · 대체 공급국(품목 선택) · 최신 동향 */}
           <section className="grid gap-6 lg:grid-cols-3">
-            <Card className="border-blue-100 bg-gradient-to-br from-blue-50/80 to-cyan-50/50 shadow-sm">
+            <Card className="border-2 border-indigo-300 bg-gradient-to-br from-blue-50/80 to-cyan-50/50 shadow-sm">
               <CardHeader className="pb-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white"><Bot className="h-4 w-4" /></div><CardTitle className="text-base">AI 리스크 브리핑</CardTitle></div><Badge className="border-blue-100 bg-white text-blue-600 hover:bg-white">오늘</Badge></div></CardHeader>
               <CardContent><p className="text-sm leading-6 text-slate-600">{alerts[0]?.message ?? alerts[0]?.title ?? "새로운 리스크 브리핑 데이터가 없습니다."}</p><div className="mt-4 flex gap-2"><Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700"><Link href="/alerts">대응 전략 보기</Link></Button><Button asChild size="sm" variant="outline" className="border-blue-200 bg-white text-blue-700"><Link href="/reports/new">보고서 생성</Link></Button></div></CardContent>
             </Card>
 
-            <Card id="alternatives" className="scroll-mt-20 border-slate-200 border-t-[3px] border-t-emerald-400 shadow-sm">
+            <Card id="alternatives" className="scroll-mt-20 border-2 border-emerald-300 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Globe2 className="h-4 w-4" /></span><div><CardTitle className="text-base">대체 공급국 추천</CardTitle><CardDescription className="mt-1">국가 차원 · 품목별</CardDescription></div></div>
                 <select aria-label="대체공급국 품목 선택" value={selectedHsCode} onChange={(e) => setSelectedHsCode(e.target.value)} disabled={monitoredItems.length === 0} className="h-8 max-w-28 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
@@ -530,7 +530,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200 border-t-[3px] border-t-amber-400 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">최근 위험 알림 및 정책 변화</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => <div className="border-t border-slate-100 px-6 py-3.5" key={`${article.title}-${index}`}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}</p></div>)}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
+            <Card className="border-2 border-amber-300 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">최근 위험 알림 및 정책 변화</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => <div className="border-t border-slate-100 px-6 py-3.5" key={`${article.title}-${index}`}><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}</p></div>)}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
           </section>
 
           <section id="reports" className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><ClipboardList className="h-4 w-4" /></div><div><p className="text-sm font-semibold">{latestReport?.title ?? "저장된 보고서가 없습니다"}</p><p className="text-xs text-slate-500">{latestReport ? `${latestReport.status ?? "draft"} · ${latestReport.created_at ? new Date(latestReport.created_at).toLocaleString("ko-KR") : "생성 시간 없음"}` : "분석 결과로 보고서를 생성해 보세요."}</p></div></div><Button asChild variant="outline" className="hidden border-slate-200 text-slate-700 sm:flex"><Link href={latestReport ? `/reports/${latestReport.report_id}` : "/reports/new"}>{latestReport ? "초안 열기" : "보고서 생성"} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>

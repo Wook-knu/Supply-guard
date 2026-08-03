@@ -213,7 +213,7 @@ export default function NewItemPage() {
         <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+      <main className="mx-auto max-w-5xl px-5 py-8 md:px-8">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> 대시보드로 돌아가기</Link>
         <div className="mt-6">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><PackagePlus className="h-4 w-4" /> 공급망 등록</div>
