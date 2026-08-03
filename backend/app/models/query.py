@@ -25,4 +25,5 @@ class UserQuery(Base):
     importer_code: Mapped[str | None] = mapped_column(String(2))
     origin_country: Mapped[str | None] = mapped_column(String(200))  # 등록한 관련 공급국(콤마구분). 필수화됨.
     trading_country: Mapped[str | None] = mapped_column(String(200))  # 그중 '현재 거래 중'인 국가(콤마구분, 부분집합)
+    trading_company_id: Mapped[int | None] = mapped_column(BigInteger)  # 현재 거래 중인 기업(있으면). 없으면 추천=후보.
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

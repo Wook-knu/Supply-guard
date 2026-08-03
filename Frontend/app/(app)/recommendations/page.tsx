@@ -34,6 +34,8 @@ export default function RecommendationsPage() {
   const [queryId, setQueryId] = useState<number | null>(null)
   const [items, setItems] = useState<QueryOut[]>([])
   const [itemName, setItemName] = useState("")
+  const [tradingCompanyId, setTradingCompanyId] = useState<number | null>(null)  // 현재 거래 기업
+  const [savingTrading, setSavingTrading] = useState(false)
 
   // 내 품목 목록 로드 + 기본 선택(URL query_id 있으면 그것, 없으면 첫 품목)
   useEffect(() => {
@@ -108,6 +110,7 @@ export default function RecommendationsPage() {
           if (t) oc.add(m?.code ?? t.toUpperCase())
         })
         setOriginCodes(oc)
+        setTradingCompanyId(query.trading_company_id ?? null)
         setItemName(query.item_name?.trim() || (query.hs_code ? `HS ${query.hs_code}` : "품목명 없음"))
         setCountries(mappedCountries)
         setSuppliers(mappedSuppliers)
@@ -126,6 +129,22 @@ export default function RecommendationsPage() {
 
   function toggleComparison(country: string) {
     setCompared((current) => current.includes(country) ? current.filter((item) => item !== country) : [...current, country])
+  }
+
+  // 현재 거래 기업 지정/해제 (같은 기업 다시 누르면 해제)
+  async function setTradingCompany(companyId: number) {
+    if (!queryId || savingTrading) return
+    const next = tradingCompanyId === companyId ? null : companyId
+    setSavingTrading(true)
+    const prev = tradingCompanyId
+    setTradingCompanyId(next)  // 낙관적 업데이트
+    try {
+      await api.updateQuery(queryId, { trading_company_id: next })
+    } catch {
+      setTradingCompanyId(prev)  // 실패 시 롤백
+    } finally {
+      setSavingTrading(false)
+    }
   }
 
   function selectCountry(country: string) {
@@ -198,8 +217,8 @@ export default function RecommendationsPage() {
       <Card className="mt-7 border-slate-200 shadow-sm">
         <CardHeader className="pb-4"><CardTitle className="text-base">추천 기업(공급사)</CardTitle><CardDescription className="mt-1">AI·실데이터 기반 조달 기업 후보 — 적합도·단가·리드타임·정시납품으로 비교하세요.</CardDescription></CardHeader>
         <CardContent className={suppliers.length > 0 ? "grid gap-4 md:grid-cols-3" : ""}>
-          {suppliers.map((supplier, idx) => <div className="flex flex-col rounded-xl border border-slate-200 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md" key={supplier.id}>
-            <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{idx === 0 && <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">1순위</Badge>}</div>{supplier.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
+          {suppliers.map((supplier, idx) => <div className={`flex flex-col rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${tradingCompanyId === supplier.id ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 hover:border-blue-200"}`} key={supplier.id}>
+            <div className="flex items-start justify-between gap-2"><div className="flex items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Building2 className="h-4 w-4" /></div>{tradingCompanyId === supplier.id ? <Badge className="border-0 bg-blue-600 text-white hover:bg-blue-600">현재 거래 기업</Badge> : idx === 0 ? <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">1순위 후보</Badge> : null}</div>{supplier.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50"><Sparkles className="mr-0.5 h-3 w-3" />AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}</div>
             <div className="mt-3 flex items-center gap-1.5"><p className="font-semibold leading-tight">{supplier.name}</p>{supplier.verified && <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />}</div>
             <p className="mt-0.5 text-xs text-slate-500">{supplier.country}{supplier.type && supplier.type !== "공급사" ? ` · ${supplier.type}` : ""}</p>
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
@@ -209,7 +228,13 @@ export default function RecommendationsPage() {
               <div className="flex justify-between"><span className="text-slate-400">정시납품</span><span className="font-medium">{supplier.otd != null ? `${supplier.otd}%` : "–"}</span></div>
             </div>
             <p className="mt-3 min-h-10 flex-1 text-xs leading-5 text-slate-500"><span className="font-medium text-slate-600">추천 이유 · </span>{supplier.note || "SGRI·조달 적합도 기반 추천"}</p>
-            <Button asChild variant="outline" size="sm" className="mt-3 w-full border-slate-200"><Link href={`/suppliers/${supplier.id}${queryId ? `?query_id=${queryId}` : ""}`}>기업 상세 정보</Link></Button>
+            <div className="mt-3 flex gap-2">
+              <Button asChild variant="outline" size="sm" className="flex-1 border-slate-200"><Link href={`/suppliers/${supplier.id}${queryId ? `?query_id=${queryId}` : ""}`}>상세</Link></Button>
+              <Button type="button" size="sm" onClick={() => void setTradingCompany(supplier.id)} disabled={savingTrading}
+                className={`flex-1 ${tradingCompanyId === supplier.id ? "bg-blue-600 hover:bg-blue-700" : "bg-white text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50"}`}>
+                {tradingCompanyId === supplier.id ? <><Check className="mr-1 h-3.5 w-3.5" />거래 기업</> : "거래 기업 지정"}
+              </Button>
+            </div>
           </div>)}
           {suppliers.length === 0 && <p className="py-8 text-center text-sm text-slate-400">추천 기업이 아직 없어요. 품목 분석을 실행하면 생성됩니다.</p>}
         </CardContent>

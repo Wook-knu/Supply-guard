@@ -14,7 +14,7 @@ from app.core.db import SessionLocal, get_db
 from app.core.security import get_current_user, get_current_user_optional
 from app.models.query import UserQuery
 from app.models.user import User
-from app.schemas.query import QueryCreate, QueryOut
+from app.schemas.query import QueryCreate, QueryOut, QueryUpdate
 from app.services.recommend import generate_recommendations
 from app.services.ai_adapter import run_ai_analysis
 from app.services.alerts_gen import generate_alerts_for_query
@@ -145,6 +145,24 @@ def delete_query(
     db.delete(query)
     db.commit()
     return None
+
+
+@router.patch("/{query_id}", response_model=QueryOut)
+def update_query(
+    query_id: int,
+    payload: QueryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """질의 부분 수정(거래중 국가/기업 지정 등). 본인 것만. 보낸 필드만 반영."""
+    row = db.get(UserQuery, query_id)
+    if row is None or row.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="query not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(row, key, value)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 @router.get("/{query_id}", response_model=QueryOut)

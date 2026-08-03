@@ -45,6 +45,7 @@ _ENSURE_SQL = [
     # 등록 국가를 여러 개 담을 수 있게 확장 + '현재 거래 중' 부분집합 컬럼.
     """ALTER TABLE user_queries ALTER COLUMN origin_country TYPE VARCHAR(200);""",
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_country VARCHAR(200);""",
+    """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_company_id BIGINT;""",
 ]
 
 

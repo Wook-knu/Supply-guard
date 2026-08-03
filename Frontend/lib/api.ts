@@ -17,6 +17,7 @@ export type QueryCreate = {
   importer_code?: string
   origin_country?: string   // 등록한 관련 공급국(콤마구분 국가명)
   trading_country?: string  // 그중 '현재 거래 중'인 국가(콤마구분, 부분집합)
+  trading_company_id?: number | null  // 현재 거래 중인 기업(있으면)
 }
 
 export type QueryOut = QueryCreate & {
@@ -341,6 +342,8 @@ export const api = {
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
   getQueries: () => http<QueryOut[]>("/queries"),
   getQuery: (queryId: number) => http<QueryOut>(`/queries/${queryId}`),
+  updateQuery: (queryId: number, body: { origin_country?: string; trading_country?: string; trading_company_id?: number | null }) =>
+    http<QueryOut>(`/queries/${queryId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteQuery: (queryId: number) =>
     http<void>(`/queries/${queryId}`, { method: "DELETE" }),
   // F-06 국가 추천 / F-07·08 기업 추천

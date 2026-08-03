@@ -113,7 +113,7 @@ export default function Dashboard() {
   const [countryRecos, setCountryRecos] = useState<CountryReco[]>([])
   const [supplierRecos, setSupplierRecos] = useState<SupplierReco[]>([])
   // 품목별 1순위 추천 기업(hs_code → {이름·적합도·AI여부}) — 통합 위험도 카드용
-  const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; inOrigin: boolean }>>({})
+  const [itemCompanies, setItemCompanies] = useState<Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; status: "trading" | "registered" | "candidate" }>>({})
   const [natlDesc, setNatlDesc] = useState(true)   // 국가 위험도 정렬(높은순/낮은순)
   const [compDesc, setCompDesc] = useState(true)   // 기업 적합도 정렬
   const [latestReport, setLatestReport] = useState<ReportOut | null>(null)
@@ -336,21 +336,25 @@ export default function Dashboard() {
     const items = monitoredItems.filter((i) => i.hs_code)
     if (items.length === 0) { setItemCompanies({}); return }
     let active = true
+    type Picked = { hs: string; top: SupplierReco | undefined; status: "trading" | "registered" | "candidate" }
     Promise.all(items.map((i) => {
-      const originCodes = (i.origin_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
+      const tradingCodes = (i.trading_country ?? "").split(",").map((s) => s.trim()).filter(Boolean).map((n) => {
         const m = COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())
         return m?.code ?? n.toUpperCase()
       })
-      return api.getSupplierRecos(i.query_id).then((rows): { hs: string; top: SupplierReco | undefined; inOrigin: boolean } => {
-        // 현재 거래국의 기업 우선, 없으면 1순위
-        const inOriginCompany = originCodes.length ? rows.find((r) => originCodes.includes(r.company.country_code ?? "")) : undefined
-        return { hs: i.hs_code as string, top: inOriginCompany ?? rows[0], inOrigin: Boolean(inOriginCompany) }
-      }).catch((): { hs: string; top: SupplierReco | undefined; inOrigin: boolean } => ({ hs: i.hs_code as string, top: undefined, inOrigin: false }))
+      return api.getSupplierRecos(i.query_id).then((rows): Picked => {
+        // 1) 사용자가 지정한 '현재 거래 기업' 최우선
+        const tradingCompany = i.trading_company_id != null ? rows.find((r) => r.company.company_id === i.trading_company_id) : undefined
+        if (tradingCompany) return { hs: i.hs_code as string, top: tradingCompany, status: "trading" }
+        // 2) 거래중 국가의 기업이면 '등록'으로, 아니면 1순위 후보
+        const inTrading = tradingCodes.length ? rows.find((r) => tradingCodes.includes(r.company.country_code ?? "")) : undefined
+        return { hs: i.hs_code as string, top: inTrading ?? rows[0], status: inTrading ? "registered" : "candidate" }
+      }).catch((): Picked => ({ hs: i.hs_code as string, top: undefined, status: "candidate" }))
     })).then((results) => {
       if (!active) return
-      const map: Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; inOrigin: boolean }> = {}
-      results.forEach(({ hs, top, inOrigin }) => {
-        if (hs && top) map[hs] = { name: top.company.name, fit: Math.round(Number(top.fit_score ?? 0)), isAi: (top.company.data_source ?? "").startsWith("ai:"), companyId: top.company.company_id, country: top.company.country_code ?? "", inOrigin }
+      const map: Record<string, { name: string; fit: number; isAi: boolean; companyId: number; country: string; status: "trading" | "registered" | "candidate" }> = {}
+      results.forEach(({ hs, top, status }) => {
+        if (hs && top) map[hs] = { name: top.company.name, fit: Math.round(Number(top.fit_score ?? 0)), isAi: (top.company.data_source ?? "").startsWith("ai:"), companyId: top.company.company_id, country: top.company.country_code ?? "", status }
       })
       setItemCompanies(map)
     }).catch(() => {})
@@ -522,7 +526,7 @@ export default function Dashboard() {
                   <Link key={row.hs} href={`/suppliers/${row.company!.companyId}${row.queryId != null ? `?query_id=${row.queryId}` : ""}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.company!.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.company!.country)}{row.company!.inOrigin ? <span className="font-medium text-blue-500"> · 현재 거래국</span> : ""} · {row.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-400">{getCountryName(row.company!.country)}{row.company!.status === "trading" ? <span className="font-medium text-blue-500"> · 현재 거래 기업</span> : row.company!.status === "registered" ? <span className="font-medium text-slate-500"> · 등록 국가 기업</span> : <span> · 추천 후보</span>} · {row.name}</p>
                     </div>
                     <span className="text-2xl font-bold tracking-tight text-slate-800">{row.company!.fit}</span>
                     {row.company!.isAi ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">AI 추정</Badge> : <Badge className="border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-50">실데이터</Badge>}
