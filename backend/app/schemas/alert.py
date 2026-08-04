@@ -17,5 +17,6 @@ class AlertOut(BaseModel):
     severity: str | None = None
     title: str | None = None
     message: str | None = None
+    source_url: str | None = None
     is_read: bool | None = None
     created_at: datetime | None = None

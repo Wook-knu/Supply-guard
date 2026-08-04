@@ -10,7 +10,8 @@ MODEL = "gemini-3.6-flash"
 OUTLINE = (
     ("summary", "경영진 요약"),
     ("risk", "공급망 리스크 분석"),
-    ("alternative", "대체 공급처 제안"),
+    ("alternative", "대체 공급국 제안"),
+    ("companies", "추천 기업(공급사)"),
     ("action", "권장 대응 전략"),
 )
 SCHEMA = {
@@ -20,6 +21,7 @@ SCHEMA = {
         "executive_summary": {"type": "string"},
         "risk_analysis": {"type": "string"},
         "alternative_suppliers": {"type": "string"},
+        "recommended_companies": {"type": "string"},
         "recommended_actions": {"type": "string"},
         "data_limitations": {
             "type": "array",
@@ -31,14 +33,18 @@ SCHEMA = {
         "executive_summary",
         "risk_analysis",
         "alternative_suppliers",
+        "recommended_companies",
         "recommended_actions",
         "data_limitations",
     ],
     "additionalProperties": False,
 }
 PROMPT = """Write a concise Korean supply-chain risk report draft.
-Use exactly this outline: 경영진 요약, 공급망 리스크 분석, 대체 공급처 제안,
-권장 대응 전략. Use only the supplied assessment and company recommendations.
+Use exactly this outline: 경영진 요약, 공급망 리스크 분석, 대체 공급국 제안,
+추천 기업(공급사), 권장 대응 전략. Use only the supplied assessment and company
+recommendations. In '대체 공급국 제안' focus on alternative COUNTRIES. In
+'추천 기업(공급사)' describe the supplied candidate COMPANIES (name, country, match
+score, rationale); if none supplied, state that clearly.
 Return section bodies only; do not repeat section titles inside the bodies.
 In the risk section, explain why each supplied component weight was selected.
 Do not invent companies, events, prices, certifications, sources, or measurements.
@@ -128,6 +134,7 @@ def _sections(result: dict[str, Any]) -> list[dict[str, str]]:
         "summary": result["executive_summary"],
         "risk": result["risk_analysis"],
         "alternative": result["alternative_suppliers"],
+        "companies": result["recommended_companies"],
         "action": result["recommended_actions"],
     }
     sections = [
@@ -159,12 +166,20 @@ def _fallback_report(
 ) -> dict[str, Any]:
     companies = company_result.get("recommendations") or []
     company_text = (
-        ", ".join(
-            f"{row['rank']}위 {row['company_name']}({row['match_score']:.1f}점)"
+        "추천 기업(공급사): "
+        + "; ".join(
+            f"{row['rank']}위 {row['company_name']}(적합도 {row['match_score']:.1f}점)"
             for row in companies
         )
+        + ". 계약 전 단가·공급량·인증을 담당자가 확인하세요."
         if companies
-        else "수집된 기업 후보 데이터가 없어 추천 기업을 작성하지 않았습니다."
+        else "현재 등록된 기업 후보 데이터가 없습니다. 대체 공급국/기업 추천에서 기업을 확보한 뒤 다시 생성하세요."
+    )
+    country_recs = risk_result.get("recommendations") or []
+    country_text = (
+        "대체 공급국 검토 방향: " + " ".join(f"{i}. {t}" for i, t in enumerate(country_recs, 1))
+        if country_recs
+        else "SGRI가 낮은(안전한) 후보국 위주로 대체 조달을 검토하세요."
     )
     high_risks = sorted(
         risk_result["components"],
@@ -208,7 +223,12 @@ def _fallback_report(
             },
             {
                 "id": "alternative",
-                "title": "대체 공급처 제안",
+                "title": "대체 공급국 제안",
+                "body": country_text,
+            },
+            {
+                "id": "companies",
+                "title": "추천 기업(공급사)",
                 "body": company_text,
             },
             {

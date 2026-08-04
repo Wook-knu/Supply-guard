@@ -4,14 +4,17 @@
 ※ recommendations.py와 구조 같음. 다른 점: 응답에 company(기업정보)가 중첩된다.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.security import get_current_user
 from app.models.company import Company
 from app.models.query import UserQuery
 from app.models.recommendation import ProcurementRecommendation
 from app.models.supplier_recommendation import SupplierRecommendation
+from app.models.user import User
 from app.schemas.supplier import SupplierRecommendationOut
 from app.services.explain_ai import explain_supplier
 
@@ -34,6 +37,79 @@ def list_supplier_recos(query_id: int, db: Session = Depends(get_db)):
         .order_by(SupplierRecommendation.rank)
     )
     return db.execute(stmt).scalars().all()
+
+
+class AiCompanyRequest(BaseModel):
+    country_code: str  # AI 기업을 생성·추천할 국가(ISO2)
+
+
+_LEVEL = lambda s: "높음" if s >= 50 else "중간" if s >= 25 else "낮음"  # noqa: E731
+
+
+@router.post("/{query_id}/suppliers/ai", response_model=list[SupplierRecommendationOut])
+def generate_ai_suppliers(
+    query_id: int,
+    payload: AiCompanyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """지정 국가에 대해 Gemini로 기업 후보를 생성하고 이 질의의 기업 추천에 추가한다.
+    회사 DB에 그 국가 기업이 없어도 AI가 실제 기업 후보를 만들어 준다. (본인 질의만)"""
+    query = db.get(UserQuery, query_id)
+    if query is None or query.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="query not found")
+    if not query.hs_code:
+        raise HTTPException(status_code=400, detail="이 품목은 HS 코드가 없어 AI 추천이 불가합니다.")
+    cc = payload.country_code.strip().upper()[:2]
+    if len(cc) != 2:
+        raise HTTPException(status_code=400, detail="국가 코드가 올바르지 않습니다.")
+
+    existing_ids = set(db.execute(
+        select(SupplierRecommendation.company_id).where(SupplierRecommendation.query_id == query_id)
+    ).scalars().all())
+
+    # 1) Gemini로 이 품목 기업 후보 생성(요청 국가를 우선 후보로) → companies 저장
+    from app.services.company_ai import generate_ai_companies
+    created = generate_ai_companies(db, query.hs_code, query.item_name or "", [cc])
+
+    # 2) 이 품목의 기업 중 아직 추천에 없는 것을 편입.
+    #    요청 국가에 실제 기업이 없을 수 있으므로 국가로 강제 필터하지 않고,
+    #    AI가 찾은 실제 기업(실 소재국)을 그대로 추가한다(프론트가 국가별로 분류).
+    all_companies = db.execute(
+        select(Company).where(Company.hs_codes.contains([query.hs_code]))
+    ).scalars().all()
+    new_companies = [c for c in all_companies if c.company_id not in existing_ids]
+    if not new_companies:
+        detail = ("AI가 새로운 기업을 찾지 못했습니다. 이 국가·품목에는 알려진 공급 기업이 없을 수 있습니다."
+                  if created == 0 else "추가할 새 기업이 없습니다.")
+        raise HTTPException(status_code=502, detail=detail)
+
+    max_rank = db.execute(
+        select(func.coalesce(func.max(SupplierRecommendation.rank), 0)).where(SupplierRecommendation.query_id == query_id)
+    ).scalar() or 0
+
+    def _fit_for(country_code: str) -> tuple[float, float]:
+        row = db.execute(text(
+            "SELECT sgri_score FROM country_risk_scores WHERE hs_code = :h AND country_code = :c "
+            "ORDER BY as_of_date DESC LIMIT 1"
+        ), {"h": query.hs_code, "c": country_code}).scalar()
+        s = float(row) if row is not None else 45.0
+        return s, round(100 - s, 1)
+
+    for c in new_companies:
+        max_rank += 1
+        sgri, fit = _fit_for(c.country_code or "")
+        certs = ", ".join(c.certifications or []) or "인증 정보 없음"
+        db.add(SupplierRecommendation(
+            query_id=query_id, company_id=c.company_id, rank=max_rank,
+            fit_score=fit, delivery_feasibility=_LEVEL(100 - sgri),
+            rationale=f"AI 추천 · {c.country_code} 소재 기업. 보유 인증: {certs}.",
+        ))
+    db.commit()
+
+    return db.execute(
+        select(SupplierRecommendation).where(SupplierRecommendation.query_id == query_id).order_by(SupplierRecommendation.rank)
+    ).scalars().all()
 
 
 @router.get("/{query_id}/suppliers/{company_id}/explain")

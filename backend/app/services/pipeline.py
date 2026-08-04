@@ -86,18 +86,34 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
     #    - run(): 상대국별 연간 (C 집중도 HHI용)
     #    - run_world(): World 합계 월별 (S 수급 변동성용 → s_source_monthly 뷰가 읽음)
     from ingest import comtrade  # database/ingest/comtrade
+    try:
+        from config import COMTRADE_API_KEY
+        key_present = bool(COMTRADE_API_KEY)
+    except Exception:  # noqa: BLE001
+        key_present = False
     ingested = 0
+    ingest_error: str | None = None
+    # 신규 HS는 hs_codes 참조 테이블에 먼저 등록해야 comtrade_trade_flows FK(hs_code)를 통과한다.
+    _level = len(hs) if len(hs) in (2, 4, 6, 10) else 6
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO hs_codes (hs_code, hs_level) VALUES (:h, :lv) "
+                "ON CONFLICT (hs_code) DO NOTHING"
+            ), {"h": hs, "lv": _level})
+    except Exception as exc:  # noqa: BLE001 - 등록 실패해도 수집은 시도(원인 기록)
+        ingest_error = f"hs_codes register: {type(exc).__name__}: {exc}"[:300]
     for yr in ("2019", "2020", "2021", "2022", "2023"):
         try:
             comtrade.run("410", yr, hs, "M")
             ingested += 1
-        except Exception:  # noqa: BLE001 - 일부 연도 실패해도 계속
-            pass
+        except Exception as exc:  # noqa: BLE001 - 일부 연도 실패해도 계속(원인은 기록)
+            ingest_error = ingest_error or f"{type(exc).__name__}: {exc}"[:300]
     try:
         # 무료 Comtrade preview는 기간 12개 이하만 허용 → 12개월 창 사용
         comtrade.run_world("410", comtrade.months("202401", "202412"), hs, "M")
-    except Exception:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
-        pass
+    except Exception as exc:  # noqa: BLE001 - World 수집 실패해도 나머지 지표는 계속
+        ingest_error = ingest_error or f"world: {type(exc).__name__}: {exc}"[:300]
 
     # 2) 지표 계산(공식/SQL): C → 병합(P·L·C·S·V·E). S는 병합의 LATERAL에서 산출.
     raw = engine.raw_connection()
@@ -114,10 +130,24 @@ def build_item_sgri(db: Session, hs_code: str) -> dict:
     from app.services.weighting_ai import apply_gemini_sgri
     weighting = apply_gemini_sgri(db, hs)
 
+    # 4) 이 HS로 등록된 질의들의 국가·기업 추천을 재생성 (방금 계산한 SGRI 반영).
+    #    등록 시점엔 위험데이터가 없어 추천이 비어 있을 수 있으므로 build 후 확실히 채운다.
+    try:
+        from sqlalchemy import select
+        from app.models.query import UserQuery
+        from app.services.recommend import generate_recommendations
+        for q in db.execute(select(UserQuery).where(UserQuery.hs_code == hs)).scalars():
+            generate_recommendations(db, q, ai_fallback=True)
+    except Exception as exc:  # noqa: BLE001 - 추천 재생성 실패는 SGRI 결과를 막지 않는다
+        ingest_error = ingest_error or f"reco regen: {type(exc).__name__}: {exc}"[:200]
+
     return {
         "hs_code": hs,
         "comtrade_years_ingested": ingested,
         "countries": weighting.get("countries", 0),
         "uses_llm": weighting.get("uses_llm"),
         "weights": weighting.get("weights"),
+        # 진단(라이브 수집 문제 파악용): 키 존재 여부 + 첫 수집 오류
+        "comtrade_key_present": key_present,
+        "ingest_error": ingest_error,
     }

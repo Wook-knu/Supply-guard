@@ -28,8 +28,10 @@ def _level(sgri: float) -> str:
     return "낮음"
 
 
-def generate_recommendations(db: Session, query: UserQuery) -> int:
-    """query에 대한 국가·기업 추천을 (재)생성한다. 생성한 국가 추천 수를 반환."""
+def generate_recommendations(db: Session, query: UserQuery, ai_fallback: bool = False) -> int:
+    """query에 대한 국가·기업 추천을 (재)생성한다. 생성한 국가 추천 수를 반환.
+    ai_fallback=True 면 회사 DB에 그 품목 공급사가 없을 때 Gemini로 후보를 생성한다
+    (무거운 호출이라 build 등 비동기 경로에서만 켠다)."""
     if not query.hs_code:
         return 0
 
@@ -66,6 +68,17 @@ def generate_recommendations(db: Session, query: UserQuery) -> int:
     companies = db.execute(
         select(Company).where(Company.hs_codes.contains([query.hs_code]))
     ).scalars().all()
+    # 회사 DB에 그 품목 공급사가 없으면 Gemini로 후보 생성(비동기 경로에서만).
+    if not companies and ai_fallback:
+        try:
+            from app.services.company_ai import generate_ai_companies
+            candidate_countries = list(sgri_by_country.keys())
+            if generate_ai_companies(db, query.hs_code, query.item_name or "", candidate_countries):
+                companies = db.execute(
+                    select(Company).where(Company.hs_codes.contains([query.hs_code]))
+                ).scalars().all()
+        except Exception:  # noqa: BLE001 - AI 폴백 실패해도 국가 추천은 유지
+            pass
     ranked = sorted(
         [c for c in companies if c.country_code in sgri_by_country],
         key=lambda c: sgri_by_country[c.country_code],

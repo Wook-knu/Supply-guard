@@ -32,7 +32,9 @@ services:
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production-min-32-bytes!}
+      # 기본값을 두면 하드코딩된 키로 JWT가 서명돼 토큰 위조가 가능해진다.
+      # 값이 없으면 컨테이너를 띄우지 않는다. (.env.example 참고)
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - see .env.example}
       ALLOW_STUB_LOGIN: ${ALLOW_STUB_LOGIN:-true}
     depends_on:
       db:

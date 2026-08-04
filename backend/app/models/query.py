@@ -5,7 +5,7 @@ user_queries 테이블 ORM 매핑.
 """
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Integer, Numeric, String, TIMESTAMP
+from sqlalchemy import BigInteger, Integer, Numeric, String, Text, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -23,4 +23,9 @@ class UserQuery(Base):
     target_price: Mapped[float | None] = mapped_column(Numeric(18, 2))
     lead_time_days: Mapped[int | None] = mapped_column(Integer)
     importer_code: Mapped[str | None] = mapped_column(String(2))
+    origin_country: Mapped[str | None] = mapped_column(String(200))  # 등록한 관련 공급국(콤마구분). 필수화됨.
+    trading_country: Mapped[str | None] = mapped_column(String(200))  # 그중 '현재 거래 중'인 국가(콤마구분, 부분집합)
+    trading_company_id: Mapped[int | None] = mapped_column(BigInteger)  # (구) 단일 거래 기업 — 신규는 아래 목록 사용
+    registered_company_ids: Mapped[str | None] = mapped_column(Text)   # 등록한 기업 id(콤마구분, 관심+거래중)
+    trading_company_ids: Mapped[str | None] = mapped_column(Text)      # 그중 거래중 기업 id(콤마구분, 부분집합)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

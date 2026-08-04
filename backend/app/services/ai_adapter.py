@@ -219,8 +219,9 @@ def _store_response(db: Session, query: UserQuery, resp: dict) -> dict:
 
 
 # ── 진입점 ──────────────────────────────────────────────────────────────
-def run_ai_analysis(db: Session, query: UserQuery) -> dict:
-    """query에 대해 AI_Model 분석을 실행하고 결과를 DB에 저장. 요약을 반환."""
+def run_ai_analysis(db: Session, query: UserQuery, focus_country: str | None = None) -> dict:
+    """query에 대해 AI_Model 분석을 실행하고 결과를 DB에 저장. 요약을 반환.
+    focus_country(ISO2)가 오면 그 국가를 보고서 포커스(조달 대상 국가)로 반영한다."""
     if not query.hs_code:
         return {"query_id": query.query_id, "error": "hs_code 없음 - 분석 불가"}
 
@@ -228,9 +229,40 @@ def run_ai_analysis(db: Session, query: UserQuery) -> dict:
     companies = db.execute(
         select(Company).where(Company.hs_codes.contains([query.hs_code]))
     ).scalars().all()
+    # 기업이 없으면 보고서의 '대체 공급/기업' 섹션이 비므로 AI로 후보 생성(추천 화면과 동일).
+    if not companies:
+        try:
+            from sqlalchemy import text as _text
+            from app.services.company_ai import generate_ai_companies
+            ccs = db.execute(_text(
+                "SELECT DISTINCT country_code FROM country_risk_scores WHERE hs_code = :h LIMIT 12"
+            ), {"h": query.hs_code}).scalars().all()
+            if generate_ai_companies(db, query.hs_code, query.item_name or "", list(ccs)):
+                companies = db.execute(
+                    select(Company).where(Company.hs_codes.contains([query.hs_code]))
+                ).scalars().all()
+        except Exception:  # noqa: BLE001 - AI 폴백 실패해도 보고서는 국가 기준으로 생성
+            pass
 
     request = query_to_request(query)
+    # 포커스 국가가 지정되면 보고서가 그 국가 중심으로 쓰이도록 procurement에 반영.
+    if focus_country:
+        from sqlalchemy import text as _text
+        nm = db.execute(_text("SELECT name_ko FROM countries WHERE country_code = :c"),
+                        {"c": focus_country}).scalar()
+        request["procurement"]["supplier_country"] = focus_country
+        request["procurement"]["focus_country_name"] = nm or focus_country
+        # 그 국가의 실제 SGRI도 함께 넘겨 보고서 문장에 쓰이게 함
+        fs = db.execute(_text(
+            "SELECT sgri_score FROM country_risk_scores WHERE hs_code = :h AND country_code = :c "
+            "ORDER BY as_of_date DESC LIMIT 1"
+        ), {"h": query.hs_code, "c": focus_country}).scalar()
+        if fs is not None:
+            request["procurement"]["focus_country_sgri"] = round(float(fs), 1)
     candidates = companies_to_candidates(companies)
+    # 포커스 국가가 있으면 그 국가 기업을 우선 정렬(보고서 기업 섹션에 반영)
+    if focus_country:
+        candidates.sort(key=lambda c: 0 if (c.get("country") or "").upper() == focus_country else 1)
 
     # 위험수치·보고서는 우리 DB(실데이터 6지표 + 제미나이 가중치)로 생성해
     # 대시보드/리스크 페이지 SGRI와 보고서 숫자를 일치시킨다. (company 추천은 AI_Model)

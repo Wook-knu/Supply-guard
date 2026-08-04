@@ -22,6 +22,7 @@ class Company(Base):
     annual_capacity: Mapped[float | None] = mapped_column(Numeric(20, 2))
     capacity_unit: Mapped[str | None] = mapped_column(String(20))
     status: Mapped[str | None] = mapped_column(String(20))
+    data_source: Mapped[str | None] = mapped_column(String(50))   # 실데이터 vs 'ai:gemini' 구분
     # 조달/추천용 (migrate_companies_procurement.sql 로 추가)
     unit_price: Mapped[float | None] = mapped_column(Numeric(18, 4))
     available_quantity: Mapped[float | None] = mapped_column(Numeric(20, 2))

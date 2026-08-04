@@ -9,8 +9,22 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.services.benchmark import compute_benchmark, compute_supplier_benchmark
+from app.services.peer_cases import build_peer_cases
+from app.services.real_cases import build_real_cases
 
 router = APIRouter(prefix="/benchmark", tags=["benchmark"])
+
+
+@router.get("/peer-cases/{hs_code}")
+def get_peer_cases(hs_code: str, db: Session = Depends(get_db)):
+    """또래 중소기업 '예시 사례'(AI 생성, 실거래 아님) — 이 품목 조달 시나리오."""
+    return build_peer_cases(db, hs_code)
+
+
+@router.get("/real-news/{hs_code}")
+def get_real_news(hs_code: str, db: Session = Depends(get_db)):
+    """이 품목 공급망 관련 '실제 뉴스'(GDELT, 출처·URL 포함)."""
+    return build_real_cases(db, hs_code)
 
 
 @router.get("/item/{hs_code}")

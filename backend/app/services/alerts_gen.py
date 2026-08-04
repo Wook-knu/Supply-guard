@@ -4,6 +4,8 @@
 트리거: 품목 등록(POST /queries) 또는 재생성 엔드포인트.
 전제: 해당 query에 국가 추천(procurement_recommendations)이 이미 생성돼 있어야 함.
 """
+from urllib.parse import quote_plus
+
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.orm import Session
 
@@ -38,7 +40,11 @@ def generate_alerts_for_query(db: Session, query: UserQuery) -> int:
 
     created = 0
 
-    def _add(cc: str, atype: str, sev: str, title: str, msg: str) -> None:
+    def _news_url(keyword: str) -> str:
+        # 관련 뉴스로 바로 갈 수 있게 구글뉴스 검색 링크(한국어). 특정 기사를 지어내지 않고 실시간 검색으로 연결.
+        return f"https://news.google.com/search?q={quote_plus(keyword)}&hl=ko&gl=KR&ceid=KR:ko"
+
+    def _add(cc: str, atype: str, sev: str, title: str, msg: str, news_kw: str) -> None:
         nonlocal created
         # 중복 방지: 같은 (query_id, title) 알림이 이미 있으면 skip
         exists = db.execute(
@@ -50,7 +56,7 @@ def generate_alerts_for_query(db: Session, query: UserQuery) -> int:
         db.add(Alert(
             user_id=query.user_id, query_id=query.query_id, country_code=cc,
             hs_code=query.hs_code, alert_type=atype, severity=sev,
-            title=title, message=msg, is_read=False,
+            title=title, message=msg, source_url=_news_url(news_kw), is_read=False,
         ))
         created += 1
 
@@ -62,7 +68,8 @@ def generate_alerts_for_query(db: Session, query: UserQuery) -> int:
         nm = names.get(cc, cc)
         sev = "high" if s >= 66 else "medium"
         _add(cc, "정책", sev, f"{nm} 공급망 위험도 높음",
-             f"{nm}의 SGRI가 {s:.0f}점으로 높습니다. 대체 조달처 검토를 권고합니다.")
+             f"{nm}의 SGRI가 {s:.0f}점으로 높습니다. 대체 조달처 검토를 권고합니다.",
+             f"{nm} 공급망 수출 규제")
 
     # 2) GDACS 재해 — 후보국 중 최근 6개월 재해 (국가당 1건)
     candidates = [cc for cc, _ in recs]
@@ -88,7 +95,8 @@ def generate_alerts_for_query(db: Session, query: UserQuery) -> int:
         nm = names.get(cc, cc)
         sev = _SEV_BY_LEVEL.get(level, "low")
         _add(cc, "재해", sev, f"{nm} {etype} 경보",
-             f"{nm}에서 최근 {etype}({level}) 발생. 물류·납기 영향 검토가 필요합니다.")
+             f"{nm}에서 최근 {etype}({level}) 발생. 물류·납기 영향 검토가 필요합니다.",
+             f"{nm} {etype}")
 
     db.commit()
     return created

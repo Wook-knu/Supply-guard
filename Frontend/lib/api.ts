@@ -15,6 +15,11 @@ export type QueryCreate = {
   target_price?: number
   lead_time_days?: number
   importer_code?: string
+  origin_country?: string   // 등록한 관련 공급국(콤마구분 국가명)
+  trading_country?: string  // 그중 '현재 거래 중'인 국가(콤마구분, 부분집합)
+  trading_company_id?: number | null  // (구) 단일 거래 기업
+  registered_company_ids?: string | null  // 등록한 기업 id(콤마구분)
+  trading_company_ids?: string | null     // 그중 거래중 기업 id(콤마구분)
 }
 
 export type QueryOut = QueryCreate & {
@@ -24,30 +29,15 @@ export type QueryOut = QueryCreate & {
 }
 
 export type CountryReco = {
-  reco_id?: number
-  // 구버전 백엔드가 기본키를 id로 반환한 경우를 위한 호환 필드입니다.
-  id?: number
+  reco_id: number
   country_code: string
   rank: number
   sgri_score: string | null
-  score_s: string | null
-  score_c: string | null
-  score_v: string | null
-  score_l: string | null
-  score_p: string | null
-  score_e: string | null
   fit_score: string | null
   est_unit_price: string | null
   tariff_percent: string | null
   est_lead_days: number | null
   rationale: string | null
-}
-
-export type RecommendationExplanation = {
-  summary: string
-  factors: Array<{ label: string; detail: string }>
-  recommendation: string
-  source: "gemini" | "fallback"
 }
 
 export type FeedbackCreate = {
@@ -71,6 +61,8 @@ export type Company = {
   annual_capacity: string | null
   capacity_unit: string | null
   status: string | null
+  data_source: string | null   // null/실데이터 vs 'ai:gemini'(AI 추정)
+  // 조달 비교 지표
   unit_price: string | null
   lead_time_days: number | null
   on_time_delivery_rate: string | null
@@ -177,56 +169,6 @@ export type RiskOut = {
   level: string
 }
 
-export type ItemBenchmarkIndicator = {
-  key: string
-  label: string
-  item_avg: number
-  all_avg: number
-  delta: number
-  verdict: "평균보다 위험" | "평균보다 안전" | "평균 수준"
-}
-
-export type ItemBenchmark = {
-  hs_code: string
-  basis?: string
-  item_avg_sgri?: number
-  all_items_avg_sgri?: number
-  sgri_delta?: number
-  sgri_verdict?: "평균보다 위험" | "평균보다 안전" | "평균 수준"
-  indicators?: ItemBenchmarkIndicator[]
-  country?: {
-    country_code: string
-    sgri: number
-    candidate_countries: number
-    risk_percentile: number
-    vs_item_avg: number
-    summary: string
-  }
-  error?: string
-}
-
-export type SupplierBenchmarkMetric = {
-  key: string
-  label: string
-  value: number
-  candidate_avg: number
-  better_is: "low" | "high"
-  rank: number
-  candidate_count: number
-  verdict: "우수" | "평균 수준" | "미흡"
-}
-
-export type SupplierBenchmark = {
-  query_id: number
-  company_id?: number
-  company_name?: string
-  candidate_count?: number
-  fit_score?: number | null
-  basis?: string
-  metrics?: SupplierBenchmarkMetric[]
-  error?: string
-}
-
 export type AlertOut = {
   alert_id: number
   query_id: number | null
@@ -236,23 +178,27 @@ export type AlertOut = {
   severity: string | null
   title: string | null
   message: string | null
-  // 뉴스 수집기가 원문 주소를 제공하는 경우 대시보드에서 직접 연결한다.
-  source_url?: string | null
+  source_url: string | null
   is_read: boolean | null
   created_at: string | null
-}
-
-export type AlertSettings = {
-  user_id?: number
-  high_risk: boolean
-  news: boolean
-  monthly_report: boolean
-  high_threshold: number
 }
 
 export type LoginRequest = {
   email: string
   name?: string
+  password?: string
+}
+
+export type RegisterRequest = {
+  email: string
+  password: string
+  name?: string
+}
+
+export type HsCodeOut = {
+  hs_code: string
+  name_ko: string | null
+  name_en: string | null
 }
 
 export type UserOut = {
@@ -265,117 +211,26 @@ export type UserOut = {
   plan: string | null
 }
 
-export type PlanFeatures = {
-  monitoring: boolean
-  country_risk: boolean
-  price_alerts: boolean
-  recommendations: boolean
-  ai_reports: boolean
-  reweight: boolean
-  api_access: boolean
-}
+export type PeerCase = { profile: string; situation: string; action: string; outcome: string; lesson: string }
+export type PeerCases = { cases: PeerCase[]; source: string }
+export type RealArticle = { title: string; url: string; domain: string; date: string }
+export type RealNews = { articles: RealArticle[]; query: string; term?: string; source: string }
 
-export type SubscriptionPlan = {
-  key: string
-  label: string
-  price_krw: number
-  target: string
-  max_items: number | null
-  custom_quote: boolean
-  highlights: string[]
-  features: PlanFeatures
-}
-
-export type SubscriptionState = {
-  plans: SubscriptionPlan[]
-  current_plan: string
-  label: string
-  usage: {
-    items: number
-    items_limit: number | null
+export type TrendBrief = {
+  summary: string
+  highlights?: string[]
+  watch_items?: string[]
+  source: string
+  stats: {
+    items: { name: string; hs: string | null; sgri: number; level: string | null }[]
+    alert_by_type: Record<string, number>
+    alert_by_severity: { high: number; medium: number; low: number }
+    alert_total: number
+    avg_sgri: number | null
+    max_sgri: number | null
+    high_count: number
+    item_count: number
   }
-  features: PlanFeatures
-}
-
-export type SubscribeResult = Omit<SubscriptionState, "plans"> & { ok: boolean }
-
-export type ReweightResult = {
-  hs_code: string
-  countries: number
-  uses_llm?: boolean
-  weights?: Record<string, number>
-}
-
-export type ChatHistoryMessage = {
-  role: "user" | "assistant"
-  content: string
-}
-
-export type ChatRequest = {
-  message: string
-  query_id?: number
-  history?: ChatHistoryMessage[]
-}
-
-export type ChatResponse = {
-  answer: string
-  followups: string[]
-  source: "gemini" | "fallback"
-}
-
-export type BoardStatus = "candidate" | "reviewing" | "selected" | "rejected"
-export type BoardItemKind = "country" | "company" | "note"
-
-export type BoardCreate = {
-  title: string
-  description?: string
-  query_id?: number
-}
-
-export type BoardUpdate = {
-  title?: string
-  description?: string
-}
-
-export type BoardOut = {
-  board_id: number
-  user_id: number | null
-  query_id: number | null
-  title: string
-  description: string | null
-  created_at: string | null
-  updated_at: string | null
-}
-
-export type BoardItemCreate = {
-  kind: BoardItemKind
-  title: string
-  ref_code?: string
-  memo?: string
-  status?: BoardStatus
-}
-
-export type BoardItemUpdate = {
-  title?: string
-  memo?: string
-  status?: BoardStatus
-  position?: number
-}
-
-export type BoardItemOut = {
-  item_id: number
-  board_id: number
-  kind: BoardItemKind
-  ref_code: string | null
-  title: string
-  memo: string | null
-  status: BoardStatus | null
-  position: number | null
-  created_at: string | null
-}
-
-export type BoardDetailOut = BoardOut & {
-  items: BoardItemOut[]
 }
 
 export type TokenResponse = {
@@ -384,20 +239,67 @@ export type TokenResponse = {
   user: UserOut
 }
 
-export class ApiError extends Error {
-  readonly status: number
-  readonly detail: string
-
-  constructor(status: number, detail: string) {
-    super(detail || `API ${status}`)
-    this.name = "ApiError"
-    this.status = status
-    this.detail = detail
-  }
+// 구독 요금제 (backend/app/services/plans.py 와 1:1)
+export type PlanCatalog = {
+  key: string
+  label: string
+  price_krw: number
+  target: string
+  max_items: number | null
+  custom_quote?: boolean
+  highlights: string[]
+  features: Record<string, boolean>
 }
 
-export function isUpgradeRequiredError(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.status === 402
+export type SubscriptionState = {
+  plans: PlanCatalog[]
+  current_plan: string
+  label: string
+  usage: { items: number; items_limit: number | null }
+  features: Record<string, boolean>
+}
+
+// AI 챗봇 (backend/app/api/v1/chat.py)
+export type ChatMessage = { role: "user" | "assistant"; content: string }
+export type ChatResponse = { answer: string; followups: string[]; source: string }
+
+// 검토 보드/카드 (backend/app/api/v1/boards.py) — 칸반식 조달 검토 워크스페이스
+export type BoardCard = {
+  item_id: number
+  board_id: number
+  kind: string              // country | company | note
+  ref_code: string | null
+  title: string
+  memo: string | null
+  status: string | null     // candidate | reviewing | selected | rejected
+  position: number | null
+  created_at: string | null
+}
+export type Board = {
+  board_id: number
+  user_id: number | null
+  query_id: number | null
+  title: string
+  description: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+export type BoardDetail = Board & { items: BoardCard[] }
+export type BoardCardCreate = { kind: string; title: string; ref_code?: string; memo?: string; status?: string }
+export type BoardCardUpdate = { title?: string; memo?: string; status?: string; position?: number }
+
+// 벤치마크 (backend/app/api/v1/benchmark.py)
+export type BenchmarkIndicator = { key: string; label: string; item_avg: number; all_avg: number; delta: number; verdict: string }
+export type ItemBenchmark = {
+  hs_code: string
+  error?: string
+  basis?: string
+  item_avg_sgri?: number
+  all_items_avg_sgri?: number
+  sgri_delta?: number
+  sgri_verdict?: string
+  indicators?: BenchmarkIndicator[]
+  country?: { country_code: string; sgri: number; item_avg_sgri?: number; candidate_countries: number; risk_percentile: number; vs_item_avg: number; verdict?: string; indicators?: { key: string; label: string; value: number; item_avg: number; delta: number; verdict: string }[]; summary: string }
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -416,15 +318,8 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   })
   if (!res.ok) {
-    const responseText = await res.text()
-    let detail = responseText
-    try {
-      const body = JSON.parse(responseText) as { detail?: unknown }
-      if (typeof body.detail === "string") detail = body.detail
-    } catch {
-      // JSON이 아닌 오류 응답은 원문을 사용자에게 전달한다.
-    }
-    throw new ApiError(res.status, detail || `요청을 처리하지 못했습니다. (${res.status})`)
+    const detail = await res.text()
+    throw new Error(`API ${res.status}: ${detail}`)
   }
   // DELETE처럼 성공 응답에 본문이 없는 경우 JSON 파싱을 시도하지 않는다.
   if (res.status === 204) return undefined as T
@@ -441,6 +336,18 @@ export const api = {
     return response
   },
   // 구글 로그인 — GIS credential(ID 토큰)을 검증받고 우리 JWT 저장
+  // 이메일+비밀번호 회원가입 → 토큰 저장
+  register: async (body: RegisterRequest) => {
+    const response = await http<TokenResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+    window.localStorage.setItem(ACCESS_TOKEN_KEY, response.access_token)
+    return response
+  },
+  // HS 코드 자동완성 검색
+  searchHsCodes: (q: string) =>
+    http<HsCodeOut[]>(`/hs-codes?q=${encodeURIComponent(q)}`),
   googleLogin: async (idToken: string) => {
     const response = await http<TokenResponse>("/auth/google", {
       method: "POST",
@@ -450,20 +357,24 @@ export const api = {
     return response
   },
   getMe: () => http<UserOut>("/auth/me"),
-  getAlertSettings: () => http<AlertSettings>("/alert-settings"),
-  saveAlertSettings: (body: AlertSettings) =>
-    http<AlertSettings>("/alert-settings", { method: "PUT", body: JSON.stringify(body) }),
-  getSubscription: () => http<SubscriptionState>("/subscription"),
-  subscribe: (plan: string) =>
-    http<SubscribeResult>("/subscription", {
-      method: "POST",
-      body: JSON.stringify({ plan }),
-    }),
+  // 최신 동향 분석 (AI 요약 + 차트용 집계)
+  getTrendBrief: () => http<TrendBrief>("/trends/brief"),
+  // 또래 중소기업 예시 사례 (AI 생성, 실거래 아님)
+  getPeerCases: (hs: string) => http<PeerCases>(`/benchmark/peer-cases/${encodeURIComponent(hs)}`),
+  // 이 품목 공급망 실제 뉴스 (GDELT, 출처 있음)
+  getRealNews: (hs: string) => http<RealNews>(`/benchmark/real-news/${encodeURIComponent(hs)}`),
+  // 프로필 편집(이름/사진) · 비밀번호 변경
+  updateMe: (body: { name?: string; picture_url?: string | null }) =>
+    http<UserOut>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
+  changePassword: (body: { current_password?: string; new_password: string }) =>
+    http<void>("/auth/change-password", { method: "POST", body: JSON.stringify(body) }),
   // F-01 품목 입력
   createQuery: (body: QueryCreate) =>
     http<QueryOut>("/queries", { method: "POST", body: JSON.stringify(body) }),
   getQueries: () => http<QueryOut[]>("/queries"),
   getQuery: (queryId: number) => http<QueryOut>(`/queries/${queryId}`),
+  updateQuery: (queryId: number, body: { origin_country?: string; trading_country?: string; trading_company_id?: number | null; registered_company_ids?: string; trading_company_ids?: string }) =>
+    http<QueryOut>(`/queries/${queryId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteQuery: (queryId: number) =>
     http<void>(`/queries/${queryId}`, { method: "DELETE" }),
   // F-06 국가 추천 / F-07·08 기업 추천
@@ -471,22 +382,17 @@ export const api = {
     http<CountryReco[]>(`/queries/${queryId}/countries`),
   getSupplierRecos: (queryId: number) =>
     http<SupplierReco[]>(`/queries/${queryId}/suppliers`),
-  getItemBenchmark: (hsCode: string, countryCode?: string) =>
-    http<ItemBenchmark>(`/benchmark/item/${encodeURIComponent(hsCode)}${countryCode ? `?country_code=${encodeURIComponent(countryCode)}` : ""}`),
-  getSupplierBenchmark: (queryId: number, companyId: number) =>
-    http<SupplierBenchmark>(`/benchmark/supplier/${queryId}/${companyId}`),
-  explainCountry: (queryId: number, countryCode: string) =>
-    http<RecommendationExplanation>(`/queries/${queryId}/countries/${encodeURIComponent(countryCode)}/explain`),
-  explainSupplier: (queryId: number, companyId: number) =>
-    http<RecommendationExplanation>(`/queries/${queryId}/suppliers/${companyId}/explain`),
+  // 지정 국가에 대해 AI가 기업 후보를 생성해 추천에 추가 → 갱신된 추천 목록 반환
+  generateAiSuppliers: (queryId: number, countryCode: string) =>
+    http<SupplierReco[]>(`/queries/${queryId}/suppliers/ai`, { method: "POST", body: JSON.stringify({ country_code: countryCode }) }),
   sendFeedback: (body: FeedbackCreate) =>
     http<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
   // 공급사 상세 (기업 공개 정보)
   getCompany: (companyId: number) =>
     http<CompanyDetail>(`/companies/${companyId}`),
   // F-09 AI 심층분석 시작 — 202 + job_id 반환(비동기)
-  analyzeQuery: (queryId: number) =>
-    http<AnalyzeJob>(`/queries/${queryId}/analyze`, { method: "POST" }),
+  analyzeQuery: (queryId: number, country?: string) =>
+    http<AnalyzeJob>(`/queries/${queryId}/analyze${country ? `?country=${encodeURIComponent(country)}` : ""}`, { method: "POST" }),
   // 분석 작업 상태 폴링
   getAnalyzeJob: (jobId: string) =>
     http<AnalyzeJob>(`/queries/analyze/jobs/${jobId}`),
@@ -496,24 +402,6 @@ export const api = {
   // 신규 품목 SGRI 작업 상태 폴링
   getBuildJob: (jobId: string) =>
     http<BuildItemSgriJob>(`/items/build/jobs/${encodeURIComponent(jobId)}`),
-  reweightItem: (hsCode: string) =>
-    http<ReweightResult>(`/items/${encodeURIComponent(hsCode)}/reweight`, { method: "POST" }),
-  chat: (body: ChatRequest) =>
-    http<ChatResponse>("/chat", { method: "POST", body: JSON.stringify(body) }),
-  getBoards: () => http<BoardOut[]>("/boards"),
-  createBoard: (body: BoardCreate) =>
-    http<BoardOut>("/boards", { method: "POST", body: JSON.stringify(body) }),
-  getBoard: (boardId: number) => http<BoardDetailOut>(`/boards/${boardId}`),
-  updateBoard: (boardId: number, body: BoardUpdate) =>
-    http<BoardOut>(`/boards/${boardId}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteBoard: (boardId: number) =>
-    http<void>(`/boards/${boardId}`, { method: "DELETE" }),
-  addBoardItem: (boardId: number, body: BoardItemCreate) =>
-    http<BoardItemOut>(`/boards/${boardId}/items`, { method: "POST", body: JSON.stringify(body) }),
-  updateBoardItem: (boardId: number, itemId: number, body: BoardItemUpdate) =>
-    http<BoardItemOut>(`/boards/${boardId}/items/${itemId}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteBoardItem: (boardId: number, itemId: number) =>
-    http<void>(`/boards/${boardId}/items/${itemId}`, { method: "DELETE" }),
   // F-10 보고서 조회
   createReport: (body: ReportCreate) =>
     http<ReportOut>("/reports", { method: "POST", body: JSON.stringify(body) }),
@@ -530,4 +418,34 @@ export const api = {
     http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),
   markAlertRead: (alertId: number) =>
     http<AlertOut>(`/alerts/${alertId}/read`, { method: "PATCH" }),
+  // 구독 요금제 — 카탈로그 + 현재 플랜/사용량 조회, 플랜 변경(데모 mock 결제)
+  getSubscription: () => http<SubscriptionState>("/subscription"),
+  subscribe: (plan: string) =>
+    http<Omit<SubscriptionState, "plans"> & { ok: boolean }>("/subscription", {
+      method: "POST",
+      body: JSON.stringify({ plan }),
+    }),
+  // AI 챗봇 — 사용자 공급망 데이터 기반 질의응답
+  chat: (message: string, opts?: { query_id?: number; history?: ChatMessage[] }) =>
+    http<ChatResponse>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, query_id: opts?.query_id, history: opts?.history }),
+    }),
+  // 검토 보드 (칸반식 조달 검토)
+  getBoards: () => http<Board[]>("/boards"),
+  createBoard: (body: { title: string; description?: string; query_id?: number }) =>
+    http<Board>("/boards", { method: "POST", body: JSON.stringify(body) }),
+  getBoard: (boardId: number) => http<BoardDetail>(`/boards/${boardId}`),
+  updateBoard: (boardId: number, body: { title?: string; description?: string }) =>
+    http<Board>(`/boards/${boardId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoard: (boardId: number) => http<void>(`/boards/${boardId}`, { method: "DELETE" }),
+  addBoardCard: (boardId: number, body: BoardCardCreate) =>
+    http<BoardCard>(`/boards/${boardId}/items`, { method: "POST", body: JSON.stringify(body) }),
+  updateBoardCard: (boardId: number, itemId: number, body: BoardCardUpdate) =>
+    http<BoardCard>(`/boards/${boardId}/items/${itemId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoardCard: (boardId: number, itemId: number) =>
+    http<void>(`/boards/${boardId}/items/${itemId}`, { method: "DELETE" }),
+  // 벤치마크 (품목/국가 상대 위치)
+  getItemBenchmark: (hsCode: string, countryCode?: string) =>
+    http<ItemBenchmark>(`/benchmark/item/${encodeURIComponent(hsCode)}${countryCode ? `?country_code=${countryCode}` : ""}`),
 }
