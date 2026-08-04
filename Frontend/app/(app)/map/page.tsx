@@ -23,7 +23,7 @@ const levelOf = (sgri: number | null) => (sgri == null ? "데이터 없음" : sg
 export default function MapPage() {
   const router = useRouter()
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState("283691")
+  const [hs, setHs] = useState("")   // 품목 로드 후 첫 등록 품목으로 자동 선택
   const [risks, setRisks] = useState<RiskOut[]>([])
   const [suppliers, setSuppliers] = useState<SupplierReco[]>([])
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -80,11 +80,12 @@ export default function MapPage() {
           {items.length > 0 ? (
             <select value={hs} onChange={(e) => setHs(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
               {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-              {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
+              
             </select>
           ) : (
             <input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
           )}
+          {items.length === 0 && <Link href="/items/new" className="mt-2 block text-[11px] font-medium text-blue-600 hover:underline">품목을 등록하면 목록에서 바로 고를 수 있어요 →</Link>}
           <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />안전</span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />주의</span>

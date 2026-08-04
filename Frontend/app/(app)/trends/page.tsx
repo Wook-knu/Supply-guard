@@ -7,7 +7,7 @@ import Link from "next/link"
 import BackLink from "@/components/back-link"
 import { useEffect, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { ArrowLeft, ArrowRight, Bot, CircleAlert, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react"
+import { ArrowRight, Bot, CircleAlert, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { api, type TrendBrief } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import { Badge } from "@/components/ui/badge"
@@ -101,7 +101,7 @@ export default function TrendsPage() {
         </Card>
 
         {/* 핵심 지표 타일 */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile label="모니터링 품목" value={`${brief.stats.item_count}개`} tone="slate" />
           <StatTile label="평균 SGRI" value={brief.stats.avg_sgri != null ? String(brief.stats.avg_sgri) : "—"} tone="blue" />
           <StatTile label="최고 위험 SGRI" value={brief.stats.max_sgri != null ? String(brief.stats.max_sgri) : "—"} tone="rose" />
@@ -115,7 +115,7 @@ export default function TrendsPage() {
         )}
 
         {/* 등록 국가·기업 현황 */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-base">등록 국가 SGRI</CardTitle><CardDescription className="mt-1">내가 거래중·관심으로 등록한 국가의 SGRI 위험도</CardDescription></CardHeader>
             <CardContent className="space-y-2">
               {reg.countries.length > 0 ? reg.countries.map((c, i) => <div key={`${c.name}-${c.item}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm">
@@ -136,7 +136,7 @@ export default function TrendsPage() {
           </Card>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* 품목별 SGRI */}
           <Card className="border-slate-200 shadow-sm lg:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-base">품목별 공급망 위험도(SGRI)</CardTitle><CardDescription className="mt-1">등록 국가(거래중 우선) 기준 · 높을수록 위험</CardDescription></CardHeader>
             <CardContent>

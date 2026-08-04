@@ -8,7 +8,7 @@ import BackLink from "@/components/back-link"
 import { useEffect, useRef, useState } from "react"
 import { api, type UserOut } from "@/lib/api"
 import { getCountryName } from "@/lib/countries"
-import { ArrowLeft, Camera, Check, KeyRound, Loader2, Plus, Save, Settings2, ShieldAlert, Trash2 } from "lucide-react"
+import { Camera, Check, KeyRound, Loader2, Plus, Save, Settings2, ShieldAlert, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import UserAvatar, { notifyProfileUpdated, initialsOf } from "@/components/user-avatar"
 
 // 업로드 이미지를 128px 정사각형 data URL 로 축소 (스토리지 없이 저장하기 위함).
 function fileToAvatarDataUrl(file: File): Promise<string> {
@@ -71,7 +72,12 @@ export default function SettingsPage() {
       setName(u.name ?? "")
       setAvatar(u.picture_url ?? null)
     }).catch(() => setUser(null))
-    api.getRisks().then((rows) => {
+    // 품목명은 위험도 응답(/risks)에 없고 내 품목(/queries)에만 있으므로
+    // HS→품목명 맵을 만들어 붙인다. (특정 HS를 이름으로 하드코딩하지 않기 위함)
+    Promise.all([api.getRisks(), api.getQueries().catch(() => [])]).then(([rows, queries]) => {
+      const nameByHs = new Map(
+        queries.filter((q) => q.hs_code).map((q) => [q.hs_code as string, q.item_name?.trim() ?? ""])
+      )
       const latestByItem = new Map<string, typeof rows[number]>()
       rows.forEach((row) => {
         const key = row.hs_code ?? ""
@@ -79,7 +85,7 @@ export default function SettingsPage() {
         if (!current || row.as_of_date > current.as_of_date || (row.as_of_date === current.as_of_date && Number(row.sgri_score) > Number(current.sgri_score))) latestByItem.set(key, row)
       })
       setRiskItems([...latestByItem.values()].map((row) => ({
-        name: row.hs_code === "283691" ? "리튬 탄산염" : `HS ${row.hs_code ?? "미지정"}`,
+        name: nameByHs.get(row.hs_code ?? "") || `HS ${row.hs_code ?? "미지정"}`,
         code: `HS ${row.hs_code ?? "-"}`,
         country: getCountryName(row.country_code),
         risk: row.level === "높음" ? "고위험" : row.level === "중간" ? "주의" : "안정",
@@ -104,6 +110,7 @@ export default function SettingsPage() {
       const updated = await api.updateMe({ name: name.trim(), picture_url: avatar })
       setUser(updated)
       setSaved("프로필이 저장되었습니다.")
+      notifyProfileUpdated()   // 헤더 아바타(모든 화면 공용)도 새 이름·사진으로 갱신
     } catch (e) {
       setProfileErr(e instanceof Error ? e.message : "저장에 실패했습니다.")
     } finally { setSavingProfile(false) }
@@ -123,9 +130,10 @@ export default function SettingsPage() {
     } finally { setSavingPw(false) }
   }
 
-  const initials = (user?.name || user?.email || "SW").slice(0, 2).toUpperCase()
+  // 편집 중인 이름을 즉시 반영하되, 규칙은 헤더 아바타와 같은 함수를 쓴다.
+  const initials = initialsOf({ name: name || user?.name, email: user?.email })
 
-  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><Avatar className="h-8 w-8 border border-slate-200">{avatar && <AvatarImage src={avatar} alt="" />}<AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">{initials}</AvatarFallback></Avatar></header>
+  return <div className="min-h-screen bg-slate-50 text-slate-900"><header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="ml-auto flex items-center gap-3"><UserAvatar /></div></header>
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8"><BackLink /><div className="mt-6"><div className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-600"><Settings2 className="h-4 w-4" /> 계정·공급망 설정</div><h1 className="text-2xl font-semibold tracking-tight md:text-3xl">서비스 설정</h1><p className="mt-2 text-sm text-slate-500">내 프로필, 모니터링 품목, 팀 알림 수신자를 관리합니다.</p></div>
       <Tabs defaultValue="profile" className="mt-7"><TabsList className="h-auto flex-wrap bg-slate-100"><TabsTrigger value="profile">내 프로필</TabsTrigger><TabsTrigger value="items">공급망 품목</TabsTrigger><TabsTrigger value="team">팀·수신자</TabsTrigger><TabsTrigger value="alerts">알림 기준</TabsTrigger></TabsList>
 

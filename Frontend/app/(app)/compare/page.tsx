@@ -9,10 +9,12 @@ import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { api, type QueryOut, type RiskOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
-import { ArrowLeft, Bell, GitCompareArrows, Loader2, MapPin, ShieldAlert, Trophy } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { GitCompareArrows, Loader2, MapPin, ShieldAlert, Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import AlertBell from "@/components/alert-bell"
+import EmptyItems from "@/components/empty-items"
+import UserAvatar from "@/components/user-avatar"
 
 const INDICATORS: { key: keyof RiskOut; code: string; label: string }[] = [
   { key: "score_s", code: "S", label: "수급" },
@@ -42,7 +44,7 @@ function ComparePage() {
   const params = useSearchParams()
   const urlHs = params.get("hs")?.replace(/\D/g, "") || ""
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState(urlHs || "283691")
+  const [hs, setHs] = useState(urlHs)   // 품목 로드 후 첫 등록 품목으로 자동 선택
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -69,7 +71,7 @@ function ComparePage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load(hs) /* eslint-disable-next-line */ }, [])
+  useEffect(() => { load(hs) /* eslint-disable-next-line */ }, [hs])
 
   // 국가별 최신 레코드만 남기고 SGRI 오름차순(안전한 국가부터)
   const countries = useMemo(() => {
@@ -116,8 +118,8 @@ function ComparePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+        <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+        <div className="ml-auto flex items-center gap-3"><AlertBell /><UserAvatar /></div>
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-8 md:px-8">
@@ -131,9 +133,9 @@ function ComparePage() {
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-500">품목 선택</label>
             {items.length > 0 ? (
-              <select value={hs} onChange={(e) => { setHs(e.target.value); load(e.target.value) }} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={hs} onChange={(e) => setHs(e.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                 {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-                {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
+                
               </select>
             ) : (
               <div className="flex gap-2"><input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-10 w-36 rounded-md border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><Button onClick={() => load(hs)} className="h-10 bg-blue-600 hover:bg-blue-700">조회</Button></div>
@@ -143,14 +145,18 @@ function ComparePage() {
 
         {error && <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
 
+        {items.length === 0 && <EmptyItems description="품목을 등록하면 그 품목의 조달 후보 국가들을 6개 지표로 나란히 비교할 수 있습니다." />}
+
         {!loading && countries.length > 1 && (
           <div className="mt-6 rounded-2xl border-2 border-blue-200 bg-white p-5 shadow-sm">
             <p className="text-base font-semibold">두 국가 1:1 비교</p>
             <p className="mt-1 text-sm text-slate-500">지표별로 <span className="font-medium text-emerald-600">낮은 쪽(안전)은 초록</span>, <span className="font-medium text-rose-600">높은 쪽(위험)은 빨강</span>으로 표시합니다.</p>
-            <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <select value={codeA} onChange={(e) => setCodeA(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+            {/* select는 가장 긴 국가명만큼 최소폭을 갖는다. minmax(0,1fr)+w-full 없이는
+                두 개가 나란히 놓일 때 좁은 화면을 넘어가 카드가 잘린다. */}
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+              <select value={codeA} onChange={(e) => setCodeA(e.target.value)} className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
               <span className="text-sm font-medium text-slate-400">vs</span>
-              <select value={codeB} onChange={(e) => setCodeB(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
+              <select value={codeB} onChange={(e) => setCodeB(e.target.value)} className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">{countries.map((c) => <option key={c.country_code} value={c.country_code}>{getCountryName(c.country_code)} ({c.country_code})</option>)}</select>
             </div>
             <div className="mt-4 space-y-1.5">
               {COMPARE_ROWS.map((ind) => {
@@ -162,7 +168,7 @@ function ComparePage() {
                 const cell = (win: boolean, lose: boolean) => eq ? "bg-slate-50 text-slate-500" : win ? "bg-emerald-50 text-emerald-700 font-bold ring-1 ring-emerald-200" : lose ? "bg-rose-50 text-rose-600 font-bold ring-1 ring-rose-200" : "bg-slate-50 text-slate-500"
                 const isSgri = ind.code === "SGRI"
                 return (
-                  <div key={ind.code} className={`grid grid-cols-[1fr_7rem_1fr] items-center gap-2 ${isSgri ? "mt-2 border-t border-slate-200 pt-3" : ""}`}>
+                  <div key={ind.code} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_minmax(0,1fr)] ${isSgri ? "mt-2 border-t border-slate-200 pt-3" : ""}`}>
                     <div className={`flex items-center justify-end gap-1.5 rounded-lg px-3 py-2 ${cell(aWin && !eq, !aWin && !eq && a != null && b != null)}`}>{aWin && !eq && diff ? <span className="text-[11px]">▼{diff}</span> : (!aWin && !eq && a != null && b != null && diff ? <span className="text-[11px]">▲{diff}</span> : null)}<span className={isSgri ? "text-lg" : "text-base"}>{a ?? "–"}</span></div>
                     <div className="text-center"><span className={`font-bold ${isSgri ? "text-sm text-slate-800" : "text-xs text-slate-600"}`}>{ind.code}</span><span className="block text-[11px] text-slate-400">{ind.label}</span></div>
                     <div className={`flex items-center justify-start gap-1.5 rounded-lg px-3 py-2 ${cell(!aWin && !eq && a != null && b != null, aWin && !eq)}`}><span className={isSgri ? "text-lg" : "text-base"}>{b ?? "–"}</span>{!aWin && !eq && a != null && b != null && diff ? <span className="text-[11px]">▼{diff}</span> : (aWin && !eq && diff ? <span className="text-[11px]">▲{diff}</span> : null)}</div>

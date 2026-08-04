@@ -8,12 +8,14 @@ import BackLink from "@/components/back-link"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
-import { ArrowLeft, Bell, BarChart3, ExternalLink, Loader2, Newspaper, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { BarChart3, ExternalLink, Loader2, Newspaper, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import AlertBell from "@/components/alert-bell"
+import EmptyItems from "@/components/empty-items"
+import UserAvatar from "@/components/user-avatar"
 
 const verdictCls = (v: string) =>
   v.includes("안전") || v === "우수" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -22,7 +24,7 @@ const verdictCls = (v: string) =>
 
 export default function BenchmarkPage() {
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState("283691")
+  const [hs, setHs] = useState("")   // 품목 로드 후 첫 등록 품목으로 자동 선택
   const [country, setCountry] = useState("")
   const [data, setData] = useState<ItemBenchmark | null>(null)
   const [loading, setLoading] = useState(false)
@@ -73,7 +75,7 @@ export default function BenchmarkPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { run(hs, country) /* eslint-disable-next-line */ }, [])
+  useEffect(() => { run(hs, country) /* eslint-disable-next-line */ }, [hs, country])
 
   const submit = (e: FormEvent) => { e.preventDefault(); run(hs, country) }
 
@@ -89,8 +91,8 @@ export default function BenchmarkPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+        <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+        <div className="ml-auto flex items-center gap-3"><AlertBell /><UserAvatar /></div>
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8 md:px-8">
@@ -167,7 +169,7 @@ export default function BenchmarkPage() {
             {items.length > 0 ? (
               <select value={hs} onChange={(e) => setHs(e.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                 {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-                {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
+                
               </select>
             ) : (
               <Input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-10 w-40" />
@@ -184,6 +186,8 @@ export default function BenchmarkPage() {
         </form>
 
         {error && <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
+
+        {items.length === 0 && <EmptyItems description="품목을 등록하면 이 품목의 SGRI가 다른 품목 평균과 비교해 어디쯤인지 보여드립니다." />}
 
         {loading ? (
           <div className="flex justify-center py-20 text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>

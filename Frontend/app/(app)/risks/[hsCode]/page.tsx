@@ -7,14 +7,15 @@ import Link from "next/link"
 import BackLink from "@/components/back-link"
 import { useSearchParams } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, Bell, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ArrowRight, Bot, CircleAlert, FileText, ShieldAlert, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { api, type RiskOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
+import AlertBell from "@/components/alert-bell"
+import UserAvatar from "@/components/user-avatar"
 
 // 콤마 국가명/코드 → ISO 코드 집합
 function toCodeSet(raw: string | null | undefined): Set<string> {
@@ -26,9 +27,6 @@ function toCodeSet(raw: string | null | undefined): Set<string> {
   })
   return s
 }
-
-// HS 코드 → 품목명 (알려진 품목만; 없으면 코드 표기)
-const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
 
 // 6지표 메타 (표시 순서·라벨)
 const INDICATORS: { key: keyof RiskOut; label: string; note: string }[] = [
@@ -76,17 +74,28 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   // 추천/보고서 링크(query_id 있으면 붙임)
   const recoHref = queryId != null ? `/recommendations?query_id=${queryId}` : "/recommendations"
   const reportHref = queryId != null ? `/reports/new?query_id=${queryId}` : "/reports/new"
-  const itemName = queryName ?? HS_NAME[hsCode] ?? `HS ${hsCode}`
+  // 품목명은 내 품목(/queries)에서 온 것만 쓴다. 없으면 HS 코드로 표기.
+  const itemName = queryName ?? `HS ${hsCode}`
+  // GET /risks 는 as_of_date별 이력을 모두 반환하므로 한 국가가 여러 행으로 온다.
+  // 국가별 최신 스냅샷만 남겨야 중복 표시·중복 key·'N개국' 오집계를 막을 수 있다.
+  const latestByCountry = useMemo(() => {
+    const latest = new Map<string, RiskOut>()
+    rows.forEach((row) => {
+      const current = latest.get(row.country_code)
+      if (!current || row.as_of_date > current.as_of_date) latest.set(row.country_code, row)
+    })
+    return [...latest.values()]
+  }, [rows])
   // 국가를 SGRI 높은 순으로 정렬
-  const ranked = useMemo(() => [...rows].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [rows])
+  const ranked = useMemo(() => [...latestByCountry].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [latestByCountry])
   const worst = ranked[0]
   // 대표 국가: (순위 클릭) → 거래중 → 관심(등록) → (안전망)최고 위험국. 최고SGRI 자동선택 안 함.
   const ref = useMemo(() => {
-    if (focusCode) { const f = rows.find((r) => r.country_code === focusCode); if (f) return f }
+    if (focusCode) { const f = latestByCountry.find((r) => r.country_code === focusCode); if (f) return f }
     const t = ranked.find((r) => tradingCodes.has(r.country_code)); if (t) return t
     const o = ranked.find((r) => originCodes.has(r.country_code)); if (o) return o
     return worst
-  }, [rows, ranked, focusCode, tradingCodes, originCodes, worst])
+  }, [latestByCountry, ranked, focusCode, tradingCodes, originCodes, worst])
   const refStatus: "trading" | "registered" | "focus" | "fallback" =
     ref && tradingCodes.has(ref.country_code) ? "trading"
     : ref && originCodes.has(ref.country_code) ? "registered"
@@ -97,8 +106,8 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-      <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-      <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+      <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+      <div className="ml-auto flex items-center gap-3"><AlertBell /><UserAvatar /></div>
     </header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
       <BackLink />
@@ -106,14 +115,14 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
         <div>
           <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${toneOf(topScore)}`}><span className={`h-2 w-2 rounded-full ${topLevel === "high" ? "bg-rose-500" : topLevel === "medium" ? "bg-amber-500" : "bg-emerald-500"}`} /> {LEVEL_LABEL[topLevel]} 모니터링</div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{itemName} 리스크 분석</h1>
-          <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {rows.length}개국{ref ? ` · ${refStatusLabel} ${getCountryName(ref.country_code)}` : ""}</p>
+          <p className="mt-2 text-sm text-slate-500">HS {hsCode} · 분석 대상 공급국 {latestByCountry.length}개국{ref ? ` · ${refStatusLabel} ${getCountryName(ref.country_code)}` : ""}</p>
         </div>
       </div>
 
       {!loaded ? <p className="mt-16 text-center text-sm text-slate-400">불러오는 중…</p>
         : rows.length === 0 ? <div className="mt-16 text-center text-sm text-slate-500">해당 품목의 위험 데이터가 없습니다.<div className="mt-3"><Button asChild variant="outline"><Link href="/dashboard">대시보드로</Link></Button></div></div>
         : <>
-        <section className="mt-7 grid gap-5 lg:grid-cols-4">
+        <section className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-4">
           <Card className={`shadow-sm ${topLevel === "high" ? "border-rose-100 bg-gradient-to-br from-rose-50 to-white" : topLevel === "medium" ? "border-amber-100 bg-gradient-to-br from-amber-50 to-white" : "border-emerald-100 bg-gradient-to-br from-emerald-50 to-white"}`}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-600">{refStatusLabel} SGRI ({ref ? getCountryName(ref.country_code) : "-"})</span><CircleAlert className={`h-5 w-5 ${toneOf(topScore)}`} /></div>
@@ -124,7 +133,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
           </Card>
           <Card className="border-slate-200 shadow-sm lg:col-span-3">
             <CardHeader className="pb-2"><CardTitle className="text-base">SGRI 구성 항목 — {ref ? getCountryName(ref.country_code) : ""}</CardTitle><CardDescription className="mt-1">6개 지표(공식 산출)의 {refStatusLabel} 점수입니다.</CardDescription></CardHeader>
-            <CardContent className="grid gap-x-8 gap-y-5 pt-3 sm:grid-cols-2">
+            <CardContent className="grid grid-cols-1 gap-x-8 gap-y-5 pt-3 sm:grid-cols-2">
               {INDICATORS.map((ind) => {
                 const v = ref ? num(ref[ind.key] as string | null) : 0
                 return <div key={ind.key}>
@@ -136,7 +145,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
           </Card>
         </section>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
           <Card className="border-slate-200 shadow-sm xl:col-span-2">
             <CardHeader className="pb-3"><CardTitle className="text-base">공급국 위험 순위</CardTitle><CardDescription className="mt-1">SGRI가 높은(위험한) 순서 · 국가를 누르면 위 상세가 그 국가로 바뀝니다.</CardDescription></CardHeader>
             <CardContent className="space-y-2">
@@ -163,7 +172,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="pb-3"><CardTitle className="text-base">요약</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-slate-500">분석 공급국</span><span className="font-medium">{rows.length}개국</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">분석 공급국</span><span className="font-medium">{latestByCountry.length}개국</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">고위험(50+)</span><span className="font-medium text-rose-600">{ranked.filter((r) => num(r.sgri_score) >= 50).length}개국</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">안정(25 미만)</span><span className="font-medium text-emerald-600">{ranked.filter((r) => num(r.sgri_score) < 25).length}개국</span></div>
                 <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500"><TrendingUp className="mr-1 inline h-3.5 w-3.5 text-blue-600" /> 최고 위험국 대비 안정 공급국으로의 다변화를 권장합니다.</p>

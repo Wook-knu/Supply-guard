@@ -9,12 +9,13 @@ import { useRouter } from "next/navigation"
 import { Fragment, useEffect, useState } from "react"
 import { api, type QueryOut, type ReportOut } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
-import { ArrowRight, Bell, Check, CheckCircle2, Download, FileCheck2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ArrowRight, Check, CheckCircle2, Download, FileCheck2, Loader2, PencilLine, ShieldAlert, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
+import AlertBell from "@/components/alert-bell"
+import UserAvatar from "@/components/user-avatar"
 
 const REPORT_SECTIONS = [
   { id: "summary", title: "경영진 요약", description: "현재 위험도와 우선 대응 사항을 한 페이지로 요약" },
@@ -129,7 +130,7 @@ export default function NewReportPage() {
   }
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="relative text-slate-600"><Bell className="h-4 w-4" /></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div></header>
+    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6"><Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link><div className="ml-auto flex items-center gap-3"><AlertBell /><UserAvatar /></div></header>
 
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <BackLink />
@@ -292,13 +293,15 @@ function AiReportPreview({ report }: { report: ReportOut }) {
     ? report.sections
     : Object.entries(report.sections ?? {}).map(([title, body], index) => ({ id: String(index), title, body }))
   return <Card className="print-area mt-6 border-emerald-100 shadow-sm">
-    <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-slate-100 pb-5">
-      <div>
-        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600"><CheckCircle2 className="h-4 w-4" /> AI 초안 생성 완료</div>
+    {/* 버튼(whitespace-nowrap)이 줄지 않아 좁은 화면에서 제목이 한 글자씩 꺾이던 문제 →
+        모바일은 세로로 쌓고, 제목 열에 min-w-0을 줘서 정상적으로 줄바꿈되게 한다. */}
+    <CardHeader className="flex flex-col items-stretch gap-4 space-y-0 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600"><CheckCircle2 className="h-4 w-4 shrink-0" /> AI 초안 생성 완료</div>
         <CardTitle className="text-lg">{report.title}</CardTitle>
         <CardDescription className="mt-1">{report.summary} · 상태: {report.status}</CardDescription>
       </div>
-      <div className="flex gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href={`/reports/${report.report_id}`}><PencilLine className="mr-2 h-4 w-4" />초안 편집</Link></Button><Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button></div>
+      <div className="flex shrink-0 flex-wrap gap-2"><Button asChild variant="outline" className="border-slate-200"><Link href={`/reports/${report.report_id}`}><PencilLine className="mr-2 h-4 w-4" />초안 편집</Link></Button><Button onClick={() => window.print()} variant="outline" className="no-print border-slate-200"><Download className="mr-2 h-4 w-4" />PDF 저장</Button></div>
     </CardHeader>
     <CardContent className="space-y-5 p-6">
       {sections.length === 0 && <p className="text-sm text-slate-500">생성된 섹션이 없습니다.</p>}

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 const LoginGlobe = dynamic(() => import("@/components/login-globe"), { ssr: false })
-import { ArrowRight, Building2, Check, Chrome, Globe2, Mail, ShieldAlert, Sparkles } from "lucide-react"
+import { ArrowRight, Chrome, Globe2, ShieldAlert, Sparkles } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"

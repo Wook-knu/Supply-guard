@@ -50,7 +50,7 @@ export default function ChatWidget() {
     <>
       {/* 안내 말풍선 — 닫혀있고 아직 대화를 안 열었을 때 */}
       {!open && showHint && (
-        <div className="fixed bottom-8 right-[92px] z-40 max-w-[220px] animate-in fade-in slide-in-from-right-2 duration-500">
+        <div className="fixed bottom-[6.5rem] right-[92px] z-40 max-w-[220px] animate-in fade-in slide-in-from-right-2 duration-500 lg:bottom-8">
           <div className="relative rounded-2xl bg-white px-4 py-3 text-sm font-medium leading-snug text-slate-700 shadow-xl ring-1 ring-slate-100">
             <span className="mr-1">🤖</span>모르시는 게 있으면<br />여기에 물어보세요!
             <button type="button" onClick={() => setShowHint(false)} aria-label="안내 닫기" className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 shadow hover:bg-slate-300"><X className="h-3 w-3" /></button>
@@ -60,12 +60,12 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* 우하단 플로팅 버튼 (AI 로봇) */}
+      {/* 우하단 플로팅 버튼 (AI 로봇). 모바일은 하단 탭바(h-16) 위로 올린다. */}
       <button
         type="button"
         onClick={() => { setOpen((v) => !v); setShowHint(false) }}
         aria-label={open ? "AI 어시스턴트 닫기" : "AI 어시스턴트 열기"}
-        className="fixed bottom-5 right-5 z-40 flex h-15 w-15 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 ring-4 ring-white transition-transform hover:scale-105 active:scale-95"
+        className="fixed bottom-20 right-5 z-40 flex h-15 w-15 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 ring-4 ring-white transition-transform hover:scale-105 active:scale-95 lg:bottom-5"
         style={{ height: 60, width: 60 }}
       >
         {open ? <X className="h-6 w-6" /> : <Bot className="h-7 w-7" />}
@@ -73,7 +73,7 @@ export default function ChatWidget() {
 
       {/* 대화 패널 */}
       {open && (
-        <div className="fixed bottom-24 right-5 z-40 flex h-[540px] w-[min(384px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="fixed bottom-36 right-5 z-40 flex h-[min(540px,calc(100vh-12rem))] w-[min(384px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl lg:bottom-24 lg:h-[540px]">
           {/* 헤더 */}
           <div className="flex items-center gap-2.5 border-b border-slate-100 bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-white">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20"><Sparkles className="h-4 w-4" /></div>
