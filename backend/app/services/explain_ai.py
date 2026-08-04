@@ -53,11 +53,6 @@ def _lvl(v: float) -> str:
     return "높음" if v >= 50 else "중간" if v >= 25 else "낮음"
 
 
-def _whole_score(value: float) -> int:
-    """프론트의 Math.round와 같은 양수 반올림 규칙을 사용한다."""
-    return int(float(value) + 0.5)
-
-
 # ── 국가 추천 설명 ────────────────────────────────────────────────────────
 _COUNTRY_PROMPT = (
     "당신은 공급망 리스크 분석가입니다. 주어진 국가의 SGRI 6개 지표와 조달 조건을 근거로, "
@@ -90,9 +85,9 @@ def explain_country(item_name: str, country_name: str, reco: dict) -> dict:
     sgri = float(reco.get("sgri_score") or 0)
     fit = float(reco.get("fit_score") or 0)
     return {
-        "summary": f"{country_name}는 {item_name} 조달 후보 중 {reco.get('rank')}순위(종합 적합도 {_whole_score(fit)})입니다. "
-                   f"SGRI 종합 위험은 {_whole_score(sgri)}점({_lvl(sgri)})으로 평가됩니다.",
-        "factors": factors or [{"label": "종합", "detail": f"6개 지표 종합 SGRI {_whole_score(sgri)}점입니다."}],
+        "summary": f"{country_name}는 {item_name} 조달 후보 중 {reco.get('rank')}순위(종합 적합도 {fit:.0f})입니다. "
+                   f"SGRI 종합 위험은 {sgri:.0f}점({_lvl(sgri)})으로 평가됩니다.",
+        "factors": factors or [{"label": "종합", "detail": f"6개 지표 종합 SGRI {sgri:.0f}점입니다."}],
         "recommendation": ("우선 검토 대상으로 견적을 요청해 보세요." if sgri < 50
                            else "대체 후보와 병행 비교 후 신중히 검토하세요."),
         "source": "fallback",
@@ -140,7 +135,7 @@ def explain_supplier(item_name: str, company: dict, reco: dict, target_price=Non
         factors.append({"label": "불량률", "detail": f"{float(dr):.1f}%로 품질이 {'우수' if float(dr) < 2 else '보통'}합니다."})
     fit = float(reco.get("fit_score") or 0)
     return {
-        "summary": f"{company.get('name')}는 {item_name} 공급사 후보 중 {reco.get('rank')}순위(적합도 {_whole_score(fit)})입니다. "
+        "summary": f"{company.get('name')}는 {item_name} 공급사 후보 중 {reco.get('rank')}순위(적합도 {fit:.0f})입니다. "
                    f"{company.get('country_code')} 소재로 공개·등록 지표 기반 평가입니다.",
         "factors": factors or [{"label": "종합", "detail": "공개 데이터 기반 조달 적합도 평가입니다."}],
         "recommendation": "MOQ·인코텀즈 등 세부 조건을 확인 후 견적을 요청하세요.",
