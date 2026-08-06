@@ -447,7 +447,7 @@ class ComtradeClient:
 class CustomsClient:
     """Korea Customs Service item trade API for supply and import-price signals."""
 
-    BASE_URL = "https://apis.data.go.kr/1220000/Itemtrade/getItemtradeList"
+    BASE_URL = "https://apis.data.go.kr/1220000/nitemtrade/getNitemtradeList"
 
     def __init__(self, http: JsonHttpClient, api_key: str | None = None) -> None:
         self.http = http
@@ -458,6 +458,7 @@ class CustomsClient:
         hs_code: str,
         start_yymm: str | None,
         end_yymm: str | None,
+        country_code: str | None = None,
     ) -> ApiFetchResult:
         result = ApiFetchResult()
         if not self.api_key:
@@ -473,13 +474,21 @@ class CustomsClient:
                 )
             )
             return result
+        if not country_code:
+            result.errors.append(
+                ApiError("Korea Customs", "country code (cntyCd) is required")
+            )
+            return result
+        # 포털 인증키는 Encoding/Decoding 두 형태가 있는데, unquote로 정규화하면
+        # build_url(urlencode)이 한 번만 인코딩해 이중 인코딩 문제를 피한다.
         url = build_url(
             self.BASE_URL,
             {
-                "serviceKey": self.api_key,
+                "serviceKey": urllib.parse.unquote(self.api_key),
                 "strtYymm": start_yymm,
                 "endYymm": end_yymm,
                 "hsSgn": hs_code,
+                "cntyCd": country_code,
             },
         )
         text, error = self.http.get_text(url)
@@ -502,7 +511,9 @@ class CustomsClient:
         periods: list[str] = []
         for item in root.iter("item"):
             hs = (item.findtext("hsCd") or "").strip()
-            if not hs:
+            period = (item.findtext("year") or "").strip()
+            # 합계행(year="총계", hsCd="-")은 변동계수 계산에서 제외
+            if not hs or hs == "-" or period == "총계":
                 continue
             import_weight = _numeric_text(item.findtext("impWgt"))
             import_usd = _numeric_text(item.findtext("impDlr"))
@@ -510,7 +521,7 @@ class CustomsClient:
                 import_weights.append(import_weight)
             if import_weight and import_usd is not None:
                 unit_prices.append(import_usd / import_weight)
-            periods.append((item.findtext("year") or "").strip())
+            periods.append(period)
 
         supply_metrics = price_volatility_metrics(import_weights)
         price_metrics = price_volatility_metrics(unit_prices)

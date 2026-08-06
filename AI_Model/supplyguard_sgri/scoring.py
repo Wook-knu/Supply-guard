@@ -167,12 +167,13 @@ def fetch_external_data(request: SgriRequest) -> ApiFetchResult:
         result.extend(GdacsClient(http).fetch_disasters(request.import_country))
     if options.include_fred and request.fred_series_id:
         result.extend(FredClient(http).fetch_series(request.fred_series_id))
-    if options.include_customs:
+    if options.include_customs and country_specific:
         result.extend(
             CustomsClient(http).fetch_item_trade(
                 request.hs_code,
                 request.customs_start_yymm,
                 request.customs_end_yymm,
+                country_code=request.import_country,
             )
         )
     if options.include_ecos:
