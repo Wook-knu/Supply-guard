@@ -79,8 +79,9 @@ export default function LoginPage() {
     try {
       if (mode === "signup") {
         await api.register({ email, password, name: name || undefined })
-        setSuccess("회원가입이 완료되었습니다! 잠시 후 대시보드로 이동합니다.")
-        setTimeout(() => router.push("/dashboard"), 1200)
+        setMode("login")
+        setPassword("")
+        setSuccess("회원가입이 완료되었습니다. 로그인해 주세요.")
         return
       }
       await api.login({ email, password })
