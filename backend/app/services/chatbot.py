@@ -46,11 +46,15 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
     """사용자 데이터를 챗봇 컨텍스트로 수집."""
     ctx: dict = {}
 
-    # 모니터링 품목 (+ 최고 SGRI)
-    q_stmt = select(UserQuery)
-    if user_id is not None:
-        q_stmt = q_stmt.where(UserQuery.user_id == user_id)
-    queries = db.execute(q_stmt.order_by(UserQuery.query_id.desc())).scalars().all()
+    # 모니터링 품목 (+ 최고 SGRI) — 비로그인 시 개인 데이터를 조회하지 않는다(정보 유출 방지).
+    if user_id is None:
+        queries = []
+    else:
+        queries = db.execute(
+            select(UserQuery)
+            .where(UserQuery.user_id == user_id)
+            .order_by(UserQuery.query_id.desc())
+        ).scalars().all()
     items = []
     seen = set()
     for q in queries:
@@ -68,10 +72,15 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
         })
     ctx["monitored_items"] = items[:10]
 
-    # 특정 품목 포커스
+    # 특정 품목 포커스 — 로그인 사용자 본인 소유 질의만 조회한다(IDOR 방지).
     focus_qid = query_id or (queries[0].query_id if queries else None)
-    if focus_qid:
-        fq = db.get(UserQuery, focus_qid)
+    if focus_qid and user_id is not None:
+        fq = db.execute(
+            select(UserQuery).where(
+                UserQuery.query_id == focus_qid,
+                UserQuery.user_id == user_id,
+            )
+        ).scalars().first()
         if fq and fq.hs_code:
             countries = db.execute(
                 select(ProcurementRecommendation)
@@ -102,11 +111,16 @@ def gather_context(db: Session, user_id: int | None, query_id: int | None) -> di
                 ],
             }
 
-    # 최근 알림
-    a_stmt = select(Alert).order_by(Alert.alert_id.desc()).limit(5)
-    if user_id is not None:
-        a_stmt = select(Alert).where(Alert.user_id == user_id).order_by(Alert.alert_id.desc()).limit(5)
-    alerts = db.execute(a_stmt).scalars().all()
+    # 최근 알림 — 비로그인 시 조회하지 않는다(정보 유출 방지).
+    if user_id is None:
+        alerts = []
+    else:
+        alerts = db.execute(
+            select(Alert)
+            .where(Alert.user_id == user_id)
+            .order_by(Alert.alert_id.desc())
+            .limit(5)
+        ).scalars().all()
     ctx["recent_alerts"] = [
         {"title": a.title, "severity": a.severity, "message": a.message} for a in alerts
     ]

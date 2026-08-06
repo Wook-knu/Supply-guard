@@ -50,6 +50,30 @@ _ENSURE_SQL = [
     """ALTER TABLE user_queries ADD COLUMN IF NOT EXISTS trading_company_ids TEXT;""",
     # 알림에 관련 뉴스/출처 링크 저장(구글뉴스 검색 URL 등).
     """ALTER TABLE alerts ADD COLUMN IF NOT EXISTS source_url TEXT;""",
+    # 검토 보드(노션/칸반) 테이블 — /boards 가 사용. 없으면 진입 시 500(UndefinedTable).
+    """CREATE TABLE IF NOT EXISTS review_boards (
+        board_id    BIGSERIAL PRIMARY KEY,
+        user_id     BIGINT REFERENCES users(user_id),
+        query_id    BIGINT,
+        title       VARCHAR(200) NOT NULL,
+        description TEXT,
+        created_at  TIMESTAMP DEFAULT now(),
+        updated_at  TIMESTAMP DEFAULT now()
+    );""",
+    """CREATE TABLE IF NOT EXISTS review_items (
+        item_id     BIGSERIAL PRIMARY KEY,
+        board_id    BIGINT NOT NULL REFERENCES review_boards(board_id) ON DELETE CASCADE,
+        kind        VARCHAR(20) NOT NULL,
+        ref_code    VARCHAR(20),
+        title       VARCHAR(200) NOT NULL,
+        memo        TEXT,
+        status      VARCHAR(20) DEFAULT 'candidate',
+        position    INTEGER DEFAULT 0,
+        created_at  TIMESTAMP DEFAULT now(),
+        updated_at  TIMESTAMP DEFAULT now()
+    );""",
+    """CREATE INDEX IF NOT EXISTS idx_review_boards_user ON review_boards(user_id);""",
+    """CREATE INDEX IF NOT EXISTS idx_review_items_board ON review_items(board_id);""",
 ]
 
 
