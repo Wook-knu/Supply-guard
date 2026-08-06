@@ -27,8 +27,15 @@ function toCodeSet(raw: string | null | undefined): Set<string> {
   return s
 }
 
-// HS 코드 → 품목명 (알려진 품목만; 없으면 코드 표기)
-const HS_NAME: Record<string, string> = { "283691": "리튬 탄산염" }
+// 국가별 최신 레코드만 남긴다(getRisks는 as_of_date 이력 전체를 반환하므로 중복 제거).
+function dedupeLatest(rows: RiskOut[]): RiskOut[] {
+  const latest = new Map<string, RiskOut>()
+  rows.forEach((r) => {
+    const cur = latest.get(r.country_code)
+    if (!cur || r.as_of_date > cur.as_of_date) latest.set(r.country_code, r)
+  })
+  return [...latest.values()]
+}
 
 // 6지표 메타 (표시 순서·라벨)
 const INDICATORS: { key: keyof RiskOut; label: string; note: string }[] = [
@@ -58,7 +65,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
 
   useEffect(() => {
     api.getRisks(hsCode)
-      .then((data) => setRows(data))
+      .then((data) => setRows(dedupeLatest(data)))
       .catch(() => setRows([]))
       .finally(() => setLoaded(true))
     // 이 HS로 등록된 내 품목을 찾아 query_id·등록국가 확보
@@ -76,7 +83,7 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   // 추천/보고서 링크(query_id 있으면 붙임)
   const recoHref = queryId != null ? `/recommendations?query_id=${queryId}` : "/recommendations"
   const reportHref = queryId != null ? `/reports/new?query_id=${queryId}` : "/reports/new"
-  const itemName = queryName ?? HS_NAME[hsCode] ?? `HS ${hsCode}`
+  const itemName = queryName ?? `HS ${hsCode}`
   // 국가를 SGRI 높은 순으로 정렬
   const ranked = useMemo(() => [...rows].sort((a, b) => num(b.sgri_score) - num(a.sgri_score)), [rows])
   const worst = ranked[0]

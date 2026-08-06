@@ -22,7 +22,7 @@ const verdictCls = (v: string) =>
 
 export default function BenchmarkPage() {
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState("283691")
+  const [hs, setHs] = useState("")
   const [country, setCountry] = useState("")
   const [data, setData] = useState<ItemBenchmark | null>(null)
   const [loading, setLoading] = useState(false)
@@ -58,7 +58,8 @@ export default function BenchmarkPage() {
       .then((rows) => {
         const withHs = rows.filter((r) => r.hs_code)
         setItems(withHs)
-        if (withHs[0]?.hs_code) setHs(withHs[0].hs_code)
+        // 첫 등록 품목을 자동 선택하고 바로 조회(하드코딩 기본값 제거).
+        if (withHs[0]?.hs_code) { setHs(withHs[0].hs_code); run(withHs[0].hs_code, "") }
       })
       .catch(() => {})
   }, [])
@@ -167,7 +168,6 @@ export default function BenchmarkPage() {
             {items.length > 0 ? (
               <select value={hs} onChange={(e) => setHs(e.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                 {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-                {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
               </select>
             ) : (
               <Input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-10 w-40" />

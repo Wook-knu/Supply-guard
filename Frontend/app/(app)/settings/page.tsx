@@ -71,7 +71,10 @@ export default function SettingsPage() {
       setName(u.name ?? "")
       setAvatar(u.picture_url ?? null)
     }).catch(() => setUser(null))
-    api.getRisks().then((rows) => {
+    // 품목명은 등록 품목(/queries)에서 가져와 표시(하드코딩 제거).
+    Promise.all([api.getQueries().catch(() => []), api.getRisks()]).then(([qs, rows]) => {
+      const nameByHs = new Map<string, string>()
+      qs.forEach((q) => { if (q.hs_code && q.item_name) nameByHs.set(q.hs_code, q.item_name) })
       const latestByItem = new Map<string, typeof rows[number]>()
       rows.forEach((row) => {
         const key = row.hs_code ?? ""
@@ -79,7 +82,7 @@ export default function SettingsPage() {
         if (!current || row.as_of_date > current.as_of_date || (row.as_of_date === current.as_of_date && Number(row.sgri_score) > Number(current.sgri_score))) latestByItem.set(key, row)
       })
       setRiskItems([...latestByItem.values()].map((row) => ({
-        name: row.hs_code === "283691" ? "리튬 탄산염" : `HS ${row.hs_code ?? "미지정"}`,
+        name: (row.hs_code ? nameByHs.get(row.hs_code) : undefined) ?? `HS ${row.hs_code ?? "미지정"}`,
         code: `HS ${row.hs_code ?? "-"}`,
         country: getCountryName(row.country_code),
         risk: row.level === "높음" ? "고위험" : row.level === "중간" ? "주의" : "안정",

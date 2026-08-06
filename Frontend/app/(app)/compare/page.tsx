@@ -42,7 +42,7 @@ function ComparePage() {
   const params = useSearchParams()
   const urlHs = params.get("hs")?.replace(/\D/g, "") || ""
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState(urlHs || "283691")
+  const [hs, setHs] = useState(urlHs || "")
   const [rows, setRows] = useState<RiskOut[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -52,8 +52,8 @@ function ComparePage() {
       .then((qs) => {
         const withHs = qs.filter((r) => r.hs_code)
         setItems(withHs)
-        // URL로 hs가 지정되면 그것을 유지, 아니면 첫 품목.
-        if (!urlHs && withHs[0]?.hs_code) setHs(withHs[0].hs_code)
+        // URL로 hs가 지정되면 그것을 유지, 아니면 첫 품목을 자동 선택하고 바로 조회.
+        if (!urlHs && withHs[0]?.hs_code) { setHs(withHs[0].hs_code); load(withHs[0].hs_code) }
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,7 +133,6 @@ function ComparePage() {
             {items.length > 0 ? (
               <select value={hs} onChange={(e) => { setHs(e.target.value); load(e.target.value) }} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                 {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-                {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
               </select>
             ) : (
               <div className="flex gap-2"><input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-10 w-36 rounded-md border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><Button onClick={() => load(hs)} className="h-10 bg-blue-600 hover:bg-blue-700">조회</Button></div>

@@ -23,7 +23,7 @@ const levelOf = (sgri: number | null) => (sgri == null ? "데이터 없음" : sg
 export default function MapPage() {
   const router = useRouter()
   const [items, setItems] = useState<QueryOut[]>([])
-  const [hs, setHs] = useState("283691")
+  const [hs, setHs] = useState("")
   const [risks, setRisks] = useState<RiskOut[]>([])
   const [suppliers, setSuppliers] = useState<SupplierReco[]>([])
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -40,7 +40,8 @@ export default function MapPage() {
 
   useEffect(() => {
     setSelectedCountry(null)
-    api.getRisks(hs).then(setRisks).catch(() => setRisks([]))
+    if (hs) api.getRisks(hs).then(setRisks).catch(() => setRisks([]))
+    else setRisks([])
     if (selectedQuery?.query_id != null) api.getSupplierRecos(selectedQuery.query_id).then(setSuppliers).catch(() => setSuppliers([]))
     else setSuppliers([])
   }, [hs, selectedQuery])
@@ -80,7 +81,6 @@ export default function MapPage() {
           {items.length > 0 ? (
             <select value={hs} onChange={(e) => setHs(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
               {items.map((i) => <option key={i.query_id} value={i.hs_code ?? ""}>{i.item_name} (HS {i.hs_code})</option>)}
-              {!items.some((i) => i.hs_code === "283691") && <option value="283691">리튬 탄산염 (HS 283691)</option>}
             </select>
           ) : (
             <input value={hs} onChange={(e) => setHs(e.target.value)} placeholder="예: 283691" className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
