@@ -214,7 +214,7 @@ export default function Dashboard() {
       return m?.code ?? n.toUpperCase()
     })
     type Row = { hs: string; queryId: number; name: string; sgri: number | null; countryCode: string | null; status: "trading" | "registered" | "fallback"; level: "high" | "medium" | "low" | null }
-    // 등록된 국가마다 한 행(거래중 + 관심 모두). 등록이 없으면 최고 위험국 하나(안전망).
+    // 등록된 국가(거래중 + 관심)만 표시. 등록이 없으면 '국가 미등록'으로만 표시(최고 위험국 자동선택 안 함).
     return monitoredItems.filter((it) => it.hs_code).flatMap((it): Row[] => {
       const countries = byHs.get(it.hs_code as string) ?? []
       const name = it.item_name?.trim() || `HS ${it.hs_code}`
@@ -223,8 +223,7 @@ export default function Dashboard() {
       const regCodes = [...new Set([...originCodes, ...tradingCodes])]
       const sgriOf = (code: string) => countries.find((c) => c.code === code)?.sgri
       if (regCodes.length === 0) {
-        const ref = [...countries].sort((a, b) => b.sgri - a.sgri)[0]  // 구 데이터 안전망
-        return ref ? [{ hs: it.hs_code as string, queryId: it.query_id, name, sgri: ref.sgri, countryCode: ref.code, status: "fallback", level: lvl(ref.sgri) }] : []
+        return [{ hs: it.hs_code as string, queryId: it.query_id, name, sgri: null, countryCode: null, status: "fallback", level: null }]
       }
       return regCodes.map((code): Row => {
         const s = sgriOf(code)
@@ -525,7 +524,7 @@ export default function Dashboard() {
                 {[...perItemRisk].filter((r) => !natlTradingOnly || r.status === "trading").sort((a, b) => natlDesc ? (b.sgri ?? -1) - (a.sgri ?? -1) : (a.sgri ?? 1e9) - (b.sgri ?? 1e9)).map((row) => (
                   <Link key={`${row.hs}-${row.countryCode}`} href={row.countryCode ? `/risks/${row.hs}?country=${row.countryCode}` : `/risks/${row.hs}`} className="flex items-center gap-3 border-t border-slate-50 px-6 py-3 transition-colors hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-800">{row.countryCode ? getCountryName(row.countryCode) : "국가 미등록"}<span className={`text-[11px] font-medium ${row.status === "trading" ? "text-blue-600" : row.status === "registered" ? "text-emerald-600" : "text-slate-400"}`}>{row.status === "trading" ? "· 현재 거래국" : row.status === "registered" ? "· 관심 국가" : "· 최고 위험국"}</span></p>
+                      <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-800">{row.countryCode ? getCountryName(row.countryCode) : "국가 미등록"}<span className={`text-[11px] font-medium ${row.status === "trading" ? "text-blue-600" : row.status === "registered" ? "text-emerald-600" : "text-slate-400"}`}>{row.status === "trading" ? "· 현재 거래국" : row.status === "registered" ? "· 관심 국가" : "· 국가 등록 필요"}</span></p>
                       <p className="mt-0.5 truncate text-xs text-slate-400">{row.name}</p>
                     </div>
                     {row.sgri != null ? <><span className="text-2xl font-bold tracking-tight" style={{ color: mapRiskColor(row.sgri) }}>{row.sgri}</span><RiskBadge level={row.level ?? "low"} /></> : <span className="text-xs text-slate-300">미분석</span>}
