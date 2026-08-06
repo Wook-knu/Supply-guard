@@ -34,6 +34,7 @@ export default function LoginPage() {
   const [name, setName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const googleBtnRef = useRef<HTMLDivElement>(null)
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
@@ -73,13 +74,16 @@ export default function LoginPage() {
     event.preventDefault()
     setIsSubmitting(true)
     setError("")
+    setSuccess("")
 
     try {
       if (mode === "signup") {
         await api.register({ email, password, name: name || undefined })
-      } else {
-        await api.login({ email, password })
+        setSuccess("회원가입이 완료되었습니다! 잠시 후 대시보드로 이동합니다.")
+        setTimeout(() => router.push("/dashboard"), 1200)
+        return
       }
+      await api.login({ email, password })
       router.push("/dashboard")
     } catch (err) {
       // 백엔드가 detail에 한글 메시지를 줌 (409 이미가입, 401 비번틀림 등)
@@ -119,9 +123,10 @@ export default function LoginPage() {
             <div><Label htmlFor="email" className="ml-1 text-sm font-medium text-slate-600">이메일</Label><Input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.co.kr" autoComplete="email" required className="mt-1.5 h-14 rounded-2xl border-slate-200 bg-slate-50 px-4 text-base transition-all focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-100" /></div>
             <div><Label htmlFor="password" className="ml-1 text-sm font-medium text-slate-600">비밀번호</Label><Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === "signup" ? "8자 이상" : "비밀번호"} autoComplete={mode === "signup" ? "new-password" : "current-password"} required minLength={mode === "signup" ? 8 : undefined} className="mt-1.5 h-14 rounded-2xl border-slate-200 bg-slate-50 px-4 text-base transition-all focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-100" /></div>
             {error && <p role="alert" className="ml-1 text-sm text-red-600">{error}</p>}
+            {success && <p role="status" className="ml-1 flex items-center gap-1.5 text-sm font-medium text-emerald-600"><Check className="h-4 w-4" />{success}</p>}
             <Button type="submit" disabled={isSubmitting} className="mt-2 h-14 w-full rounded-2xl bg-blue-600 text-base font-semibold shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-blue-500/40 active:translate-y-0">{isSubmitting ? (mode === "signup" ? "가입 중..." : "로그인 중...") : (mode === "signup" ? "회원가입" : "로그인")}</Button>
           </form>
-          <p className="mt-6 text-center text-sm text-slate-500">{mode === "signup" ? "이미 계정이 있으신가요? " : "계정이 없으신가요? "}<button type="button" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError("") }} className="font-semibold text-blue-600 hover:underline">{mode === "signup" ? "로그인" : "회원가입"}</button></p>
+          <p className="mt-6 text-center text-sm text-slate-500">{mode === "signup" ? "이미 계정이 있으신가요? " : "계정이 없으신가요? "}<button type="button" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setSuccess("") }} className="font-semibold text-blue-600 hover:underline">{mode === "signup" ? "로그인" : "회원가입"}</button></p>
           <p className="mt-4 text-center text-xs leading-5 text-slate-400">계속하면 SupplyGuard 이용약관 및 개인정보 처리방침에 동의하게 됩니다.</p>
         </div>
       </section>

@@ -29,9 +29,9 @@ SGRI = 0.25·S + 0.20·P + 0.15·V + 0.15·L + 0.15·C + 0.10·E
 
 | 지표 | 의미 | 데이터 출처(공개 API) |
 |---|---|---|
-| **S** 수급 불안정성 | 공급 차질 위험 | UN Comtrade · 관세청 · GDELT |
+| **S** 수급 불안정성 | 공급 차질 위험 | UN Comtrade · GDELT |
 | **P** 국가·정책 리스크 | 지정학·규제 | World Bank WGI · GDELT |
-| **V** 가격 변동성 | 원가 급등 | FRED · 한국은행 ECOS · 관세청 |
+| **V** 가격 변동성 | 원가 급등 | FRED · 한국은행 ECOS |
 | **L** 물류 리스크 | 납기·운송 | World Bank LPI · IMF PortWatch · GDACS |
 | **C** 공급처 집중도 | 특정국 편중(HHI) | UN Comtrade |
 | **E** ESG·탄소규제 | CBAM 관세 노출 | CBAM(HS 매핑) · World Bank(CO₂) · GDELT |
