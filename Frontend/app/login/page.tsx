@@ -102,11 +102,13 @@ export default function LoginPage() {
     {/* 좌측: 화면을 꽉 채우는 회전 지구본 */}
     <section className="relative hidden overflow-hidden bg-gradient-to-br from-blue-700 via-blue-500 to-cyan-400 p-12 text-white lg:flex lg:flex-col lg:justify-between">
       <div className="absolute inset-0 opacity-90"><LoginGlobe /></div>
+      {/* 지구본 위 가독성 오버레이 — 왼쪽(텍스트 영역)을 어둡게 해 흰 글씨 대비를 높인다 */}
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-blue-950/75 via-blue-950/35 to-transparent" />
       <div className="pointer-events-none relative z-10 flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/25 backdrop-blur"><ShieldAlert className="h-5 w-5" /></div><span className="font-semibold">SupplyGuard</span></div>
       <div className="pointer-events-none relative z-10">
-        <p className="text-sm font-medium text-blue-50">AI 기반 공급망 리스크 관리</p>
-        <h1 className="mt-4 max-w-md text-4xl font-bold leading-snug tracking-tight drop-shadow-sm">불확실한 공급망을<br />선제적으로 관리하세요.</h1>
-        <p className="mt-5 max-w-md leading-7 text-blue-50/90 drop-shadow-sm">품목별 위험 신호부터 대체 공급국·대응 보고서까지, 하나의 흐름으로.</p>
+        <p className="text-sm font-semibold text-white [text-shadow:0_1px_6px_rgba(3,7,40,0.55)]">AI 기반 공급망 리스크 관리</p>
+        <h1 className="mt-4 max-w-md text-4xl font-bold leading-snug tracking-tight text-white [text-shadow:0_2px_10px_rgba(3,7,40,0.6)]">불확실한 공급망을<br />선제적으로 관리하세요.</h1>
+        <p className="mt-5 max-w-md leading-7 text-white/95 [text-shadow:0_1px_8px_rgba(3,7,40,0.55)]">품목별 위험 신호부터 대체 공급국·대응 보고서까지,<br />하나의 흐름으로.</p>
       </div>
       <p className="pointer-events-none relative z-10 text-xs text-blue-100/70">© 2026 SupplyGuard</p>
     </section>
