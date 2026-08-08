@@ -9,7 +9,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react"
 import UserAvatar from "@/components/user-avatar"
 import AlertBell from "@/components/alert-bell"
 import { api, type ItemBenchmark, type QueryOut } from "@/lib/api"
-import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
+import { getCountryName } from "@/lib/countries"
 import { ArrowLeft, BarChart3, ExternalLink, Loader2, Newspaper, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,17 @@ export default function BenchmarkPage() {
   const [news, setNews] = useState<import("@/lib/api").RealArticle[] | null>(null)
   const [newsTerm, setNewsTerm] = useState("")
   const [newsLoading, setNewsLoading] = useState(false)
+  // '국가 상대 위치' 셀렉터는 이 품목의 SGRI 데이터가 있는 국가만 노출(전체 국가 X).
+  const [countryOpts, setCountryOpts] = useState<string[]>([])
+  useEffect(() => {
+    const clean = hs.replace(/[^0-9]/g, "")
+    if (!clean) { setCountryOpts([]); return }
+    let active = true
+    api.getRisks(clean)
+      .then((rows) => { if (active) setCountryOpts([...new Set(rows.map((r) => r.country_code))].sort()) })
+      .catch(() => { if (active) setCountryOpts([]) })
+    return () => { active = false }
+  }, [hs])
 
   const loadCases = () => {
     const clean = hs.replace(/[^0-9]/g, "")
@@ -178,7 +189,7 @@ export default function BenchmarkPage() {
             <label className="mb-1.5 block text-xs font-medium text-slate-500">국가 상대 위치 (선택)</label>
             <select value={country} onChange={(e) => setCountry(e.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">— 선택 안 함 —</option>
-              {COUNTRY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
+              {countryOpts.map((c) => <option key={c} value={c}>{getCountryName(c) || c} ({c})</option>)}
             </select>
           </div>
           <Button type="submit" disabled={loading} className="h-10 bg-blue-600 hover:bg-blue-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "조회"}</Button>
