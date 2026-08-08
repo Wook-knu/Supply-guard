@@ -423,6 +423,9 @@ export const api = {
   // 품목·국가별 월별 SGRI 추이 (실데이터 재산출) — '품목별 공급망 리스크 추이' 차트용
   getSgriSeries: (hsCode: string, country: string) =>
     http<{ series: { period: string; sgri: number; score_s: number | null; score_v: number | null }[]; source?: string }>(`/risks/sgri-series?hs_code=${encodeURIComponent(hsCode)}&country=${encodeURIComponent(country)}`),
+  // 이 품목의 SGRI 추이 데이터가 있는 국가 목록 (추이 차트 국가 셀렉터용)
+  getSgriCountries: (hsCode: string) =>
+    http<{ countries: string[] }>(`/risks/sgri-countries?hs_code=${encodeURIComponent(hsCode)}`),
   // F-10 알림
   getAlerts: (unreadOnly = false) =>
     http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),

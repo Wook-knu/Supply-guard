@@ -149,16 +149,28 @@ export default function Dashboard() {
     .split(",").map((s) => s.trim()).filter(Boolean)
     .map((n) => COUNTRY_OPTIONS.find((o) => o.name === n || o.code === n.toUpperCase())?.code ?? n.toUpperCase()),
     [selectedItem])
-  // 추이 차트에서 고를 수 있는 등록 국가 목록(거래중 먼저)
+  // 추이 차트 국가 목록 = 이 품목의 월별 SGRI 데이터가 있는 '모든' 국가(관심 등록 불필요).
+  const [trendCountryList, setTrendCountryList] = useState<string[]>([])
+  useEffect(() => {
+    if (!selectedHsCode) { setTrendCountryList([]); return }
+    let active = true
+    api.getSgriCountries(selectedHsCode)
+      .then((r) => { if (active) setTrendCountryList(r.countries ?? []) })
+      .catch(() => { if (active) setTrendCountryList([]) })
+    return () => { active = false }
+  }, [selectedHsCode])
   const trendCountryOptions = useMemo(() => {
-    const codes = [...new Set([...selectedTradingCodes, ...selectedOriginCodes])]
+    // 거래중·관심 국가를 앞으로, 나머지 데이터 보유국을 뒤로.
+    const pref = [...selectedTradingCodes, ...selectedOriginCodes].filter((c) => trendCountryList.includes(c))
+    const codes = [...new Set([...pref, ...trendCountryList])]
     return codes.map((c) => ({ code: c, name: getCountryName(c) || c }))
-  }, [selectedOriginCodes, selectedTradingCodes])
-  // 품목이 바뀌면 추이 국가를 그 품목의 등록 국가(거래중 우선)로 초기화
+  }, [trendCountryList, selectedOriginCodes, selectedTradingCodes])
+  // 품목이 바뀌면 추이 국가를 초기화(거래중·관심 우선, 없으면 데이터 보유 첫 국가)
   useEffect(() => {
     setTrendCountry((prev) => {
       if (prev && trendCountryOptions.some((o) => o.code === prev)) return prev
-      return selectedTradingCodes[0] ?? selectedOriginCodes[0] ?? ""
+      const firstPref = [...selectedTradingCodes, ...selectedOriginCodes].find((c) => trendCountryOptions.some((o) => o.code === c))
+      return firstPref ?? trendCountryOptions[0]?.code ?? ""
     })
   }, [selectedHsCode, trendCountryOptions, selectedTradingCodes, selectedOriginCodes])
   const scoreTrend = useMemo(() => {
@@ -619,7 +631,7 @@ export default function Dashboard() {
                   : customsChart.length >= 2 ? <>
                     <div className="mb-2 flex items-baseline gap-2"><span className="text-sm text-slate-500">최근 SGRI</span><span className="text-2xl font-bold text-slate-800">{(customsChart.at(-1)?.sgri ?? 0).toLocaleString()}<span className="ml-1 text-sm font-medium text-slate-400">점</span></span></div>
                     <div className="h-44"><ResponsiveContainer width="100%" height="100%"><AreaChart data={customsChart} margin={{ top: 8, left: -6, right: 8, bottom: 0 }}><defs><linearGradient id="sgriFill" x1="0" x2="0" y1="0" y2="1"><stop offset="5%" stopColor="#e11d48" stopOpacity={0.20} /><stop offset="95%" stopColor="#e11d48" stopOpacity={0} /></linearGradient></defs><CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={10} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} width={32} /><Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0" }} formatter={(v) => [`${Number(v).toLocaleString()} 점`, "SGRI"]} /><Area type="monotone" dataKey="sgri" name="SGRI" stroke="#e11d48" strokeWidth={2.5} fill="url(#sgriFill)" /></AreaChart></ResponsiveContainer></div>
-                  </> : <div className="grid h-48 place-items-center px-6 text-center text-sm text-slate-400">{trendCountry ? "이 품목·국가의 SGRI 추이 데이터가 없습니다." : "추이를 보려면 국가를 관심·거래중으로 등록하세요."}</div>}
+                  </> : <div className="grid h-48 place-items-center px-6 text-center text-sm text-slate-400">{trendCountry ? "이 품목·국가의 SGRI 추이 데이터가 없습니다." : "이 품목의 SGRI 추이 데이터가 아직 없습니다."}</div>}
                 <p className="mt-3 text-[11px] text-slate-400">월별 SGRI 추이 · 관세청 월별 수입량(S)·단가(V) 실데이터 반영 재산출</p>
               </CardContent>
             </Card>

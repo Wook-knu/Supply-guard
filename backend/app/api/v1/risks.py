@@ -98,6 +98,18 @@ def _debug_customs(hs_code: str, country: str, start: str, end: str) -> dict:
     return info
 
 
+@router.get("/sgri-countries")
+def sgri_countries(
+    hs_code: str = Query(..., description="HS 코드"),
+    db: Session = Depends(get_db),
+):
+    """이 품목의 월별 SGRI 추이 데이터가 있는 국가 코드 목록(추이 차트 국가 선택용)."""
+    rows = db.execute(text(
+        "SELECT DISTINCT country_code FROM sgri_monthly WHERE hs_code = :h ORDER BY country_code"
+    ), {"h": hs_code}).scalars().all()
+    return {"countries": list(rows)}
+
+
 @router.get("/sgri-series")
 def sgri_series(
     hs_code: str = Query(..., description="HS 코드"),
