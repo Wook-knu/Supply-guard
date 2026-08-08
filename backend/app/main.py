@@ -74,6 +74,18 @@ _ENSURE_SQL = [
     );""",
     """CREATE INDEX IF NOT EXISTS idx_review_boards_user ON review_boards(user_id);""",
     """CREATE INDEX IF NOT EXISTS idx_review_items_board ON review_items(board_id);""",
+    # 과거 AI 폴백으로 쌓인 중복 기업 정리 — 실데이터 공급사가 있는 배터리 3개 HS
+    #   (탄산리튬/수산화리튬/코발트)의 'ai:gemini' 기업을 제거한다(실기업 SQM 등과 중복 방지).
+    #   FK 때문에 추천(supplier_recommendations) 먼저 삭제.
+    """DELETE FROM supplier_recommendations
+       WHERE company_id IN (
+         SELECT company_id FROM companies
+         WHERE data_source = 'ai:gemini'
+           AND (hs_codes @> '["283691"]' OR hs_codes @> '["282520"]' OR hs_codes @> '["282200"]')
+       );""",
+    """DELETE FROM companies
+       WHERE data_source = 'ai:gemini'
+         AND (hs_codes @> '["283691"]' OR hs_codes @> '["282520"]' OR hs_codes @> '["282200"]');""",
 ]
 
 

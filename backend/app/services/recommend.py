@@ -68,8 +68,12 @@ def generate_recommendations(db: Session, query: UserQuery, ai_fallback: bool = 
     companies = db.execute(
         select(Company).where(Company.hs_codes.contains([query.hs_code]))
     ).scalars().all()
-    # 회사 DB에 그 품목 공급사가 없으면 Gemini로 후보 생성(비동기 경로에서만).
-    if not companies and ai_fallback:
+    # 실데이터 기업과 AI 생성 기업을 분리한다. 실데이터가 있으면 '실데이터만' 추천에 쓴다
+    # — 사용자가 요청하지도 않은 과거 AI 후보가 자동 추천에 끼어들어 실기업과 중복돼
+    #   보이는 문제를 막는다(AI 추천은 프론트의 'AI로 추천받기'를 눌렀을 때만 편입).
+    real_companies = [c for c in companies if (c.data_source or "") != "ai:gemini"]
+    # 회사 DB에 그 품목 '실' 공급사가 없을 때만 Gemini 폴백(비동기 경로에서만).
+    if not real_companies and ai_fallback:
         try:
             from app.services.company_ai import generate_ai_companies
             candidate_countries = list(sgri_by_country.keys())
@@ -77,10 +81,13 @@ def generate_recommendations(db: Session, query: UserQuery, ai_fallback: bool = 
                 companies = db.execute(
                     select(Company).where(Company.hs_codes.contains([query.hs_code]))
                 ).scalars().all()
+                real_companies = [c for c in companies if (c.data_source or "") != "ai:gemini"]
         except Exception:  # noqa: BLE001 - AI 폴백 실패해도 국가 추천은 유지
             pass
+    # 추천 대상: 실데이터가 있으면 실데이터만, 아예 없으면 (AI 포함) 전체.
+    pool = real_companies if real_companies else companies
     ranked = sorted(
-        [c for c in companies if c.country_code in sgri_by_country],
+        [c for c in pool if c.country_code in sgri_by_country],
         key=lambda c: sgri_by_country[c.country_code],
     )
     for rank, c in enumerate(ranked, start=1):
