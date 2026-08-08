@@ -3,6 +3,8 @@
 // 서비스의 핵심 현황을 위험도·알림·보고서 API 기반으로 요약합니다.
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import UserAvatar from "@/components/user-avatar"
+import AlertBell from "@/components/alert-bell"
 import { api, type AlertOut, type CountryReco, type QueryOut, type ReportOut, type RiskOut, type SupplierReco } from "@/lib/api"
 import { COUNTRY_OPTIONS, getCountryName } from "@/lib/countries"
 import {
@@ -42,7 +44,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -493,12 +494,8 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-          <Button asChild variant="ghost" size="icon" className="relative text-slate-600">
-            <Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link>
-          </Button>
-          <Avatar className="h-8 w-8 border border-slate-200">
-            <AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback>
-          </Avatar>
+          <AlertBell />
+          <UserAvatar />
         </div>
       </header>
 

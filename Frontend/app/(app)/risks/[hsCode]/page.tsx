@@ -7,8 +7,9 @@ import Link from "next/link"
 import BackLink from "@/components/back-link"
 import { useSearchParams } from "next/navigation"
 import { use, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, Bell, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import UserAvatar from "@/components/user-avatar"
+import AlertBell from "@/components/alert-bell"
+import { ArrowLeft, ArrowRight, Bot, CircleAlert, FileText, Globe2, ShieldAlert, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -103,9 +104,9 @@ export default function RiskDetailPage({ params }: { params: Promise<{ hsCode: s
   const topLevel = levelOf(topScore)
 
   return <div className="min-h-screen bg-slate-50 text-slate-900">
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-      <Link href="/dashboard" className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
-      <div className="flex items-center gap-3"><Button asChild variant="ghost" size="icon" className="relative text-slate-600"><Link href="/alerts"><Bell className="h-4 w-4" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" /></Link></Button><Avatar className="h-8 w-8 border border-slate-200"><AvatarFallback className="bg-blue-50 text-xs font-semibold text-blue-700">SW</AvatarFallback></Avatar></div>
+    <header className="flex h-16 items-center justify-between lg:justify-end border-b border-slate-200 bg-white px-6">
+      <Link href="/dashboard" className="flex items-center gap-2.5 lg:hidden"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 shadow-sm"><ShieldAlert className="h-4 w-4 text-white" /></div><span className="font-semibold tracking-tight">SupplyGuard</span></Link>
+      <div className="flex items-center gap-3"><AlertBell /><UserAvatar /></div>
     </header>
     <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
       <BackLink />
