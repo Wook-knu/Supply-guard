@@ -287,19 +287,20 @@ export default function Dashboard() {
   const currentScore = scoreTrend.at(-1)?.score ?? 0
   const previousScore = scoreTrend.at(-2)?.score ?? currentScore
   const scoreChange = currentScore - previousScore
-  // 현재 스냅샷의 6지표 구성(선택 품목·국가 기준) — 일별 이력이 없어 '추이' 대신 현재 구성으로 표시
-  const currentBreakdown = useMemo(() => {
-    if (!selectedHsCode) return null
-    const cc = (trendCountry || selectedOriginCodes[0] || "").toUpperCase()
-    const cand = riskHistory.filter((r) => r.hs_code === selectedHsCode && (!cc || (r.country_code ?? "").toUpperCase() === cc))
-    if (!cand.length) return null
-    const row = cand.reduce((a, b) => (b.as_of_date > a.as_of_date ? b : a))
-    const n = (v: string | null) => Math.round(Number(v ?? 0))
-    return [
-      { label: "집중도", v: n(row.score_c) }, { label: "정책", v: n(row.score_p) }, { label: "수급", v: n(row.score_s) },
-      { label: "가격", v: n(row.score_v) }, { label: "물류", v: n(row.score_l) }, { label: "ESG", v: n(row.score_e) },
-    ]
-  }, [riskHistory, selectedHsCode, trendCountry, selectedOriginCodes])
+  // 관세청 월별 수입 시계열 — 선택 품목·국가의 공급 변동 추이(실데이터 꺾은선)
+  const [customs, setCustoms] = useState<{ period: string; imp_wgt: number; unit_price: number | null }[]>([])
+  const [customsLoading, setCustomsLoading] = useState(false)
+  useEffect(() => {
+    if (!selectedHsCode || !trendCountry) { setCustoms([]); return }
+    let active = true
+    setCustomsLoading(true)
+    api.getCustomsSeries(selectedHsCode, trendCountry)
+      .then((r) => { if (active) setCustoms(r.series ?? []) })
+      .catch(() => { if (active) setCustoms([]) })
+      .finally(() => { if (active) setCustomsLoading(false) })
+    return () => { active = false }
+  }, [selectedHsCode, trendCountry])
+  const customsChart = useMemo(() => customs.map((r) => ({ name: r.period.slice(2), ton: Math.round(r.imp_wgt / 1000) })), [customs])
   const alertCount = alerts.filter((alert) => !alert.is_read).length
   // 최신 동향 카드: 실제 알림을 최신순 상위 4건으로 표시한다(하드코딩 뉴스 대체).
   const trend = useMemo(() => alerts.slice(0, 4).map((alert) => ({
@@ -592,16 +593,19 @@ export default function Dashboard() {
 
             <Card className="border-2 border-violet-200 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${trendCountry ? getCountryName(trendCountry) : selectedOriginCodes.length ? "등록 국가" : "공급국"} 기준 · 현재 스냅샷` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${trendCountry ? getCountryName(trendCountry) : "국가 선택"} · 월별 수입 변동(관세청)` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
                 <div className="flex flex-col items-end gap-1.5">
                   <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
                   {trendCountryOptions.length > 0 && <select aria-label="추이 국가 선택" value={trendCountry} onChange={(e) => setTrendCountry(e.target.value)} className="h-8 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{trendCountryOptions.map((o) => <option key={o.code} value={o.code}>{o.name}{selectedTradingCodes.includes(o.code) ? " (거래중)" : ""}</option>)}</select>}
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="mb-4 flex items-end gap-2.5"><span className="text-4xl font-bold tracking-tight" style={{ color: mapRiskColor(currentScore) }}>{currentScore}</span><span className="mb-1 text-sm text-slate-400">/ 100</span><span className="mb-1 ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">{currentScore >= 60 ? "고위험" : currentScore >= 35 ? "주의" : "안정"}</span></div>
-                {currentBreakdown ? <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">{currentBreakdown.map((it) => <div key={it.label}><div className="mb-1 flex items-center justify-between text-xs"><span className="text-slate-500">{it.label}</span><span className="font-semibold text-slate-700">{it.v}</span></div><div className="h-1.5 w-full rounded-full bg-slate-100"><div className="h-1.5 rounded-full" style={{ width: `${it.v}%`, backgroundColor: mapRiskColor(it.v) }} /></div></div>)}</div> : <div className="grid h-32 place-items-center text-sm text-slate-400">등록 국가의 SGRI 데이터가 없습니다.</div>}
-                <p className="mt-3 text-[11px] text-slate-400">현재 스냅샷 기준 · 6개 지표 위험 구성 (0~100, 낮을수록 안전)</p>
+                {customsLoading ? <div className="grid h-48 place-items-center text-sm text-slate-400">불러오는 중…</div>
+                  : customsChart.length >= 2 ? <>
+                    <div className="mb-2 flex items-baseline gap-2"><span className="text-sm text-slate-500">최근 월 수입중량</span><span className="text-2xl font-bold text-slate-800">{(customsChart.at(-1)?.ton ?? 0).toLocaleString()}<span className="ml-1 text-sm font-medium text-slate-400">톤</span></span></div>
+                    <div className="h-44"><ResponsiveContainer width="100%" height="100%"><AreaChart data={customsChart} margin={{ top: 8, left: -6, right: 8, bottom: 0 }}><defs><linearGradient id="impFill" x1="0" x2="0" y1="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.22} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0} /></linearGradient></defs><CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={10} /><YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} width={46} /><Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0" }} formatter={(v) => [`${Number(v).toLocaleString()} 톤`, "수입중량"]} /><Area type="monotone" dataKey="ton" name="수입중량(톤)" stroke="#2563eb" strokeWidth={2.5} fill="url(#impFill)" /></AreaChart></ResponsiveContainer></div>
+                  </> : <div className="grid h-48 place-items-center px-6 text-center text-sm text-slate-400">{trendCountry ? "이 품목·국가의 관세청 월별 수입 데이터가 없습니다." : "추이를 보려면 국가를 관심·거래중으로 등록하세요."}</div>}
+                <p className="mt-3 text-[11px] text-slate-400">관세청 수출입실적 · 월별 수입중량(톤) 실데이터 · 공급 변동 추이</p>
               </CardContent>
             </Card>
           </section>

@@ -413,6 +413,9 @@ export const api = {
   // F-05 국가별 SGRI (대시보드 고위험 품목)
   getRisks: (hsCode?: string) =>
     http<RiskOut[]>(`/risks${hsCode ? `?hs_code=${hsCode}` : ""}`),
+  // 관세청 월별 수입 시계열 (공급 변동 추이 그래프용)
+  getCustomsSeries: (hsCode: string, country: string) =>
+    http<{ series: { period: string; imp_wgt: number; imp_dlr: number; unit_price: number | null }[]; start?: string; end?: string; source?: string; note?: string }>(`/risks/customs-series?hs_code=${encodeURIComponent(hsCode)}&country=${encodeURIComponent(country)}`),
   // F-10 알림
   getAlerts: (unreadOnly = false) =>
     http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),
