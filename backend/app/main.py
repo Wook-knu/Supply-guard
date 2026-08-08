@@ -85,6 +85,17 @@ _ENSURE_SQL = [
         unit_price   DOUBLE PRECISION,
         PRIMARY KEY (hs_code, country_code, period)
     );""",
+    # 월별 SGRI 시계열 — '품목별 공급망 리스크 추이' 차트용.
+    #   기준 SGRI에서 관세청 월별 수입량(S)·단가(V) 편차를 반영해 재산출한 실데이터 시계열.
+    """CREATE TABLE IF NOT EXISTS sgri_monthly (
+        hs_code      VARCHAR(10) NOT NULL,
+        country_code VARCHAR(2)  NOT NULL,
+        period       VARCHAR(7)  NOT NULL,
+        sgri_score   DOUBLE PRECISION,
+        score_s      DOUBLE PRECISION,
+        score_v      DOUBLE PRECISION,
+        PRIMARY KEY (hs_code, country_code, period)
+    );""",
     # 과거 AI 폴백으로 쌓인 중복 기업 정리 — 실데이터 공급사가 있는 배터리 3개 HS
     #   (탄산리튬/수산화리튬/코발트)의 'ai:gemini' 기업을 제거한다(실기업 SQM 등과 중복 방지).
     #   FK 때문에 추천(supplier_recommendations) 먼저 삭제.
@@ -138,6 +149,20 @@ async def lifespan(_: FastAPI):
         print("[startup] customs monthly seed applied")
     except Exception as exc:  # noqa: BLE001 — 시드 실패해도 기동은 막지 않음
         print(f"[startup] customs seed skipped: {exc}")
+
+    # 월별 SGRI 시계열 시드 — 매 기동 멱등.
+    try:
+        raw = engine.raw_connection()
+        try:
+            cur = raw.cursor()
+            cur.execute("SET client_encoding TO 'UTF8'")
+            cur.execute((_DB_DIR / "seed_sgri_monthly.sql").read_text(encoding="utf-8"))
+            raw.commit()
+        finally:
+            raw.close()
+        print("[startup] sgri monthly seed applied")
+    except Exception as exc:  # noqa: BLE001 — 시드 실패해도 기동은 막지 않음
+        print(f"[startup] sgri seed skipped: {exc}")
 
     # 실기업 시드 1회 로드 (회사가 10곳 미만일 때만 — 멱등 파일이라 반복돼도 안전).
     try:

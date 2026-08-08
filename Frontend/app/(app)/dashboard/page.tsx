@@ -288,20 +288,20 @@ export default function Dashboard() {
   const currentScore = scoreTrend.at(-1)?.score ?? 0
   const previousScore = scoreTrend.at(-2)?.score ?? currentScore
   const scoreChange = currentScore - previousScore
-  // 관세청 월별 수입 시계열 — 선택 품목·국가의 공급 변동 추이(실데이터 꺾은선)
-  const [customs, setCustoms] = useState<{ period: string; imp_wgt: number; unit_price: number | null }[]>([])
+  // 월별 SGRI 추이 — 선택 품목·국가의 공급망 리스크 변동(실데이터 재산출 꺾은선)
+  const [sgriSeries, setSgriSeries] = useState<{ period: string; sgri: number }[]>([])
   const [customsLoading, setCustomsLoading] = useState(false)
   useEffect(() => {
-    if (!selectedHsCode || !trendCountry) { setCustoms([]); return }
+    if (!selectedHsCode || !trendCountry) { setSgriSeries([]); return }
     let active = true
     setCustomsLoading(true)
-    api.getCustomsSeries(selectedHsCode, trendCountry)
-      .then((r) => { if (active) setCustoms(r.series ?? []) })
-      .catch(() => { if (active) setCustoms([]) })
+    api.getSgriSeries(selectedHsCode, trendCountry)
+      .then((r) => { if (active) setSgriSeries(r.series ?? []) })
+      .catch(() => { if (active) setSgriSeries([]) })
       .finally(() => { if (active) setCustomsLoading(false) })
     return () => { active = false }
   }, [selectedHsCode, trendCountry])
-  const customsChart = useMemo(() => customs.map((r) => ({ name: r.period.slice(2), ton: Math.round(r.imp_wgt / 1000) })), [customs])
+  const customsChart = useMemo(() => sgriSeries.map((r) => ({ name: r.period.slice(2), sgri: Math.round(r.sgri) })), [sgriSeries])
   const alertCount = alerts.filter((alert) => !alert.is_read).length
 
   // 최신 동향 카드: 내 등록 품목의 '실제 최근 뉴스'(GDELT 최근 3개월, 기사 날짜 최신순).
@@ -608,7 +608,7 @@ export default function Dashboard() {
 
             <Card className="border-2 border-violet-200 shadow-sm">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${trendCountry ? getCountryName(trendCountry) : "국가 선택"} · 월별 수입 변동(관세청)` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
+                <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><TrendingUp className="h-4 w-4" /></span><div><CardTitle className="text-base">품목별 공급망 리스크 추이</CardTitle><CardDescription className="mt-1">{selectedItem ? `${selectedItem.item_name ?? `HS ${selectedItem.hs_code}`} · ${trendCountry ? getCountryName(trendCountry) : "국가 선택"} · 월별 SGRI 추이` : "모니터링 품목을 먼저 등록해 주세요."}</CardDescription></div></div>
                 <div className="flex flex-col items-end gap-1.5">
                   <select aria-label="위험도 품목 선택" value={selectedHsCode} onChange={(event) => setSelectedHsCode(event.target.value)} disabled={monitoredItems.length === 0} className="h-9 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="">품목 선택</option>{monitoredItems.map((item) => <option key={item.hs_code} value={item.hs_code}>{item.item_name ?? `HS ${item.hs_code}`}</option>)}</select>
                   {trendCountryOptions.length > 0 && <select aria-label="추이 국가 선택" value={trendCountry} onChange={(e) => setTrendCountry(e.target.value)} className="h-8 max-w-36 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">{trendCountryOptions.map((o) => <option key={o.code} value={o.code}>{o.name}{selectedTradingCodes.includes(o.code) ? " (거래중)" : ""}</option>)}</select>}
@@ -617,10 +617,10 @@ export default function Dashboard() {
               <CardContent className="pt-4">
                 {customsLoading ? <div className="grid h-48 place-items-center text-sm text-slate-400">불러오는 중…</div>
                   : customsChart.length >= 2 ? <>
-                    <div className="mb-2 flex items-baseline gap-2"><span className="text-sm text-slate-500">최근 월 수입중량</span><span className="text-2xl font-bold text-slate-800">{(customsChart.at(-1)?.ton ?? 0).toLocaleString()}<span className="ml-1 text-sm font-medium text-slate-400">톤</span></span></div>
-                    <div className="h-44"><ResponsiveContainer width="100%" height="100%"><AreaChart data={customsChart} margin={{ top: 8, left: -6, right: 8, bottom: 0 }}><defs><linearGradient id="impFill" x1="0" x2="0" y1="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.22} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0} /></linearGradient></defs><CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={10} /><YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} width={46} /><Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0" }} formatter={(v) => [`${Number(v).toLocaleString()} 톤`, "수입중량"]} /><Area type="monotone" dataKey="ton" name="수입중량(톤)" stroke="#2563eb" strokeWidth={2.5} fill="url(#impFill)" /></AreaChart></ResponsiveContainer></div>
-                  </> : <div className="grid h-48 place-items-center px-6 text-center text-sm text-slate-400">{trendCountry ? "이 품목·국가의 관세청 월별 수입 데이터가 없습니다." : "추이를 보려면 국가를 관심·거래중으로 등록하세요."}</div>}
-                <p className="mt-3 text-[11px] text-slate-400">관세청 수출입실적 · 월별 수입중량(톤) 실데이터 · 공급 변동 추이</p>
+                    <div className="mb-2 flex items-baseline gap-2"><span className="text-sm text-slate-500">최근 SGRI</span><span className="text-2xl font-bold text-slate-800">{(customsChart.at(-1)?.sgri ?? 0).toLocaleString()}<span className="ml-1 text-sm font-medium text-slate-400">점</span></span></div>
+                    <div className="h-44"><ResponsiveContainer width="100%" height="100%"><AreaChart data={customsChart} margin={{ top: 8, left: -6, right: 8, bottom: 0 }}><defs><linearGradient id="sgriFill" x1="0" x2="0" y1="0" y2="1"><stop offset="5%" stopColor="#e11d48" stopOpacity={0.20} /><stop offset="95%" stopColor="#e11d48" stopOpacity={0} /></linearGradient></defs><CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={10} /><YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11 }} width={32} /><Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0" }} formatter={(v) => [`${Number(v).toLocaleString()} 점`, "SGRI"]} /><Area type="monotone" dataKey="sgri" name="SGRI" stroke="#e11d48" strokeWidth={2.5} fill="url(#sgriFill)" /></AreaChart></ResponsiveContainer></div>
+                  </> : <div className="grid h-48 place-items-center px-6 text-center text-sm text-slate-400">{trendCountry ? "이 품목·국가의 SGRI 추이 데이터가 없습니다." : "추이를 보려면 국가를 관심·거래중으로 등록하세요."}</div>}
+                <p className="mt-3 text-[11px] text-slate-400">월별 SGRI 추이 · 관세청 월별 수입량(S)·단가(V) 실데이터 반영 재산출</p>
               </CardContent>
             </Card>
           </section>

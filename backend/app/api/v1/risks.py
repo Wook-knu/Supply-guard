@@ -98,6 +98,27 @@ def _debug_customs(hs_code: str, country: str, start: str, end: str) -> dict:
     return info
 
 
+@router.get("/sgri-series")
+def sgri_series(
+    hs_code: str = Query(..., description="HS 코드"),
+    country: str = Query(..., description="국가코드(ISO2)"),
+    db: Session = Depends(get_db),
+):
+    """품목·국가별 '월별 SGRI 추이'. 기준 SGRI에서 관세청 월별 수입량(S)·단가(V)
+    편차를 반영해 재산출한 실데이터 시계열(sgri_monthly)."""
+    rows = db.execute(text(
+        "SELECT period, sgri_score, score_s, score_v FROM sgri_monthly "
+        "WHERE hs_code = :h AND country_code = :c ORDER BY period"
+    ), {"h": hs_code, "c": country}).mappings().all()
+    series = [
+        {"period": r["period"], "sgri": float(r["sgri_score"]),
+         "score_s": float(r["score_s"]) if r["score_s"] is not None else None,
+         "score_v": float(r["score_v"]) if r["score_v"] is not None else None}
+        for r in rows
+    ]
+    return {"series": series, "source": "SGRI 월별(실데이터 재산출)"}
+
+
 @router.get("/customs-series")
 def customs_series(
     hs_code: str = Query(..., description="HS 코드"),

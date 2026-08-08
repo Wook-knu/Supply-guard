@@ -420,6 +420,9 @@ export const api = {
   // 관세청 월별 수입 시계열 (공급 변동 추이 그래프용)
   getCustomsSeries: (hsCode: string, country: string) =>
     http<{ series: { period: string; imp_wgt: number; imp_dlr: number; unit_price: number | null }[]; start?: string; end?: string; source?: string; note?: string }>(`/risks/customs-series?hs_code=${encodeURIComponent(hsCode)}&country=${encodeURIComponent(country)}`),
+  // 품목·국가별 월별 SGRI 추이 (실데이터 재산출) — '품목별 공급망 리스크 추이' 차트용
+  getSgriSeries: (hsCode: string, country: string) =>
+    http<{ series: { period: string; sgri: number; score_s: number | null; score_v: number | null }[]; source?: string }>(`/risks/sgri-series?hs_code=${encodeURIComponent(hsCode)}&country=${encodeURIComponent(country)}`),
   // F-10 알림
   getAlerts: (unreadOnly = false) =>
     http<AlertOut[]>(`/alerts${unreadOnly ? "?unread_only=true" : ""}`),
