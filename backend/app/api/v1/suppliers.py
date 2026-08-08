@@ -64,16 +64,17 @@ def generate_ai_suppliers(
     from app.services.company_ai import generate_ai_companies
     created = generate_ai_companies(db, query.hs_code, query.item_name or "", [cc])
 
-    # 2) 이 품목의 기업 중 아직 추천에 없는 것을 편입.
-    #    요청 국가에 실제 기업이 없을 수 있으므로 국가로 강제 필터하지 않고,
-    #    AI가 찾은 실제 기업(실 소재국)을 그대로 추가한다(프론트가 국가별로 분류).
+    # 2) 이 품목의 기업 중 '선택한 국가(cc)' 소속이면서 아직 추천에 없는 것만 편입.
+    #    (사용자가 특정 국가의 AI 추천을 요청했으므로 다른 국가 기업이 섞이지 않게 함)
     all_companies = db.execute(
         select(Company).where(Company.hs_codes.contains([query.hs_code]))
     ).scalars().all()
-    new_companies = [c for c in all_companies if c.company_id not in existing_ids]
+    new_companies = [
+        c for c in all_companies
+        if c.company_id not in existing_ids and (c.country_code or "").upper() == cc
+    ]
     if not new_companies:
-        detail = ("AI가 새로운 기업을 찾지 못했습니다. 이 국가·품목에는 알려진 공급 기업이 없을 수 있습니다."
-                  if created == 0 else "추가할 새 기업이 없습니다.")
+        detail = f"AI가 {cc}의 새로운 공급 기업을 찾지 못했습니다. 이 국가·품목에는 알려진 공급 기업이 없을 수 있습니다."
         raise HTTPException(status_code=502, detail=detail)
 
     max_rank = db.execute(
