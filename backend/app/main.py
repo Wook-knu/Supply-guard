@@ -74,6 +74,17 @@ _ENSURE_SQL = [
     );""",
     """CREATE INDEX IF NOT EXISTS idx_review_boards_user ON review_boards(user_id);""",
     """CREATE INDEX IF NOT EXISTS idx_review_items_board ON review_items(board_id);""",
+    # 관세청 월별 수입 캐시 — 운영 서버(Railway)는 관세청 API가 IP 차단(403)이라
+    #   한국 IP에서 받은 실데이터를 여기에 적재해 '월별 수입 변동' 차트를 서비스한다.
+    """CREATE TABLE IF NOT EXISTS customs_trade_monthly (
+        hs_code      VARCHAR(10) NOT NULL,
+        country_code VARCHAR(2)  NOT NULL,
+        period       VARCHAR(7)  NOT NULL,
+        imp_wgt      DOUBLE PRECISION,
+        imp_dlr      DOUBLE PRECISION,
+        unit_price   DOUBLE PRECISION,
+        PRIMARY KEY (hs_code, country_code, period)
+    );""",
     # 과거 AI 폴백으로 쌓인 중복 기업 정리 — 실데이터 공급사가 있는 배터리 3개 HS
     #   (탄산리튬/수산화리튬/코발트)의 'ai:gemini' 기업을 제거한다(실기업 SQM 등과 중복 방지).
     #   FK 때문에 추천(supplier_recommendations) 먼저 삭제.
@@ -113,6 +124,20 @@ async def lifespan(_: FastAPI):
         print("[startup] hs-code supplychain seed applied")
     except Exception as exc:  # noqa: BLE001 — 시드 실패해도 기동은 막지 않음
         print(f"[startup] hs-code seed skipped: {exc}")
+
+    # 관세청 월별 수입 캐시 시드 — 매 기동 멱등(ON CONFLICT DO UPDATE).
+    try:
+        raw = engine.raw_connection()
+        try:
+            cur = raw.cursor()
+            cur.execute("SET client_encoding TO 'UTF8'")
+            cur.execute((_DB_DIR / "seed_customs_monthly.sql").read_text(encoding="utf-8"))
+            raw.commit()
+        finally:
+            raw.close()
+        print("[startup] customs monthly seed applied")
+    except Exception as exc:  # noqa: BLE001 — 시드 실패해도 기동은 막지 않음
+        print(f"[startup] customs seed skipped: {exc}")
 
     # 실기업 시드 1회 로드 (회사가 10곳 미만일 때만 — 멱등 파일이라 반복돼도 안전).
     try:

@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -102,11 +102,28 @@ def _debug_customs(hs_code: str, country: str, start: str, end: str) -> dict:
 def customs_series(
     hs_code: str = Query(..., description="HS 코드"),
     country: str = Query(..., description="국가코드(ISO2)"),
+    db: Session = Depends(get_db),
     debug: int = Query(default=0),
 ):
-    """관세청 월별 수입 실적(수입중량·단가) 시계열 — 공급 변동 추이용. CUSTOMS_API_KEY 필요."""
+    """관세청 월별 수입 실적(수입중량·단가) 시계열 — 공급 변동 추이용.
+    캐시(customs_trade_monthly)를 우선 사용한다. 운영 서버(Railway)에서는 관세청 API가
+    데이터센터 IP 차단(403)이라, 한국 IP에서 미리 적재한 실데이터 캐시로 서비스한다.
+    캐시가 없으면 라이브 API 호출(로컬/한국 IP에서 동작)."""
+    cached = db.execute(text(
+        "SELECT period, imp_wgt, imp_dlr, unit_price FROM customs_trade_monthly "
+        "WHERE hs_code = :h AND country_code = :c ORDER BY period"
+    ), {"h": hs_code, "c": country}).mappings().all()
+    if cached:
+        series = [
+            {"period": r["period"], "imp_wgt": float(r["imp_wgt"] or 0),
+             "imp_dlr": float(r["imp_dlr"] or 0),
+             "unit_price": float(r["unit_price"]) if r["unit_price"] is not None else None}
+            for r in cached
+        ]
+        return {"series": series, "source": "관세청 수출입실적", "cached": True}
+
     if not os.environ.get("CUSTOMS_API_KEY"):
-        return {"series": [], "source": "관세청", "note": "CUSTOMS_API_KEY 미설정"}
+        return {"series": [], "source": "관세청", "note": "데이터 없음"}
     start, end = _yymm_range(12, lag=1)
     series = _fetch_customs(hs_code, country, start, end)
     if not series:  # 최근 12개월 데이터가 없으면 직전 12개월로 1회 폴백
