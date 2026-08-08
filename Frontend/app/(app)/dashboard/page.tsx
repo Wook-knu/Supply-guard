@@ -303,16 +303,34 @@ export default function Dashboard() {
   }, [selectedHsCode, trendCountry])
   const customsChart = useMemo(() => customs.map((r) => ({ name: r.period.slice(2), ton: Math.round(r.imp_wgt / 1000) })), [customs])
   const alertCount = alerts.filter((alert) => !alert.is_read).length
-  // 최신 동향 카드: 실제 알림을 최신순 상위 4건으로 표시한다(하드코딩 뉴스 대체).
-  const trend = useMemo(() => alerts.slice(0, 4).map((alert) => ({
-    title: alert.title ?? alert.message ?? "리스크 알림",
-    source: alert.alert_type ?? "SupplyGuard",
-    time: alert.created_at ? new Date(alert.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "",
-    level: severityLabel(alert.severity),
-    // 관련 뉴스 링크가 있으면 그곳으로, 없으면 해당 품목 리스크 상세로. (대체공급처로 보내지 않음)
-    href: alert.source_url ?? (alert.hs_code ? `/risks/${alert.hs_code}` : "/alerts"),
-    external: Boolean(alert.source_url),
-  })), [alerts])
+
+  // 최신 동향 카드: 내 등록 품목의 '실제 최근 뉴스'(GDELT 최근 3개월, 기사 날짜 최신순).
+  const [news, setNews] = useState<import("@/lib/api").MyNewsArticle[]>([])
+  const [newsLoading, setNewsLoading] = useState(true)
+  useEffect(() => {
+    let active = true
+    api.getMyRecentNews()
+      .then((r) => { if (active) setNews(r.articles ?? []) })
+      .catch(() => { if (active) setNews([]) })
+      .finally(() => { if (active) setNewsLoading(false) })
+    return () => { active = false }
+  }, [])
+
+  // 실제 뉴스가 있으면 그것을(항상 외부 기사 링크), 없으면 알림으로 폴백(카드가 비지 않게).
+  const trend = useMemo(() => {
+    if (news.length) return news.slice(0, 4).map((a) => ({
+      title: a.title, source: a.item || a.domain, time: a.date, level: "",
+      href: a.url, external: true,
+    }))
+    return alerts.slice(0, 4).map((alert) => ({
+      title: alert.title ?? alert.message ?? "리스크 알림",
+      source: alert.alert_type ?? "SupplyGuard",
+      time: alert.created_at ? new Date(alert.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "",
+      level: severityLabel(alert.severity),
+      href: alert.source_url ?? (alert.hs_code ? `/risks/${alert.hs_code}` : "/alerts"),
+      external: Boolean(alert.source_url),
+    }))
+  }, [news, alerts])
 
   // 검색과 품목 현황에 필요한 두 API를 함께 불러와 로딩·오류 상태를 구분한다.
   useEffect(() => {
@@ -647,13 +665,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-amber-200 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">클릭하면 관련 뉴스·리스크 상세로 이동</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => {
-              const inner = <><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium group-hover:text-blue-600">{article.title}</span><span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span></div><p className="flex items-center gap-1 text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}{article.external && <ExternalLink className="h-3 w-3" />}</p></>
+            <Card className="border-2 border-amber-200 shadow-sm"><CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Landmark className="h-4 w-4" /></span><div><CardTitle className="text-base">최신 동향</CardTitle><CardDescription className="mt-1">내 품목 관련 실제 최근 뉴스 · 클릭하면 원문으로 이동</CardDescription></div></CardHeader><CardContent className="px-0 pb-0">{trend.map((article, index) => {
+              const inner = <><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-sm font-medium group-hover:text-blue-600">{article.title}</span>{article.level && <span className={`shrink-0 text-[11px] font-medium ${article.level === "고위험" ? "text-rose-600" : article.level === "주의" ? "text-amber-600" : "text-emerald-600"}`}>{article.level}</span>}</div><p className="flex items-center gap-1 text-xs text-slate-400">{article.source}{article.time ? ` · ${article.time}` : ""}{article.external && <ExternalLink className="h-3 w-3" />}</p></>
               const cls = "group block border-t border-slate-100 px-6 py-3.5 transition-colors hover:bg-slate-50"
               return article.external
                 ? <a className={cls} href={article.href} target="_blank" rel="noreferrer" key={`${article.title}-${index}`}>{inner}</a>
                 : <Link className={cls} href={article.href} key={`${article.title}-${index}`}>{inner}</Link>
-            })}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">최근 알림이 없습니다.</p>}</CardContent></Card>
+            })}{trend.length === 0 && <p className="px-6 py-6 text-center text-xs text-slate-400">{newsLoading ? "최근 뉴스를 불러오는 중…" : "표시할 최근 뉴스가 없습니다."}</p>}</CardContent></Card>
           </section>
 
           <section id="reports" className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><ClipboardList className="h-4 w-4" /></div><div><p className="text-sm font-semibold">{latestReport?.title ?? "저장된 보고서가 없습니다"}</p><p className="text-xs text-slate-500">{latestReport ? `${latestReport.status ?? "draft"} · ${latestReport.created_at ? new Date(latestReport.created_at).toLocaleString("ko-KR") : "생성 시간 없음"}` : "분석 결과로 보고서를 생성해 보세요."}</p></div></div><Button asChild variant="outline" className="hidden border-slate-200 text-slate-700 sm:flex"><Link href={latestReport ? `/reports/${latestReport.report_id}` : "/reports/new"}>{latestReport ? "초안 열기" : "보고서 생성"} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section>

@@ -78,3 +78,74 @@ def build_real_cases(db: Session, hs_code: str, item_name_ko: str | None = None)
         if len(articles) >= 8:
             break
     return {"articles": articles, "query": query, "term": term, "source": "gdelt"}
+
+
+def _gdelt_recent(query: str, timespan: str, maxrecords: int = 10) -> list:
+    """GDELT 단일 조회(최신순). 실패 시 빈 목록."""
+    url = f"{_GDELT}?" + urllib.parse.urlencode({
+        "query": query, "mode": "artlist", "format": "json",
+        "maxrecords": maxrecords, "sort": "datedesc", "timespan": timespan,
+    })
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "SupplyGuard/1.0"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 - 네트워크/파싱 실패
+        return []
+    return (data.get("articles") or []) if isinstance(data, dict) else []
+
+
+def build_my_recent_news(db: Session, user_id: int | None, limit: int = 6) -> dict:
+    """로그인 사용자의 등록 품목들에 대한 '실제 최근 뉴스'(GDELT 최근 3개월) 집계.
+    대시보드 '최신 동향' 카드용 — 등록 시점이 아니라 실제 기사 날짜 기준 최신순."""
+    if not user_id:
+        return {"articles": [], "source": "gdelt"}
+    qrows = db.execute(text(
+        "SELECT hs_code, item_name FROM user_queries "
+        "WHERE user_id = :u AND hs_code IS NOT NULL AND hs_code <> '' "
+        "ORDER BY query_id DESC"
+    ), {"u": user_id}).mappings().all()
+
+    items: list[tuple[str, str | None]] = []
+    seen_hs: set[str] = set()
+    for q in qrows:
+        hs = "".join(ch for ch in str(q["hs_code"]) if ch.isdigit())
+        if not hs or hs in seen_hs:
+            continue
+        seen_hs.add(hs)
+        items.append((hs, q["item_name"]))
+        if len(items) >= 4:  # GDELT 호출 수 제한(응답 속도)
+            break
+
+    articles: list[dict] = []
+    seen_url: set[str] = set()
+    for hs, item_name in items:
+        row = db.execute(text(
+            "SELECT name_ko, name_en FROM hs_codes WHERE hs_code = :h"
+        ), {"h": hs}).mappings().first()
+        name_en = (row or {}).get("name_en") if row else None
+        name_ko = item_name or ((row or {}).get("name_ko") if row else None) or f"HS {hs}"
+        term = (name_en or name_ko or "").strip()
+        if not term:
+            continue
+        query = f'"{term}"' if " " in term else term
+        for a in _gdelt_recent(query, "3m", maxrecords=10):
+            u = a.get("url")
+            if not u or u in seen_url:
+                continue
+            seen_url.add(u)
+            articles.append({
+                "title": a.get("title") or u,
+                "url": u,
+                "domain": a.get("domain") or "",
+                "date": _fmt_date(a.get("seendate")),
+                "seendate": a.get("seendate") or "",
+                "hs": hs,
+                "item": name_ko,
+            })
+
+    # 실제 기사 날짜(seendate) 기준 최신순으로 정렬해 상위 limit건
+    articles.sort(key=lambda x: x["seendate"], reverse=True)
+    for a in articles:
+        a.pop("seendate", None)
+    return {"articles": articles[:limit], "source": "gdelt"}

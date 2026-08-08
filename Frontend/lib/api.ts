@@ -215,6 +215,8 @@ export type PeerCase = { profile: string; situation: string; action: string; out
 export type PeerCases = { cases: PeerCase[]; source: string }
 export type RealArticle = { title: string; url: string; domain: string; date: string }
 export type RealNews = { articles: RealArticle[]; query: string; term?: string; source: string }
+export type MyNewsArticle = { title: string; url: string; domain: string; date: string; hs: string; item: string }
+export type MyRecentNews = { articles: MyNewsArticle[]; source: string }
 
 export type TrendBrief = {
   summary: string
@@ -363,6 +365,8 @@ export const api = {
   getPeerCases: (hs: string) => http<PeerCases>(`/benchmark/peer-cases/${encodeURIComponent(hs)}`),
   // 이 품목 공급망 실제 뉴스 (GDELT, 출처 있음)
   getRealNews: (hs: string) => http<RealNews>(`/benchmark/real-news/${encodeURIComponent(hs)}`),
+  // 내 등록 품목들의 실제 최근 뉴스 (GDELT 최근 3개월, 대시보드 최신 동향 카드용)
+  getMyRecentNews: () => http<MyRecentNews>("/trends/news"),
   // 프로필 편집(이름/사진) · 비밀번호 변경
   updateMe: (body: { name?: string; picture_url?: string | null }) =>
     http<UserOut>("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
