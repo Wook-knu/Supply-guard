@@ -87,6 +87,21 @@ async def lifespan(_: FastAPI):
         except Exception as exc:  # noqa: BLE001 — 테이블 미존재 등은 무시하고 기동
             print(f"[startup] ensure skipped: {exc}")
 
+    # HS 품목 참조명(한/영) 시드 — 매 기동 멱등 실행(ON CONFLICT DO UPDATE).
+    #   자동완성·뉴스 검색이 이름/영문명에 의존하므로 배포마다 최신 목록을 보장한다.
+    try:
+        raw = engine.raw_connection()
+        try:
+            cur = raw.cursor()
+            cur.execute("SET client_encoding TO 'UTF8'")
+            cur.execute((_DB_DIR / "seed_hs_codes_supplychain.sql").read_text(encoding="utf-8"))
+            raw.commit()
+        finally:
+            raw.close()
+        print("[startup] hs-code supplychain seed applied")
+    except Exception as exc:  # noqa: BLE001 — 시드 실패해도 기동은 막지 않음
+        print(f"[startup] hs-code seed skipped: {exc}")
+
     # 실기업 시드 1회 로드 (회사가 10곳 미만일 때만 — 멱등 파일이라 반복돼도 안전).
     try:
         with engine.begin() as conn:
