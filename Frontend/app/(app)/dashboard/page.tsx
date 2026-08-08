@@ -223,7 +223,7 @@ export default function Dashboard() {
       const regCodes = [...new Set([...originCodes, ...tradingCodes])]
       const sgriOf = (code: string) => countries.find((c) => c.code === code)?.sgri
       if (regCodes.length === 0) {
-        return [{ hs: it.hs_code as string, queryId: it.query_id, name, sgri: null, countryCode: null, status: "fallback", level: null }]
+        return []  // 등록(거래중·관심) 국가가 없으면 대시보드엔 표시하지 않음(내 품목에서만 노출)
       }
       return regCodes.map((code): Row => {
         const s = sgriOf(code)
