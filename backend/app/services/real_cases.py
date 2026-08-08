@@ -39,20 +39,31 @@ def build_real_cases(db: Session, hs_code: str, item_name_ko: str | None = None)
 
     # 희소 품목도 결과가 나오게 품목명만으로 검색(맥락 AND 강제 제거). 최신순.
     query = f'"{term}"' if " " in term else term
-    url = f"{_GDELT}?" + urllib.parse.urlencode({
-        "query": query, "mode": "artlist", "format": "json",
-        "maxrecords": 25, "sort": "datedesc", "timespan": "12m",
-    })
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "SupplyGuard/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception:  # noqa: BLE001 - 네트워크/파싱 실패 → 빈 결과
-        return {"articles": [], "query": query, "source": "gdelt", "term": term}
+
+    def _fetch(timespan: str) -> list:
+        url = f"{_GDELT}?" + urllib.parse.urlencode({
+            "query": query, "mode": "artlist", "format": "json",
+            "maxrecords": 25, "sort": "datedesc", "timespan": timespan,
+        })
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "SupplyGuard/1.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001 - 네트워크/파싱 실패
+            return []
+        return (data.get("articles") or []) if isinstance(data, dict) else []
+
+    # '최신 동향'이므로 최근 3개월을 먼저 조회하고, 희소 품목이라 결과가 적을 때만
+    # 6개월 → 12개월로 창을 넓힌다(오래된 기사를 불필요하게 끌어오지 않게).
+    raw = _fetch("3m")
+    if len(raw) < 4:
+        raw = _fetch("6m") or raw
+    if len(raw) < 4:
+        raw = _fetch("12m") or raw
 
     seen: set[str] = set()
     articles = []
-    for a in (data.get("articles") or []) if isinstance(data, dict) else []:
+    for a in raw:
         u = a.get("url")
         domain = a.get("domain") or ""
         if not u or domain in seen:  # 언론사당 1건(다양성)

@@ -6,6 +6,7 @@
 // 로그인한 사람이 누구든 같은 글자가 보였다. 프로필 사진도 반영되지 않았다.
 // 표시 규칙을 이 한곳에서만 관리해 다시 어긋나지 않게 한다.
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { User } from "lucide-react"
 import { api, type UserOut } from "@/lib/api"
@@ -50,12 +51,16 @@ export default function UserAvatar({
 
   const initials = initialsOf(user)
 
+  // 클릭하면 프로필 수정(설정) 페이지로 이동. 호버 시 파란 링으로 클릭 가능함을 표시.
   return (
-    <Avatar className={`${className} border border-slate-200`}>
-      {user?.picture_url && <AvatarImage src={user.picture_url} alt={user.name ?? "프로필"} />}
-      <AvatarFallback className={`bg-blue-50 ${textClassName} font-semibold text-blue-700`}>
-        {initials || <User className="h-4 w-4" />}
-      </AvatarFallback>
-    </Avatar>
+    <Link href="/settings" aria-label="프로필 설정" title="프로필 설정"
+      className="rounded-full ring-offset-2 transition hover:ring-2 hover:ring-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <Avatar className={`${className} border border-slate-200`}>
+        {user?.picture_url && <AvatarImage src={user.picture_url} alt={user.name ?? "프로필"} />}
+        <AvatarFallback className={`bg-blue-50 ${textClassName} font-semibold text-blue-700`}>
+          {initials || <User className="h-4 w-4" />}
+        </AvatarFallback>
+      </Avatar>
+    </Link>
   )
 }
