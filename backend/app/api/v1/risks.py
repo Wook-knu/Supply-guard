@@ -6,6 +6,7 @@
 ※ queries.py 를 복사해 만든 '조회 전용' 라우터 패턴.
 """
 import os
+import re
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -76,10 +77,32 @@ def _fetch_customs(hs_code: str, country: str, start: str, end: str) -> list[dic
     return out
 
 
+def _debug_customs(hs_code: str, country: str, start: str, end: str) -> dict:
+    key = os.environ.get("CUSTOMS_API_KEY") or ""
+    info: dict = {"key_len": len(key), "key_head": key[:6]}
+    url = _CUSTOMS_URL + "?" + urllib.parse.urlencode({
+        "serviceKey": urllib.parse.unquote(key),
+        "strtYymm": start, "endYymm": end, "hsSgn": hs_code, "cntyCd": country,
+    })
+    try:
+        with urllib.request.urlopen(url, timeout=20) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+        m = re.search(r"<resultMsg>(.*?)</resultMsg>", raw) or re.search(r"<returnAuthMsg>(.*?)</returnAuthMsg>", raw)
+        info["http"] = "ok"
+        info["resultMsg"] = m.group(1) if m else None
+        info["item_count"] = raw.count("<item>")
+        info["raw_head"] = raw[:200]
+    except Exception as exc:  # noqa: BLE001
+        info["http"] = "error"
+        info["error"] = repr(exc)[:200]
+    return info
+
+
 @router.get("/customs-series")
 def customs_series(
     hs_code: str = Query(..., description="HS 코드"),
     country: str = Query(..., description="국가코드(ISO2)"),
+    debug: int = Query(default=0),
 ):
     """관세청 월별 수입 실적(수입중량·단가) 시계열 — 공급 변동 추이용. CUSTOMS_API_KEY 필요."""
     if not os.environ.get("CUSTOMS_API_KEY"):
@@ -89,7 +112,10 @@ def customs_series(
     if not series:  # 최근 12개월 데이터가 없으면 직전 12개월로 1회 폴백
         start, end = _yymm_range(12, lag=13)
         series = _fetch_customs(hs_code, country, start, end)
-    return {"series": series, "start": start, "end": end, "source": "관세청 수출입실적"}
+    resp = {"series": series, "start": start, "end": end, "source": "관세청 수출입실적"}
+    if debug:
+        resp["debug"] = _debug_customs(hs_code, country, start, end)
+    return resp
 
 
 @router.get("", response_model=list[RiskScoreOut])
